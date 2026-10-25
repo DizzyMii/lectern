@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <!-- benchmark marks on a 16 grid. Use with <svg viewBox="0 0 16 16"><use href="/marks.svg#verified"/></svg>; colour comes from currentColor -->
+  <symbol id="mark" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="butt" stroke-linejoin="miter" overflow="visible">
+    <path d="M3 3.5H13"/><path d="M8 6V13.5"/><path d="M3.6 13.5L8 6L12.4 13.5"/>
+  </symbol>
+  <symbol id="verified" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="butt" stroke-linejoin="miter" overflow="visible">
+    <path d="M3 3.5H13"/><path d="M8 6V13.5"/><path d="M3.6 13.5L8 6L12.4 13.5"/>
+  </symbol>
+  <symbol id="moved" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="butt" stroke-linejoin="miter" overflow="visible">
+    <path d="M3 3.5H13"/><path d="M8 6V13.5"/><path d="M3.6 13.5L8 6L12.4 13.5"/><path d="M12.4 13.5L15 11"/>
+  </symbol>
+  <symbol id="unverified" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="butt" stroke-linejoin="miter" overflow="visible">
+    <circle cx="8" cy="8" r="6" stroke-width="1.5" stroke-dasharray="2 2"/>
+    <path d="M6.3 6.6a1.75 1.75 0 1 1 2.6 1.5c-.6.3-.9.7-.9 1.3v.6M8 11v1.2" stroke-width="1.5"/>
+  </symbol>
+  <symbol id="pending" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="butt" stroke-linejoin="miter" opacity="0.6" overflow="visible">
+    <path d="M3 3.5H13"/><path d="M8 6V13.5"/><path d="M3.6 13.5L8 6L12.4 13.5"/>
+  </symbol>
+</svg>

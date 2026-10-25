@@ -1,0 +1,279 @@
+// Spawns mcp.mjs against a throwaway notebook with the fake engine and speaks the protocol to it.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import readline from 'node:readline';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { setupNotebook } from './helpers.mjs';
+
+const env = setupNotebook();
+const MCP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'mcp.mjs');
+test.after(() => env.cleanup());
+
+// a stream-json run whose answer cites one doc quote, one code line and one file that is not there
+const ANSWER = 'Handlers go in the event [[docs/guide/a.md|"Register handlers in RegisterPayloadHandlersEvent."]]. Foo is the class [[src/java/net/x/Foo.java#L3]]. Ghosts too [[docs/ghost.md#L1]].';
+function fixture(name, result) {
+  const lines = [
+    { type: 'system', subtype: 'init', session_id: 'sess-mcp', model: 'claude-haiku-5-5' },
+    { type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text: result.result ?? '' }] } },
+    { type: 'result', session_id: 'sess-mcp', total_cost_usd: 0.0123, usage: { input_tokens: 5, output_tokens: 7 }, ...result },
+  ];
+  const f = path.join(env.root, name);
+  fs.writeFileSync(f, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  return f;
+}
+const okFixture = fixture('ok.jsonl', { subtype: 'success', is_error: false, result: ANSWER });
+const capFixture = fixture('cap.jsonl', { subtype: 'error_max_turns', is_error: true });
+
+function start(fixturePath) {
+  const child = spawn(process.execPath, [MCP], {
+    env: { ...process.env, NB_FAKE_ENGINE: '1', NB_FAKE_FIXTURE: fixturePath, NB_REGISTRY: env.registry, NB_DATA_ROOT: env.root },
+    stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
+  });
+  const waiting = new Map();
+  const stdout = [];
+  const notes = [];
+  let stderr = '';
+  child.stderr.on('data', (d) => { stderr += d; });
+  readline.createInterface({ input: child.stdout }).on('line', (l) => {
+    stdout.push(l);
+    const m = JSON.parse(l); // every stdout line must be JSON
+    if (m.id != null && waiting.has(m.id)) { waiting.get(m.id)(m); waiting.delete(m.id); } else notes.push(m);
+  });
+  let next = 1;
+  const raw = (line) => child.stdin.write(line + '\n');
+  const request = (method, params, extra = {}) => new Promise((resolve) => {
+    const id = next++;
+    waiting.set(id, resolve);
+    raw(JSON.stringify({ jsonrpc: '2.0', id, method, ...(params !== undefined ? { params } : {}), ...extra }));
+  });
+  const call = async (name, args, meta) => (await request('tools/call', { name, arguments: args, ...(meta ? { _meta: meta } : {}) })).result;
+  const stop = () => new Promise((resolve) => { child.on('close', (code) => resolve(code)); child.stdin.end(); });
+  return { child, request, call, raw, stop, stdout, notes, stderr: () => stderr };
+}
+
+const srv = start(okFixture);
+test.after(() => srv.child.kill());
+
+test('initialize negotiates the protocol version and names the server lectern', async () => {
+  const r = await srv.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
+  assert.equal(r.result.protocolVersion, '2025-06-18');
+  assert.equal(r.result.serverInfo.name, 'lectern');
+  assert.deepEqual(r.result.capabilities, { tools: { listChanged: false } });
+  srv.raw(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }));
+  const odd = await srv.request('initialize', { protocolVersion: '1999-01-01', capabilities: {} });
+  assert.equal(odd.result.protocolVersion, '2025-11-25');
+  const bad = await srv.request('initialize', {});
+  assert.equal(bad.error.code, -32602);
+});
+
+test('ping, unknown methods, parse errors and invalid requests follow JSON-RPC', async () => {
+  assert.deepEqual((await srv.request('ping')).result, {});
+  assert.equal((await srv.request('resources/list', {})).error.code, -32601);
+  const before = srv.notes.length;
+  srv.raw('{not json');
+  srv.raw(JSON.stringify({ jsonrpc: '1.0', id: 99, method: 'ping' }));
+  await srv.request('ping'); // replies come in order for these, so both errors are in by now
+  const errs = srv.notes.slice(before).map((m) => m.error?.code);
+  assert.deepEqual(errs, [-32700, -32600]);
+  assert.equal((await srv.request('tools/call', { name: 'nope', arguments: {} })).error.code, -32602);
+});
+
+test('tools/list gives every tool a strict input schema', async () => {
+  const { tools } = (await srv.request('tools/list', {})).result;
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['ask', 'generate', 'get_artifact', 'list_artifacts', 'list_notebooks', 'read_source', 'search', 'verify']);
+  for (const t of tools) {
+    assert.equal(t.inputSchema.type, 'object', t.name);
+    assert.equal(t.inputSchema.additionalProperties, false, t.name);
+    assert.ok(t.description.length > 80, `${t.name} needs a real description`);
+    assert.equal(t.run, undefined);
+  }
+  const ask = tools.find((t) => t.name === 'ask');
+  assert.deepEqual(ask.inputSchema.required, ['notebook', 'question']);
+  assert.deepEqual(ask.inputSchema.properties.mode.enum, ['fast', 'deep']);
+});
+
+test('list_notebooks shows the test notebook', async () => {
+  const r = await srv.call('list_notebooks', {});
+  assert.equal(r.structuredContent.notebooks[0].id, 'test');
+  assert.equal(r.structuredContent.notebooks[0].files, 3);
+  assert.deepEqual(r.structuredContent.notebooks[0].roots, ['code']);
+});
+
+test('search finds docs and code without a model', async () => {
+  const r = await srv.call('search', { notebook: 'test', query: 'payload' });
+  assert.ok(!r.isError);
+  const paths = r.structuredContent.hits.map((h) => h.path);
+  assert.ok(paths.includes('docs/guide/a.md'));
+  assert.ok(paths.includes('src/java/net/x/Foo.java'));
+  assert.match(r.content[0].text, /^\d+ hits\n/);
+  assert.match(r.content[0].text, /src\/java\/net\/x\/Foo\.java:4: {3}void payload\(\) \{\}/);
+  const re = await srv.call('search', { notebook: 'test', query: 'Guide [AB]', regex: true });
+  assert.equal(re.structuredContent.hits.length, 2);
+  const badRe = await srv.call('search', { notebook: 'test', query: '(', regex: true });
+  assert.equal(badRe.isError, true);
+  assert.match(badRe.content[0].text, /bad regex/);
+});
+
+test('bad arguments come back as a tool error naming the problem', async () => {
+  const r = await srv.call('search', { notebook: 'test', q: 'x' });
+  assert.equal(r.isError, true);
+  assert.match(r.content[0].text, /query is required/);
+  assert.match(r.content[0].text, /q is not a known property/);
+  const m = await srv.call('ask', { notebook: 'test', question: 'x', mode: 'turbo' });
+  assert.match(m.content[0].text, /mode must be one of fast, deep/);
+  const nb = await srv.call('search', { notebook: 'nope', query: 'x' });
+  assert.match(nb.content[0].text, /no notebook "nope"; known notebooks: test/);
+});
+
+test('read_source returns numbered lines and refuses paths that escape', async () => {
+  const r = await srv.call('read_source', { notebook: 'test', path: 'docs/guide/a.md', start: 3, end: 4 });
+  assert.ok(!r.isError);
+  assert.equal(r.content[0].text, 'docs/guide/a.md lines 3-4 of 6\n3  hello world, this is the\n4  first   guide about payloads.\n(more: lines 5-6)');
+  const code = await srv.call('read_source', { notebook: 'test', path: 'code/net/x/Foo.java' });
+  assert.match(code.content[0].text, /^src\/java\/net\/x\/Foo\.java lines 1-5 of 5\n1  package net\.x;/);
+  for (const p of ['../outside.md', 'docs/../../outside.md', path.join(env.root, 'outside.md'), 'C:/Windows/win.ini']) {
+    const bad = await srv.call('read_source', { notebook: 'test', path: p });
+    assert.equal(bad.isError, true, p);
+    assert.match(bad.content[0].text, /escapes the notebook/, p);
+  }
+  // inside the notebook dir but neither pinned nor under a root
+  const secret = await srv.call('read_source', { notebook: 'test', path: 'secret.txt' });
+  assert.equal(secret.isError, true);
+  assert.match(secret.content[0].text, /not a pinned doc or a code-root file/);
+  const past = await srv.call('read_source', { notebook: 'test', path: 'docs/intro.md', start: 50 });
+  assert.match(past.content[0].text, /has 3 lines/);
+});
+
+test('verify re-checks citation strings in every form', async () => {
+  const r = await srv.call('verify', { notebook: 'test', citations: [
+    '[[docs/guide/a.md|"Register handlers in RegisterPayloadHandlersEvent."]]',
+    'src/java/net/x/Foo.java#L3-L5',
+    '[[docs/guide/a.md#L1|"first guide about payloads."]]',
+    '[[docs/guide/a.md|"words that are not there"]]',
+    '[[../outside.md#L1]]',
+    '[[]]',
+  ] });
+  assert.deepEqual(r.structuredContent.results.map((x) => x.status), ['verified', 'verified', 'moved', 'unverified', 'missing', 'unparsed']);
+  assert.equal(r.structuredContent.results[0].line, 6);
+  assert.equal(r.structuredContent.results[2].line, 4);
+  assert.deepEqual(r.structuredContent.counts, { verified: 2, moved: 1, unverified: 1, missing: 1, unparsed: 1 });
+  assert.match(r.content[0].text, /\[3\] moved docs\/guide\/a\.md:4 "first guide about payloads\." \(cited at line 1\)/);
+});
+
+test('ask with the fake engine returns the answer, checked citations and a saved conversation', async () => {
+  const r = await srv.call('ask', { notebook: 'test', question: 'Where do payload handlers go?' }, { progressToken: 'p1' });
+  assert.ok(!r.isError, r.content[0].text);
+  const s = r.structuredContent;
+  assert.equal(s.answer, 'Handlers go in the event [1]. Foo is the class [2]. Ghosts too [3].');
+  assert.deepEqual(s.citations.map((c) => [c.n, c.status, c.path, c.line]), [[1, 'verified', 'docs/guide/a.md', 6], [2, 'verified', 'src/java/net/x/Foo.java', 3], [3, 'missing', 'docs/ghost.md', 1]]);
+  assert.equal(s.model, 'haiku'); // fast is the default mode
+  assert.equal(s.costUsd, 0.0123);
+  assert.equal(typeof s.seconds, 'number');
+  const t = r.content[0].text;
+  assert.ok(t.startsWith(`${s.answer}\n\nCitations:\n[1] verified docs/guide/a.md:6 "Register handlers in RegisterPayloadHandlersEvent."\n[2] verified src/java/net/x/Foo.java:3\n[3] missing docs/ghost.md:1`), t);
+  assert.match(t, new RegExp(`conversationId: ${s.conversationId}\nmodel: haiku\nseconds: [\\d.]+\ncost: \\$0\\.0123$`));
+  const saved = JSON.parse(fs.readFileSync(path.join(env.nbDir, 'conversations', `${s.conversationId}.json`), 'utf8'));
+  assert.equal(saved.turns.length, 1);
+  assert.equal(saved.turns[0].question, 'Where do payload handlers go?');
+  assert.equal(saved.turns[0].maxTurns, 4);
+  assert.equal(saved.turns[0].effort, 'low');
+
+  const deep = await srv.call('ask', { notebook: 'test', question: 'And Foo?', mode: 'deep', conversationId: s.conversationId });
+  assert.equal(deep.structuredContent.model, 'opus');
+  assert.equal(deep.structuredContent.conversationId, s.conversationId);
+  const again = JSON.parse(fs.readFileSync(path.join(env.nbDir, 'conversations', `${s.conversationId}.json`), 'utf8'));
+  assert.deepEqual(again.turns.map((x) => [x.model, x.effort, x.maxTurns]), [['haiku', 'low', 4], ['opus', 'high', 12]]);
+
+  const lost = await srv.call('ask', { notebook: 'test', question: 'x', conversationId: 'no-such-conv' });
+  assert.equal(lost.isError, true);
+  assert.match(lost.content[0].text, /no conversation no-such-conv/);
+});
+
+test('list_artifacts and get_artifact read Studio artifacts with citations re-checked', async () => {
+  const empty = await srv.call('list_artifacts', { notebook: 'test' });
+  assert.deepEqual(empty.structuredContent.artifacts, []);
+  const a = {
+    id: 'art-1', recipe: 'cheat-sheet', kind: 'doc', status: 'ok', title: 'Cheats', model: 'haiku', costUsd: 0.1,
+    createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', summary: '',
+    markdown: '# Cheats\n\nHandlers [^1].',
+    citations: [{ n: 1, path: 'docs/guide/a.md', line: 6, endLine: 6, quote: 'Register handlers in RegisterPayloadHandlersEvent.', status: 'verified' }],
+  };
+  fs.mkdirSync(path.join(env.nbDir, 'artifacts'), { recursive: true });
+  fs.writeFileSync(path.join(env.nbDir, 'artifacts', 'art-1.json'), JSON.stringify(a));
+  const list = await srv.call('list_artifacts', { notebook: 'test' });
+  assert.equal(list.structuredContent.artifacts[0].id, 'art-1');
+  assert.match(list.content[0].text, /^art-1 {2}cheat-sheet \(doc\) {2}ok {2}"Cheats"/);
+  const got = await srv.call('get_artifact', { notebook: 'test', id: 'art-1' });
+  assert.equal(got.structuredContent.markdown, '# Cheats\n\nHandlers [1].');
+  assert.equal(got.structuredContent.citations[0].status, 'verified');
+  // edit the file so the quote is gone: the re-check sees it
+  fs.writeFileSync(path.join(env.nbDir, 'docs', 'guide', 'a.md'), '# Guide A\n\nrewritten\n');
+  const drift = await srv.call('get_artifact', { notebook: 'test', id: 'art-1' });
+  assert.equal(drift.structuredContent.citations[0].status, 'unverified');
+  assert.match(drift.content[0].text, /\[1\] unverified docs\/guide\/a\.md:6/);
+  const none = await srv.call('get_artifact', { notebook: 'test', id: 'nope' });
+  assert.equal(none.isError, true);
+});
+
+test('stdout carries only protocol messages', () => {
+  assert.ok(srv.stdout.length > 10);
+  for (const l of srv.stdout) assert.equal(JSON.parse(l).jsonrpc, '2.0');
+  assert.match(srv.stderr(), /\[lectern\] ready/);
+});
+
+test('an ask that hits the round cap says so instead of answering', async () => {
+  const s = start(capFixture);
+  try {
+    await s.request('initialize', { protocolVersion: '2025-06-18', capabilities: {} });
+    const r = await s.call('ask', { notebook: 'test', question: 'Too big?' });
+    assert.equal(r.isError, true);
+    assert.match(r.content[0].text, /stopped at the 4-round cap/);
+    // pending replies still go out after stdin closes, then it exits cleanly
+    const p = s.call('list_notebooks', {});
+    const code = await s.stop();
+    assert.equal((await p).structuredContent.notebooks[0].id, 'test');
+    assert.equal(code, 0);
+  } finally { s.child.kill(); }
+});
+
+test('verify only counts pinned docs and code-root files, and odd root names are just missing', async () => {
+  const r = await srv.call('verify', { notebook: 'test', citations: [
+    '[[secret.txt|"outside the shelf"]]', 'notebook.json#L1', 'constructor/x.md#L1', '__proto__/x.md#L1', 'toString/a.md#L1', 'docs/intro.md#L1',
+  ] });
+  assert.ok(!r.isError, r.content[0].text);
+  assert.deepEqual(r.structuredContent.results.map((x) => x.status), ['missing', 'missing', 'missing', 'missing', 'missing', 'verified']);
+  const rs = await srv.call('read_source', { notebook: 'test', path: 'constructor/x' });
+  assert.equal(rs.isError, true);
+  assert.doesNotMatch(rs.content[0].text, /must be of type string/);
+});
+
+test('argument names that are built-in object members are still unknown', async () => {
+  const r = await srv.call('search', { notebook: 'test', query: 'x', constructor: 1, toString: 'y' });
+  assert.equal(r.isError, true);
+  assert.match(r.content[0].text, /constructor is not a known property/);
+  assert.match(r.content[0].text, /toString is not a known property/);
+});
+
+test('a line that starts with a byte order mark still parses', async () => {
+  const r = await new Promise((resolve) => {
+    const id = 'bom-1';
+    const t = setInterval(() => { const m = srv.notes.find((x) => x.id === id); if (m) { clearInterval(t); resolve(m); } }, 10);
+    srv.raw('\uFEFF' + JSON.stringify({ jsonrpc: '2.0', id, method: 'ping' }));
+  });
+  assert.deepEqual(r.result, {});
+});
+
+test('a cancel that lands while generate is still preparing stops the run', async () => {
+  const before = fs.readdirSync(path.join(env.nbDir, 'artifacts')).length;
+  // the call and its cancel go out in one write, so the cancel arrives before prepare finishes
+  const id = 'gen-cancel';
+  srv.child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method: 'tools/call', params: { name: 'generate', arguments: { notebook: 'test', recipe: 'cheat-sheet' } } }) + '\n'
+    + JSON.stringify({ jsonrpc: '2.0', method: 'notifications/cancelled', params: { requestId: id } }) + '\n');
+  await srv.request('ping');
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(fs.readdirSync(path.join(env.nbDir, 'artifacts')).length, before);
+  assert.ok(!srv.notes.some((m) => m.id === id), 'a cancelled request gets no reply');
+});

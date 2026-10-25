@@ -1,0 +1,425 @@
+// HTTP server: JSON API, SSE streams, static UI and vendor files.
+// node 22 flags fs.glob as experimental; the warning is noise here
+process.removeAllListeners('warning');
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import * as store from './store.mjs';
+import * as sources from './sources.mjs';
+import { ask, findClaude, claudeVersion, apiEngineAvailable, modelError, MODEL_ALIASES } from './engine.mjs';
+import { GENERATORS, listGenerators } from './generators.mjs';
+import * as studio from './studio/engine.mjs';
+import { GROUPS, listRecipes } from './studio/recipes.mjs';
+import { KINDS } from './studio/schemas.mjs';
+
+const { APP_DIR, httpError } = store;
+const PUBLIC_DIR = path.join(APP_DIR, 'public');
+const NODE_MODULES = path.join(APP_DIR, 'node_modules');
+const PORT = Number(process.env.PORT ?? 4317);
+const HOST = '127.0.0.1';
+const MAX_BODY = 80 * 1024 * 1024;
+
+const TYPES = {
+  '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.map': 'application/json; charset=utf-8',
+  '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp',
+  '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf', '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8', '.pdf': 'application/pdf',
+};
+
+// ---------- helpers ----------
+
+function sendJson(res, status, data, headers = {}) {
+  const body = JSON.stringify(data);
+  res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers });
+  res.end(body);
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > MAX_BODY) { reject(httpError(413, 'body too large')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      const raw = Buffer.concat(chunks).toString('utf8');
+      if (!raw.trim()) return resolve({});
+      try { resolve(JSON.parse(raw)); } catch { reject(httpError(400, 'body is not valid JSON')); }
+    });
+    req.on('error', reject);
+  });
+}
+
+function openSse(res) {
+  res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+  res.write(': open\n\n');
+  const beat = setInterval(() => { if (!res.writableEnded) res.write(': ping\n\n'); }, 15_000);
+  res.on('close', () => clearInterval(beat));
+  return {
+    send(type, data) { if (!res.writableEnded) res.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`); },
+    end() { clearInterval(beat); if (!res.writableEnded) res.end(); },
+  };
+}
+
+// Only this app's own pages may talk to it. The Host check stops DNS rebinding, and the
+// Origin and content-type checks stop other sites from sending simple cross-origin writes.
+function gate(req) {
+  const port = req.socket.localPort;
+  const hosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`]);
+  if (!hosts.has(String(req.headers.host ?? '').toLowerCase())) return 'host not allowed';
+  if (req.method === 'GET' || req.method === 'HEAD') return null;
+  const origin = req.headers.origin;
+  if (origin != null && !['http://127.0.0.1', 'http://localhost'].some((o) => origin.toLowerCase() === `${o}:${port}`)) return 'cross-origin request refused';
+  const hasBody = Number(req.headers['content-length'] ?? 0) > 0 || req.headers['transfer-encoding'] != null;
+  if (hasBody && !/^application\/json\b/i.test(String(req.headers['content-type'] ?? ''))) return 'content-type must be application/json';
+  return null;
+}
+
+function needNotebook(id) {
+  const nb = store.getNotebook(decodeURIComponent(id));
+  if (!nb) throw httpError(404, `no notebook ${id}`);
+  return nb;
+}
+
+async function notebookSummary(nb) {
+  const shelf = await sources.getShelf(nb);
+  return {
+    id: nb.id, title: nb.title, color: nb.color, description: nb.description,
+    counts: {
+      docs: shelf.stats.docs, files: shelf.stats.files, roots: Object.keys(nb.config.roots).length,
+      conversations: store.listConversations(nb).length, notes: store.listNotes(nb).length,
+    },
+    tokens: shelf.stats.tokens,
+  };
+}
+
+function suggestions(nb) {
+  if (Array.isArray(nb.config.suggestions)) return nb.config.suggestions.slice(0, 4);
+  const q = store.readJson(path.join(nb.dir, 'questions.json'), null);
+  const list = (q?.questions ?? []).map((x) => x.q).filter(Boolean);
+  return list.slice(0, 4);
+}
+
+function footnotes(citations) {
+  return citations.map((c) => `[^${c.n}]: ${c.path}${c.line ? `:${c.line}${c.endLine && c.endLine !== c.line ? `-${c.endLine}` : ''}` : ''}${c.quote ? ` "${c.quote}"` : ''} (${c.status})`).join('\n');
+}
+
+function checkAsk(body, needQuestion = true) {
+  if (needQuestion && !String(body.question ?? '').trim()) throw httpError(400, 'question is required');
+  const bad = modelError(body.model);
+  if (bad) throw httpError(400, bad);
+  if (body.scope != null && (!Array.isArray(body.scope) || body.scope.length > 50 || body.scope.some((s) => typeof s !== 'string' || s.length > 200))) throw httpError(400, 'scope must be a list of source names');
+}
+
+function runAskSse(req, res, nb, opts, onDone) {
+  const sse = openSse(res);
+  let finished = false;
+  let job;
+  try {
+    job = ask({
+      notebook: nb, ...opts,
+      onEvent: (e) => {
+        if (e.type === 'done') return; // sent below once side effects are done
+        sse.send(e.type, e);
+      },
+    });
+  } catch (e) {
+    sse.send('error', { message: e.message });
+    return sse.end();
+  }
+  res.on('close', () => { if (!finished) job.cancel(); });
+  job.done.then(
+    async (out) => {
+      finished = true;
+      const extra = onDone ? await onDone(out) : {};
+      sse.send('done', { ...out, ...extra });
+      sse.end();
+    },
+    () => { finished = true; sse.end(); }, // the error event already went out
+  );
+}
+
+// Studio runs: same SSE framing as ask, ending in done{artifact} or error{message, artifact?}.
+function runStudioSse(req, res, nb, prepared, opts) {
+  const sse = openSse(res);
+  let finished = false;
+  const job = studio.run(nb, prepared, { ...opts, onEvent: (e) => sse.send(e.type, e) });
+  res.on('close', () => { if (!finished) job.cancel(); });
+  job.done.then(() => {}, () => {}).finally(() => { finished = true; sse.end(); });
+}
+
+function studioOpts(body) {
+  checkAsk(body, false);
+  return {
+    model: body.model || 'opus', effort: body.effort || undefined,
+    engine: body.engine === 'api' && apiEngineAvailable() ? 'api' : 'claude-code',
+  };
+}
+
+async function studioRoute(req, res, nb, aid, action, m) {
+  if (!aid) {
+    if (m === 'GET') return sendJson(res, 200, studio.listArtifacts(nb));
+    if (m === 'POST') {
+      const body = await readBody(req);
+      const opts = studioOpts(body);
+      const prepared = await studio.prepare(nb, body.recipe, body.inputs ?? {});
+      if (!body.model && prepared.recipe.model) opts.model = prepared.recipe.model;
+      return runStudioSse(req, res, nb, prepared, opts);
+    }
+    return null;
+  }
+  const a = studio.getArtifact(nb, aid, { recheck: m === 'GET' && !action });
+  if (!a) return sendJson(res, 404, { error: 'no such artifact' });
+  if (!action) {
+    if (m === 'GET') return sendJson(res, 200, a);
+    if (m === 'DELETE') return sendJson(res, 200, { ok: studio.deleteArtifact(nb, aid) });
+    if (m === 'PATCH') return sendJson(res, 200, studio.patchArtifact(nb, aid, await readBody(req)));
+    return null;
+  }
+  if (m !== 'POST') return null;
+  const body = await readBody(req);
+  if (action === 'regenerate') {
+    const opts = studioOpts({ ...body, model: body.model || a.model });
+    const prepared = await studio.prepare(nb, a.recipe, a.inputs ?? {});
+    return runStudioSse(req, res, nb, prepared, { ...opts, artifactId: a.id });
+  }
+  if (action === 'export') return sendJson(res, 200, studio.exportArtifact(a, body.format));
+  if (action === 'write') {
+    try {
+      return sendJson(res, 200, studio.writeArtifactFile(nb, a, body));
+    } catch (e) {
+      if (e.exists) return sendJson(res, 409, { error: e.message, exists: true, path: e.path });
+      throw e;
+    }
+  }
+  return null;
+}
+
+// ---------- static ----------
+
+function serveFile(res, file, cache) {
+  fs.stat(file, (err, st) => {
+    if (err || !st.isFile()) return sendJson(res, 404, { error: 'not found' });
+    res.writeHead(200, { 'content-type': TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream', 'content-length': st.size, 'cache-control': cache });
+    fs.createReadStream(file).pipe(res);
+  });
+}
+
+function underDir(base, rel) {
+  const target = path.resolve(base, '.' + path.posix.normalize('/' + rel));
+  const r = path.relative(base, target);
+  return r.startsWith('..') || path.isAbsolute(r) ? null : target;
+}
+
+function serveStatic(req, res, pathname) {
+  if (pathname.startsWith('/vendor/')) {
+    const file = underDir(NODE_MODULES, decodeURIComponent(pathname.slice('/vendor/'.length)));
+    if (!file) return sendJson(res, 403, { error: 'forbidden' });
+    return serveFile(res, file, 'public, max-age=86400');
+  }
+  let rel = decodeURIComponent(pathname);
+  if (rel.endsWith('/')) rel += 'index.html';
+  const file = underDir(PUBLIC_DIR, rel);
+  if (!file) return sendJson(res, 403, { error: 'forbidden' });
+  if (fs.existsSync(file) && fs.statSync(file).isFile()) return serveFile(res, file, 'no-cache');
+  // unknown paths without an extension fall back to the app shell
+  if (!path.extname(rel)) return serveFile(res, path.join(PUBLIC_DIR, 'index.html'), 'no-cache');
+  return sendJson(res, 404, { error: 'not found' });
+}
+
+// ---------- routes ----------
+
+async function route(req, res) {
+  const url = new URL(req.url, `http://${HOST}`);
+  const p = url.pathname;
+  const m = req.method;
+  const q = (k) => url.searchParams.get(k);
+  let mm;
+
+  const refused = gate(req);
+  if (refused) return sendJson(res, 403, { error: refused });
+
+  if (!p.startsWith('/api/')) {
+    if (m !== 'GET' && m !== 'HEAD') return sendJson(res, 405, { error: 'method not allowed' });
+    return serveStatic(req, res, p);
+  }
+
+  if (p === '/api/status' && m === 'GET') {
+    const bin = findClaude();
+    return sendJson(res, 200, {
+      ok: true,
+      claude: { found: Boolean(bin), path: bin, version: claudeVersion() },
+      apiEngine: apiEngineAvailable(),
+      fakeEngine: process.env.NB_FAKE_ENGINE === '1',
+      models: MODEL_ALIASES,
+      generators: listGenerators(),
+    });
+  }
+
+  // first-run suggestions: folders next to this checkout (or NB_PROJECTS_DIR) and beside roots already added
+  if (p === '/api/candidates' && m === 'GET') {
+    const nbs = store.listNotebooks();
+    const taken = nbs.flatMap((nb) => Object.values(nb.config.roots ?? {}).map((rel) => path.resolve(nb.dir, rel)));
+    const dirs = [process.env.NB_PROJECTS_DIR || path.dirname(store.DATA_ROOT), ...taken.map((t) => path.dirname(t))];
+    return sendJson(res, 200, sources.candidates([...new Set(dirs)], [...taken, store.DATA_ROOT]));
+  }
+
+  if (p === '/api/notebooks') {
+    if (m === 'GET') return sendJson(res, 200, await Promise.all(store.listNotebooks().map(notebookSummary)));
+    if (m === 'POST') {
+      const body = await readBody(req);
+      const nb = store.createNotebook(body);
+      return sendJson(res, 201, await notebookSummary(nb));
+    }
+  }
+
+  if ((mm = p.match(/^\/api\/notebooks\/([^/]+)$/)) && m === 'GET') {
+    const nb = needNotebook(mm[1]);
+    const shelf = await sources.getShelf(nb);
+    return sendJson(res, 200, {
+      id: nb.id, title: nb.title, color: nb.color, description: nb.description, dir: store.toPosix(nb.dir),
+      config: nb.config,
+      shelf: shelf.summary,
+      stats: { ...shelf.stats, roots: Object.keys(nb.config.roots).length },
+      tokens: shelf.stats.tokens,
+      pinned: nb.config.pinned,
+      roots: sources.rootsInfo(nb),
+      conversations: store.listConversations(nb),
+      notes: store.listNotes(nb),
+      suggestions: suggestions(nb),
+      generators: listGenerators(),
+    });
+  }
+
+  if ((mm = p.match(/^\/api\/notebooks\/([^/]+)\/studio$/)) && m === 'GET') {
+    const nb = needNotebook(mm[1]);
+    return sendJson(res, 200, {
+      groups: GROUPS, kinds: KINDS, exports: studio.EXPORTS, models: MODEL_ALIASES,
+      recipes: listRecipes(), roots: Object.keys(nb.config.roots ?? {}),
+    });
+  }
+
+  if ((mm = p.match(/^\/api\/notebooks\/([^/]+)\/artifacts(?:\/([^/]+)(?:\/(regenerate|export|write))?)?$/))) {
+    const nb = needNotebook(mm[1]);
+    const handled = await studioRoute(req, res, nb, mm[2] ? decodeURIComponent(mm[2]) : null, mm[3] ?? null, m);
+    if (handled !== null) return handled;
+    return sendJson(res, 405, { error: `method not allowed: ${m} ${p}` });
+  }
+
+  if ((mm = p.match(/^\/api\/notebooks\/([^/]+)\/(file|files|tree|search|ask|sources|notes|generate)(?:\/([^/]+))?$/))) {
+    const nb = needNotebook(mm[1]);
+    const what = mm[2];
+    const sub = mm[3] ? decodeURIComponent(mm[3]) : null;
+
+    if (what === 'file' && m === 'GET') return sendJson(res, 200, sources.readFile(nb, q('path')));
+    if (what === 'files' && m === 'GET') {
+      const all = await sources.allFiles(nb);
+      return sendJson(res, 200, { files: all.slice(0, 50_000).map((f) => ({ path: f.path, root: f.root ?? null })), truncated: all.length > 50_000 });
+    }
+    if (what === 'tree' && m === 'GET') return sendJson(res, 200, sources.tree(nb, q('root'), q('dir') ?? ''));
+    if (what === 'search' && m === 'GET') {
+      const r = await sources.search(nb, q('q'), { regex: q('regex') === '1' });
+      return sendJson(res, 200, { hits: r.hits, truncated: r.truncated, ms: r.ms, engine: r.engine ?? null });
+    }
+
+    if (what === 'ask' && m === 'POST') {
+      const body = await readBody(req);
+      checkAsk(body);
+      const engine = body.engine === 'api' && apiEngineAvailable() ? 'api' : 'claude-code';
+      return runAskSse(req, res, nb, {
+        question: body.question, conversationId: body.conversationId || undefined,
+        model: body.model || 'opus', effort: body.effort || undefined, engine, scope: body.scope || undefined,
+      });
+    }
+
+    if (what === 'generate' && m === 'POST') {
+      const body = await readBody(req);
+      const g = GENERATORS[body.kind];
+      if (!g) throw httpError(400, `unknown generator ${body.kind}`);
+      checkAsk(body, false);
+      const engine = body.engine === 'api' && apiEngineAvailable() ? 'api' : 'claude-code';
+      return runAskSse(req, res, nb, { question: g.prompt, model: body.model || 'opus', effort: body.effort || undefined, engine, persist: false, kind: body.kind },
+        (out) => {
+          const note = store.saveNote(nb, {
+            title: `${g.title} (${new Date().toISOString().slice(0, 10)})`,
+            body: `${out.answer.trim()}\n\n${footnotes(out.citations)}\n`,
+            kind: body.kind,
+          });
+          return { note: { slug: note.slug, title: note.title } };
+        });
+    }
+
+    if (what === 'sources') {
+      if (m === 'POST') {
+        const body = await readBody(req);
+        if ((req.headers.accept ?? '').includes('text/event-stream')) {
+          const sse = openSse(res);
+          try {
+            const r = await sources.addSource(nb, body, (message) => sse.send('progress', { message }));
+            sse.send('done', r);
+          } catch (e) { sse.send('error', { message: e.message }); }
+          return sse.end();
+        }
+        return sendJson(res, 201, await sources.addSource(nb, body));
+      }
+      if (m === 'DELETE') return sendJson(res, 200, sources.removeSource(nb, await readBody(req)));
+    }
+
+    if (what === 'notes') {
+      if (m === 'GET' && sub) {
+        const n = store.getNote(nb, sub);
+        return n ? sendJson(res, 200, n) : sendJson(res, 404, { error: 'no such note' });
+      }
+      if (m === 'GET') return sendJson(res, 200, store.listNotes(nb));
+      if (m === 'POST' || m === 'PUT') {
+        const body = await readBody(req);
+        if (!body.title && !body.body) throw httpError(400, 'note needs a title or body');
+        return sendJson(res, 201, store.saveNote(nb, { ...body, slug: sub ?? body.slug }));
+      }
+      if (m === 'DELETE') {
+        const slug = sub ?? q('slug') ?? (await readBody(req)).slug;
+        return store.deleteNote(nb, slug) ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'no such note' });
+      }
+    }
+  }
+
+  if ((mm = p.match(/^\/api\/conversations\/([^/]+)\/([^/]+)$/))) {
+    const nb = needNotebook(mm[1]);
+    const id = decodeURIComponent(mm[2]);
+    if (m === 'GET') {
+      const c = store.getConversation(nb, id, { recheck: true });
+      return c ? sendJson(res, 200, c) : sendJson(res, 404, { error: 'no such conversation' });
+    }
+    if (m === 'DELETE') return store.deleteConversation(nb, id) ? sendJson(res, 200, { ok: true }) : sendJson(res, 404, { error: 'no such conversation' });
+    if (m === 'PATCH') {
+      const body = await readBody(req);
+      const c = store.renameConversation(nb, id, body.title);
+      return c ? sendJson(res, 200, c) : sendJson(res, 404, { error: 'no such conversation' });
+    }
+  }
+
+  return sendJson(res, 404, { error: `no route ${m} ${p}` });
+}
+
+export function createServer() {
+  return http.createServer((req, res) => {
+    route(req, res).catch((e) => {
+      if (res.headersSent) { try { res.end(); } catch {} return; }
+      sendJson(res, e.status ?? 500, { error: e.message });
+    });
+  });
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  createServer()
+    .on('error', (e) => {
+      if (e.code !== 'EADDRINUSE') throw e;
+      console.log(`port ${PORT} is taken, the notebook app is probably already running: http://${HOST}:${PORT}`);
+      process.exit(0);
+    })
+    .listen(PORT, HOST, () => console.log(`notebook app on http://${HOST}:${PORT}`));
+}

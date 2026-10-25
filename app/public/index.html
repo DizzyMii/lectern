@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lectern</title>
+  <meta name="color-scheme" content="light dark">
+  <script>
+    // no stored choice means follow the OS; old Cotton/Dusk values map across
+    try { const t = localStorage.getItem('nb.theme'); const m = { light: 'light', cotton: 'light', dark: 'dark', dusk: 'dark' }[t]; if (m) document.documentElement.dataset.theme = m; } catch {}
+  </script>
+  <link rel="stylesheet" href="/vendor/@fontsource-variable/archivo/wdth.css">
+  <link rel="stylesheet" href="/vendor/@fontsource-variable/newsreader/opsz.css">
+  <link rel="stylesheet" href="/vendor/@fontsource-variable/newsreader/opsz-italic.css">
+  <link rel="stylesheet" href="/vendor/@fontsource-variable/jetbrains-mono/index.css">
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/studio/studio.css">
+  <link rel="stylesheet" href="/survey-studio.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23C13522'/%3E%3Cg fill='none' stroke='%23FCFAF6' stroke-width='1.5' stroke-linecap='butt' stroke-linejoin='miter'%3E%3Cpath d='M4 4.2H12M8 6.4V12.4M4.6 12.4L8 6.4L11.4 12.4'/%3E%3C/g%3E%3C/svg%3E">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#center">Skip to answer</a>
+  <header class="topbar" id="topbar">
+    <a class="tb-brand" href="#" aria-label="Lectern home">
+      <svg class="mark" viewBox="0 0 16 16" width="18" height="18" aria-hidden="true"><use href="/marks.svg#mark"/></svg>
+      <span class="t-wordmark">Lectern</span>
+    </a>
+    <span class="tb-sep" aria-hidden="true"></span>
+    <button class="tb-notebook" id="tb-notebook" type="button" aria-haspopup="menu" aria-expanded="false" aria-label="Switch notebook"></button>
+    <nav class="tb-crumb" id="tb-crumb" aria-label="Breadcrumb"></nav>
+    <span class="tb-fill"></span>
+    <span class="tb-receipt" id="tb-receipt"></span>
+    <button class="tb-palette" id="tb-palette" type="button" aria-label="Open command palette">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16 16"/></svg>
+      <span class="ph">Ask, jump, or run</span>
+      <span class="keys"><kbd>Ctrl</kbd><kbd>K</kbd></span>
+    </button>
+    <span class="tb-index" id="tb-index"></span>
+    <span class="tb-run" id="tb-run" hidden></span>
+    <button class="icon-btn" id="tb-theme" type="button" aria-label="Toggle theme (Ctrl+Shift+L)" title="Toggle theme  Ctrl+Shift+L"></button>
+    <svg class="tb-contour" viewBox="0 0 260 48" width="260" height="48" fill="none" stroke="currentColor" stroke-width="1" aria-hidden="true">
+      <path d="M0 40C40 34 70 44 110 36S180 18 220 24 250 34 260 30"/>
+      <path d="M20 48C60 40 90 46 130 30S190 8 230 14 255 22 260 20"/>
+      <path d="M60 48C90 40 120 38 150 24S200 0 240 4 258 10 260 9"/>
+      <path d="M110 48C140 40 160 30 180 18S220 -4 260 0"/>
+      <path d="M170 48C190 40 205 30 222 22S250 10 260 12"/>
+    </svg>
+  </header>
+  <div class="app" id="app">
+    <aside class="rail" id="rail" aria-label="Notebook sources and history"></aside>
+    <div class="divider rail-div" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0"></div>
+    <main class="center" id="center" tabindex="-1">
+      <div class="chat-view" id="chat" aria-label="Conversation"></div>
+      <div class="canvas" id="canvas" aria-label="Artifact canvas"></div>
+    </main>
+    <div class="divider studio-div" role="separator" aria-orientation="vertical" aria-label="Resize Studio" tabindex="0"></div>
+    <aside class="studio" id="studio" aria-label="Studio"></aside>
+  </div>
+  <footer class="keystrip" id="keystrip" aria-label="Keyboard shortcuts">
+    <span class="ks-hints" id="ks-hints">
+      <span class="t-kicker">Page</span>
+      <span class="ks"><kbd>/</kbd>recipes</span>
+      <span class="ks"><kbd>Ctrl K</kbd>palette</span>
+      <span class="ks"><kbd>Alt N</kbd>new question</span>
+      <span class="ks"><kbd>Ctrl Shift F</kbd>search sources</span>
+      <span class="ks"><kbd>Esc</kbd>close</span>
+    </span>
+    <span class="tb-fill"></span>
+    <span class="ks-legend" aria-label="Citation marks">
+      <span class="ks st-verified"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><use href="/marks.svg#verified"/></svg>verified</span>
+      <span class="ks st-moved"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><use href="/marks.svg#moved"/></svg>moved</span>
+      <span class="ks st-unverified"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><use href="/marks.svg#unverified"/></svg>unverified</span>
+      <span class="ks">no mark = uncited</span>
+    </span>
+  </footer>
+  <div class="divider drawer-div" role="separator" aria-orientation="vertical" aria-label="Resize source drawer" tabindex="0"></div>
+  <aside class="viewer drawer" id="viewer" aria-label="Source viewer" inert></aside>
+  <div class="toasts" id="toasts"></div>
+</body>
+</html>

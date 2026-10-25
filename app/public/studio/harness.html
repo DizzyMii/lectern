@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Studio harness</title>
+  <link rel="stylesheet" href="/vendor/@fontsource-variable/archivo/wdth.css">
+  <link rel="stylesheet" href="/vendor/@fontsource-variable/newsreader/opsz.css">
+  <link rel="stylesheet" href="/vendor/@fontsource-variable/newsreader/opsz-italic.css">
+  <link rel="stylesheet" href="/vendor/@fontsource-variable/jetbrains-mono/index.css">
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/studio/studio.css">
+  <style>
+    /* harness chrome only; the renderers bring their own styles */
+    body { overflow: auto; }
+    .hz-head { position: sticky; top: 0; z-index: 30; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 8px 16px; background: var(--paper-2); border-bottom: 1px solid var(--rule); }
+    .hz-head h1 { margin: 0 12px 0 0; font: var(--type-kicker); font-stretch: var(--wdth-map); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+    .hz-head a { color: var(--ink-2); font: var(--type-ui-sm); padding: 2px 6px; border-radius: var(--r-1); }
+    .hz-head a:hover { background: var(--paper-3); color: var(--ink); text-decoration: none; }
+    .hz-head button { margin-left: auto; }
+    main { display: grid; gap: 32px; padding: 16px; }
+    section.hz { display: grid; gap: 8px; }
+    section.hz > h2 { font: var(--type-kicker); font-stretch: var(--wdth-map); letter-spacing: .14em; text-transform: uppercase; color: var(--ink-3); }
+    .hz-frame { height: 760px; overflow: auto; padding: 16px 20px; border: 1px solid var(--rule); background: var(--paper); }
+    body.only main { padding: 0; gap: 0; }
+    body.only section.hz > h2 { display: none; }
+    body.only .hz-frame { height: calc(100vh - 45px); border: 0; }
+    #log { position: fixed; right: 12px; bottom: 12px; z-index: 40; max-width: 360px; display: grid; gap: 6px; }
+    #log div { padding: 6px 10px; border-radius: var(--r-3); background: var(--paper); border: 1px solid var(--rule-strong); font: var(--type-mono-sm); box-shadow: var(--float); }
+    #log div.err { border-color: var(--accent); color: var(--accent); }
+    #errors { display: none; }
+    #errors.has { display: block; position: fixed; left: 12px; bottom: 12px; z-index: 50; max-width: 60vw; padding: 10px 14px; border-radius: var(--r-3); background: var(--accent); color: var(--paper); font: var(--type-mono-sm); white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <header class="hz-head"><h1>Studio harness</h1><nav id="nav"></nav><button id="theme" class="btn sm" type="button">Toggle theme</button></header>
+  <main id="main"></main>
+  <div id="log" aria-live="polite"></div>
+  <pre id="errors"></pre>
+  <script>
+    window.__errors = [];
+    const report = (m) => { window.__errors.push(String(m)); const el = document.getElementById('errors'); if (el) { el.textContent = window.__errors.join('\n'); el.classList.add('has'); } document.title = 'ERRORS ' + window.__errors.length; };
+    addEventListener('error', (e) => report('error: ' + (e.message || e)));
+    addEventListener('unhandledrejection', (e) => report('rejection: ' + (e.reason?.stack || e.reason)));
+    const ce = console.error; console.error = (...a) => { report('console.error: ' + a.join(' ')); ce(...a); };
+    const p = new URLSearchParams(location.search);
+    document.documentElement.dataset.theme = p.get('theme') === 'dark' ? 'dark' : 'light';
+  </script>
+  <script type="module">
+    import { FIXTURES } from '/studio/fixtures.js';
+    const RENDERERS = {
+      doc: () => import('/studio/doc.js'), graph: () => import('/studio/graph.js'), sequence: () => import('/studio/sequence.js'),
+      plan: () => import('/studio/plan.js'), quiz: () => import('/studio/quiz.js'), file: () => import('/studio/file.js'),
+    };
+    const params = new URLSearchParams(location.search);
+    const only = params.get('only');
+    const acts = (params.get('act') || '').split(',').filter(Boolean);
+    const log = (msg, cls = '') => {
+      const el = document.createElement('div'); el.className = cls; el.textContent = msg;
+      document.getElementById('log').append(el);
+      setTimeout(() => el.remove(), 6000);
+    };
+    const written = new Set();
+    // sample roots so refs land on layers the way a real notebook assigns them
+    const roots = [{ name: 'neoforge' }, { name: 'geckolib' }, { name: 'src', own: true }, { name: 'wtg', own: true }];
+    const ctxFor = (a) => ({
+      openRef: (ref) => log('openRef ' + ref),
+      openCitation: (n) => log('openCitation ' + n),
+      patchArtifact: async (changes) => { Object.assign(a, changes); log('patch ' + Object.keys(changes).join(',')); return a; },
+      toast: (m, kind) => log(m, kind === 'ok' ? '' : 'err'),
+      regenerate: () => log('regenerate ' + a.id),
+      notebookId: 'demo',
+      api: {
+        roots,
+        post: async (path, body) => {
+          if (path.endsWith('/write')) {
+            if (/^\.\.|^[A-Z]:/i.test(body.path)) { const e = new Error('Lectern only writes inside a notebook root. ' + body.path + ' is not one.'); e.status = 403; throw e; }
+            if (written.has(body.path) || /CLAUDE\.md$/.test(body.path)) {
+              if (!body.overwrite) { const e = new Error('File exists, pass overwrite to replace it'); e.status = 409; throw e; }
+            }
+            written.add(body.path);
+            return { path: 'D:/demo/' + body.path };
+          }
+          return {};
+        },
+      },
+    });
+    document.getElementById('theme').onclick = () => {
+      const r = document.documentElement;
+      r.dataset.theme = r.dataset.theme === 'dark' ? 'light' : 'dark';
+    };
+    const main = document.getElementById('main');
+    const nav = document.getElementById('nav');
+    const list = only ? FIXTURES.filter((f) => f.key === only) : FIXTURES;
+    if (only) document.body.classList.add('only');
+    for (const f of FIXTURES) { const a = document.createElement('a'); a.href = `?only=${f.key}${params.get('theme') ? '&theme=' + params.get('theme') : ''}`; a.textContent = f.label; nav.append(a); }
+    const views = [];
+    for (const f of list) {
+      const sec = document.createElement('section'); sec.className = 'hz'; sec.id = f.key;
+      const h2 = document.createElement('h2'); h2.textContent = `${f.label} · ${f.artifact.kind} · ${f.artifact.status}`;
+      const frame = document.createElement('div'); frame.className = 'hz-frame artifact-canvas';
+      sec.append(h2, frame); main.append(sec);
+      const mod = await RENDERERS[f.artifact.kind]();
+      const art = structuredClone(f.artifact);
+      views.push({ f, frame, view: mod.render(frame, art, ctxFor(art)) });
+    }
+    window.__views = views;
+
+    // scripted interactions for screenshots
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const q = (sel) => document.querySelector(sel);
+    const qa = (sel) => [...document.querySelectorAll(sel)];
+    const key = (el, k) => el?.dispatchEvent(new KeyboardEvent('keydown', { key: k, bubbles: true }));
+    const byText = (sel, t) => qa(sel).find((b) => b.textContent.includes(t));
+    const ACTS = {
+      select: () => { const n = qa('.sg-node').find((g) => /Registrar|router|Router/.test(g.textContent)) || q('.sg-node'); n.focus(); key(n, 'Enter'); },
+      hover: () => { const n = q('.sg-node:nth-child(3)'); n?.dispatchEvent(new PointerEvent('pointerenter')); },
+      search: () => { const i = q('.sa-search input'); i.value = params.get('q') || 'cache'; i.dispatchEvent(new Event('input')); },
+      radial: () => q('.sa-seg button[data-v="radial"]')?.click(),
+      layered: () => q('.sa-seg button[data-v="layered"]')?.click(),
+      tb: () => q('.sa-seg button[data-v="TB"]')?.click(),
+      lr: () => q('.sa-seg button[data-v="LR"]')?.click(),
+      all: () => q('.sa-seg button[data-v="all"]')?.click(),
+      matrix: () => q('.sa-seg button[data-v="matrix"]')?.click(),
+      fit: () => key(q('.sg-stage'), '0'),
+      legend: () => q('.sg-leg')?.click(),
+      walk: () => key(document.activeElement, 'ArrowDown'),
+      scroll: () => { const s = q('.sq-scroll'); if (s) s.scrollTop = 260; },
+      step: () => { const s = q('.sq-scroll'); key(s, 'ArrowDown'); key(s, 'ArrowDown'); key(s, 'ArrowDown'); key(s, 'ArrowDown'); key(s, 'ArrowDown'); },
+      issues: () => { q('.sa-menu-wrap .sa-btn').click(); byText('.sa-menu button', 'GitHub')?.click(); },
+      script: () => q('.sp-sheet .sa-seg button[data-v="sh"]')?.click(),
+      list: () => q('.sa-seg button[data-v="list"]')?.click(),
+      columns: () => q('.sa-seg button[data-v="columns"]')?.click(),
+      check: () => q('.sp-check input:not(:checked)')?.click(),
+      pick: () => q('.sz-opt:nth-child(3)')?.click(),
+      checkq: () => byText('.sz-nav .sa-btn', 'Check')?.click(),
+      next: () => byText('.sz-nav .sa-btn', 'Next')?.click(),
+      quizmode: () => q('.sa-seg button[data-v="quiz"]')?.click(),
+      cards: () => q('.sa-seg button[data-v="cards"]')?.click(),
+      flip: () => q('.sz-flip')?.click(),
+      got: () => byText('.sz-nav .sa-btn', 'Got it')?.click(),
+      again: () => byText('.sz-nav .sa-btn', 'Again')?.click(),
+      write: () => byText('.sa-btn', 'Write')?.click(),
+      badpath: () => { const i = q('.sf-write input'); i.value = 'D:/temp/CLAUDE.md'; },
+      newpath: () => { const i = q('.sf-write input'); i.value = 'docs/NEW.md'; },
+      overwrite: () => byText('.sa-btn', 'Overwrite')?.click(),
+      edit: () => q('.sa-seg button[data-v="edit"]')?.click(),
+      preview: () => q('.sa-seg button[data-v="preview"]')?.click(),
+      code: () => q('.sa-seg button[data-v="code"]')?.click(),
+      zoomin: () => q('.sg-zoom .sa-icon:last-of-type')?.click(),
+      docscroll: () => { const f = q('.hz-frame'); if (f) f.scrollTop = 520; },
+      destroy: () => { for (const v of views) v.view.destroy(); log('destroyed ' + views.length); },
+    };
+    await document.fonts?.ready;
+    await wait(500);
+    for (const a of acts) { try { await ACTS[a]?.(); } catch (e) { console.error('act ' + a + ': ' + e.message); } await wait(350); }
+    document.body.dataset.ready = '1';
+  </script>
+</body>
+</html>

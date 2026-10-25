@@ -1,0 +1,378 @@
+/* Survey design tokens. Values come from design/DESIGN.md (sections 3 to 8).
+   Light is the default; the dark "night chart" applies with data-theme="dark",
+   or with no data-theme when the OS asks for dark. Load this before styles.css. */
+
+:root, :root[data-theme="light"] {
+  color-scheme: light;
+
+  /* core (3.1) */
+  --paper: oklch(0.985 0.006 85);
+  --paper-2: oklch(0.966 0.010 84);
+  --paper-3: oklch(0.940 0.014 82);
+  --well: oklch(0.958 0.012 220);
+  --rule: oklch(0.890 0.014 80);
+  --rule-strong: oklch(0.800 0.016 75);
+  --ink: oklch(0.240 0.018 60);
+  --ink-2: oklch(0.400 0.018 60);
+  --ink-3: oklch(0.500 0.016 62);
+  --ink-4: oklch(0.640 0.012 65);
+  --acc-l: 0.540; --acc-c: 0.180; --acc-h: 31;
+  --accent-wash: oklch(0.950 0.030 31);
+  --contour: oklch(0.860 0.030 75);
+
+  /* status (3.2) */
+  --ver-l: 0.470; --ver-c: 0.110;
+  --verified-wash: oklch(0.950 0.035 150);
+  --mov-l: 0.500; --mov-c: 0.110; --mov-h: 65;
+  --moved-wash: oklch(0.935 0.065 85);
+  --moved-line: oklch(0.740 0.130 75);
+  --unverified-wash: oklch(0.945 0.035 28);
+
+  /* layer steps (3.3): one L/C pair per step, hue per layer */
+  --L-fill: 0.925; --C-fill: 0.045;
+  --L-band: 0.950; --C-band: 0.032;
+  --L-band-strong: 0.905; --C-band-strong: 0.060;
+  --L-mid: 0.780; --C-mid: 0.080;
+  --L-ink: 0.440; --C-ink: 0.090;
+
+  /* code syntax on --well (3.5) */
+  --syn-keyword: oklch(0.450 0.130 305);
+  --syn-type: oklch(0.450 0.100 235);
+  --syn-string: oklch(0.470 0.080 190);
+  --syn-number: oklch(0.500 0.120 50);
+
+  /* dark weight compensation (4.2) */
+  --w-ui: 450;
+  --w-read: 400;
+  --w-mono: 430;
+
+  /* elevation (5.6) */
+  --float: 0 1px 0 rgb(38 29 23 / 0.04), 0 10px 28px -10px rgb(38 29 23 / 0.22);
+  --scrim: rgb(38 29 23 / 0.18);
+
+  /* high contrast targets (3.7), used by the contrast block below */
+  --hc-ink-3: oklch(0.400 0.018 60);
+  --hc-ink-4: oklch(0.500 0.016 62);
+  --hc-rule-strong: oklch(0.500 0.016 62);
+  --hc-rule: oklch(0.800 0.016 75);
+  --hc-L-mid: 0.660;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --paper: oklch(0.195 0.018 252);
+    --paper-2: oklch(0.225 0.020 252);
+    --paper-3: oklch(0.265 0.022 252);
+    --well: oklch(0.165 0.016 240);
+    --rule: oklch(0.360 0.020 252);
+    --rule-strong: oklch(0.470 0.020 252);
+    --ink: oklch(0.930 0.012 85);
+    --ink-2: oklch(0.850 0.012 85);
+    --ink-3: oklch(0.760 0.012 85);
+    --ink-4: oklch(0.610 0.012 85);
+    --acc-l: 0.780; --acc-c: 0.140; --acc-h: 38;
+    --accent-wash: oklch(0.280 0.050 31);
+    --contour: oklch(0.400 0.025 250);
+    --ver-l: 0.780; --ver-c: 0.120;
+    --verified-wash: oklch(0.270 0.045 150);
+    --mov-l: 0.820; --mov-c: 0.120; --mov-h: 80;
+    --moved-wash: oklch(0.300 0.055 80);
+    --moved-line: oklch(0.700 0.120 75);
+    --unverified-wash: oklch(0.290 0.055 28);
+    --L-fill: 0.330; --C-fill: 0.055;
+    --L-band: 0.285; --C-band: 0.045;
+    --L-band-strong: 0.350; --C-band-strong: 0.070;
+    --L-mid: 0.620; --C-mid: 0.090;
+    --L-ink: 0.860; --C-ink: 0.060;
+    --syn-keyword: oklch(0.800 0.100 305);
+    --syn-type: oklch(0.800 0.080 235);
+    --syn-string: oklch(0.810 0.080 190);
+    --syn-number: oklch(0.820 0.100 55);
+    --w-ui: 430;
+    --w-read: 380;
+    --w-mono: 400;
+    --float: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -8px rgb(0 0 0 / 0.55);
+    --scrim: rgb(4 8 12 / 0.55);
+    --hc-ink-3: oklch(0.850 0.012 85);
+    --hc-ink-4: oklch(0.760 0.012 85);
+    --hc-rule-strong: oklch(0.760 0.012 85);
+    --hc-rule: oklch(0.470 0.020 252);
+    --hc-L-mid: 0.720;
+  }
+}
+
+/* same block as above, for an explicit choice */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: oklch(0.195 0.018 252);
+  --paper-2: oklch(0.225 0.020 252);
+  --paper-3: oklch(0.265 0.022 252);
+  --well: oklch(0.165 0.016 240);
+  --rule: oklch(0.360 0.020 252);
+  --rule-strong: oklch(0.470 0.020 252);
+  --ink: oklch(0.930 0.012 85);
+  --ink-2: oklch(0.850 0.012 85);
+  --ink-3: oklch(0.760 0.012 85);
+  --ink-4: oklch(0.610 0.012 85);
+  --acc-l: 0.780; --acc-c: 0.140; --acc-h: 38;
+  --accent-wash: oklch(0.280 0.050 31);
+  --contour: oklch(0.400 0.025 250);
+  --ver-l: 0.780; --ver-c: 0.120;
+  --verified-wash: oklch(0.270 0.045 150);
+  --mov-l: 0.820; --mov-c: 0.120; --mov-h: 80;
+  --moved-wash: oklch(0.300 0.055 80);
+  --moved-line: oklch(0.700 0.120 75);
+  --unverified-wash: oklch(0.290 0.055 28);
+  --L-fill: 0.330; --C-fill: 0.055;
+  --L-band: 0.285; --C-band: 0.045;
+  --L-band-strong: 0.350; --C-band-strong: 0.070;
+  --L-mid: 0.620; --C-mid: 0.090;
+  --L-ink: 0.860; --C-ink: 0.060;
+  --syn-keyword: oklch(0.800 0.100 305);
+  --syn-type: oklch(0.800 0.080 235);
+  --syn-string: oklch(0.810 0.080 190);
+  --syn-number: oklch(0.820 0.100 55);
+  --w-ui: 430;
+  --w-read: 380;
+  --w-mono: 400;
+  --float: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 32px -8px rgb(0 0 0 / 0.55);
+  --scrim: rgb(4 8 12 / 0.55);
+  --hc-ink-3: oklch(0.850 0.012 85);
+  --hc-ink-4: oklch(0.760 0.012 85);
+  --hc-rule-strong: oklch(0.760 0.012 85);
+  --hc-rule: oklch(0.470 0.020 252);
+  --hc-L-mid: 0.720;
+}
+
+/* Contrast: High (3.7). Set data-contrast="high", or follow the OS. */
+:root[data-contrast="high"] {
+  --ink-2: var(--ink);
+  --ink-4: var(--hc-ink-4);
+  --ink-3: var(--hc-ink-3);
+  --rule: var(--hc-rule);
+  --rule-strong: var(--hc-rule-strong);
+  --L-mid: var(--hc-L-mid);
+  --band-a: 0;
+}
+@media (prefers-contrast: more) {
+  :root:not([data-contrast="standard"]) {
+    --ink-2: var(--ink);
+    --ink-4: var(--hc-ink-4);
+    --ink-3: var(--hc-ink-3);
+    --rule: var(--hc-rule);
+    --rule-strong: var(--hc-rule-strong);
+    --L-mid: var(--hc-L-mid);
+    --band-a: 0;
+  }
+}
+
+/* P3 screens: more chroma on the small marks only (3.8) */
+@media (color-gamut: p3) {
+  :root, :root[data-theme] { --acc-c: 0.220; --ver-c: 0.150; --mov-c: 0.140; --C-ink: 0.120; }
+}
+
+:root {
+  --band-a: 1;
+
+  /* derived colours, resolved from the per-theme numbers above */
+  --accent: oklch(var(--acc-l) var(--acc-c) var(--acc-h));
+  --verified: oklch(var(--ver-l) var(--ver-c) 150);
+  --moved: oklch(var(--mov-l) var(--mov-c) var(--mov-h));
+  --unverified: var(--accent);
+  --pending: var(--ink-4);
+  --syn-text: var(--ink);
+  --syn-comment: var(--ink-3);
+  --syn-fn: var(--ink);
+
+  /* layers (3.3). band fades to nothing in high contrast */
+  --water-fill: oklch(var(--L-fill) var(--C-fill) 235);
+  --water-band: oklch(var(--L-band) var(--C-band) 235 / var(--band-a));
+  --water-band-strong: oklch(var(--L-band-strong) var(--C-band-strong) 235);
+  --water-mid: oklch(var(--L-mid) var(--C-mid) 235);
+  --water-ink: oklch(var(--L-ink) var(--C-ink) 235);
+
+  --heath-fill: oklch(var(--L-fill) var(--C-fill) 305);
+  --heath-band: oklch(var(--L-band) var(--C-band) 305 / var(--band-a));
+  --heath-band-strong: oklch(var(--L-band-strong) var(--C-band-strong) 305);
+  --heath-mid: oklch(var(--L-mid) var(--C-mid) 305);
+  --heath-ink: oklch(var(--L-ink) var(--C-ink) 305);
+
+  --spruce-fill: oklch(var(--L-fill) var(--C-fill) 190);
+  --spruce-band: oklch(var(--L-band) var(--C-band) 190 / var(--band-a));
+  --spruce-band-strong: oklch(var(--L-band-strong) var(--C-band-strong) 190);
+  --spruce-mid: oklch(var(--L-mid) var(--C-mid) 190);
+  --spruce-ink: oklch(var(--L-ink) var(--C-ink) 190);
+
+  --sand-fill: oklch(var(--L-fill) var(--C-fill) 80);
+  --sand-band: oklch(var(--L-band) var(--C-band) 80 / var(--band-a));
+  --sand-band-strong: oklch(var(--L-band-strong) var(--C-band-strong) 80);
+  --sand-mid: oklch(var(--L-mid) var(--C-mid) 80);
+  --sand-ink: oklch(var(--L-ink) var(--C-ink) 80);
+
+  --moor-fill: oklch(var(--L-fill) var(--C-fill) 350);
+  --moor-band: oklch(var(--L-band) var(--C-band) 350 / var(--band-a));
+  --moor-band-strong: oklch(var(--L-band-strong) var(--C-band-strong) 350);
+  --moor-mid: oklch(var(--L-mid) var(--C-mid) 350);
+  --moor-ink: oklch(var(--L-ink) var(--C-ink) 350);
+
+  --lichen-fill: oklch(var(--L-fill) var(--C-fill) 115);
+  --lichen-band: oklch(var(--L-band) var(--C-band) 115 / var(--band-a));
+  --lichen-band-strong: oklch(var(--L-band-strong) var(--C-band-strong) 115);
+  --lichen-mid: oklch(var(--L-mid) var(--C-mid) 115);
+  --lichen-ink: oklch(var(--L-ink) var(--C-ink) 115);
+
+  --clay-fill: oklch(var(--L-fill) var(--C-fill) 50);
+  --clay-band: oklch(var(--L-band) var(--C-band) 50 / var(--band-a));
+  --clay-band-strong: oklch(var(--L-band-strong) var(--C-band-strong) 50);
+  --clay-mid: oklch(var(--L-mid) var(--C-mid) 50);
+  --clay-ink: oklch(var(--L-ink) var(--C-ink) 50);
+
+  --dusk-fill: oklch(var(--L-fill) var(--C-fill) 270);
+  --dusk-band: oklch(var(--L-band) var(--C-band) 270 / var(--band-a));
+  --dusk-band-strong: oklch(var(--L-band-strong) var(--C-band-strong) 270);
+  --dusk-mid: oklch(var(--L-mid) var(--C-mid) 270);
+  --dusk-ink: oklch(var(--L-ink) var(--C-ink) 270);
+
+  /* hatches (6.2): full background values, use as `background: var(--hatch-water)`.
+     The -dense ones are the half-pitch variants for a ninth source and up. */
+  --hatch-water: repeating-linear-gradient(0deg, var(--water-mid) 0 1px, transparent 1px 3px), var(--water-fill);
+  --hatch-heath: repeating-linear-gradient(45deg, var(--heath-mid) 0 1px, transparent 1px 4px), var(--heath-fill);
+  --hatch-spruce: radial-gradient(circle, transparent 1.1px, var(--spruce-mid) 1.2px 1.8px, transparent 1.9px) 0 0 / 6px 6px, var(--spruce-fill);
+  --hatch-sand: radial-gradient(var(--sand-mid) 0.8px, transparent 1px) 0 0 / 4px 4px, var(--sand-fill);
+  --hatch-moor: repeating-linear-gradient(45deg, var(--moor-mid) 0 1px, transparent 1px 5px), repeating-linear-gradient(-45deg, var(--moor-mid) 0 1px, transparent 1px 5px), var(--moor-fill);
+  --hatch-lichen: repeating-linear-gradient(90deg, var(--lichen-mid) 0 1px, transparent 1px 3px), var(--lichen-fill);
+  --hatch-clay: repeating-linear-gradient(-45deg, var(--clay-mid) 0 1px, transparent 1px 4px), var(--clay-fill);
+  --hatch-dusk: linear-gradient(90deg, var(--dusk-mid) 0 3px, transparent 3px 6px) 0 0 / 6px 3px, var(--dusk-fill);
+
+  --hatch-water-dense: repeating-linear-gradient(0deg, var(--water-mid) 0 1px, transparent 1px 1.5px), var(--water-fill);
+  --hatch-heath-dense: repeating-linear-gradient(45deg, var(--heath-mid) 0 1px, transparent 1px 2px), var(--heath-fill);
+  --hatch-spruce-dense: radial-gradient(circle, transparent 0.6px, var(--spruce-mid) 0.7px 1.2px, transparent 1.3px) 0 0 / 3px 3px, var(--spruce-fill);
+  --hatch-sand-dense: radial-gradient(var(--sand-mid) 0.6px, transparent 0.8px) 0 0 / 2px 2px, var(--sand-fill);
+  --hatch-moor-dense: repeating-linear-gradient(45deg, var(--moor-mid) 0 1px, transparent 1px 2.5px), repeating-linear-gradient(-45deg, var(--moor-mid) 0 1px, transparent 1px 2.5px), var(--moor-fill);
+  --hatch-lichen-dense: repeating-linear-gradient(90deg, var(--lichen-mid) 0 1px, transparent 1px 1.5px), var(--lichen-fill);
+  --hatch-clay-dense: repeating-linear-gradient(-45deg, var(--clay-mid) 0 1px, transparent 1px 2px), var(--clay-fill);
+  --hatch-dusk-dense: linear-gradient(90deg, var(--dusk-mid) 0 1.5px, transparent 1.5px 3px) 0 0 / 3px 3px, var(--dusk-fill);
+
+  /* type (4.1, 4.2). Archivo width goes through font-stretch. */
+  --font-ui: "Archivo Variable", "Archivo", system-ui, sans-serif;
+  --font-read: "Newsreader Variable", "Newsreader", Georgia, serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --wdth-ui: 100%;
+  --wdth-map: 118%;
+  --wdth-wide: 125%;
+
+  /* font shorthands: weight size/line family. Tracking, width and case live in the .t-* classes */
+  --type-wordmark: 700 15px/20px var(--font-ui);
+  --type-cover-xl: 800 56px/56px var(--font-ui);
+  --type-cover-md: 800 28px/32px var(--font-ui);
+  --type-kicker: 620 11px/16px var(--font-ui);
+  --type-ui: var(--w-ui) 13px/20px var(--font-ui);
+  --type-ui-strong: 580 13px/20px var(--font-ui);
+  --type-ui-sm: var(--w-ui) 12px/16px var(--font-ui);
+  --type-ui-title: 600 16px/24px var(--font-ui);
+  --type-headline: 500 34px/40px var(--font-read);
+  --type-headline-sm: 500 26px/32px var(--font-read);
+  --type-doc-h2: 600 23px/32px var(--font-read);
+  --type-doc-h3: 600 19px/28px var(--font-read);
+  --type-read: var(--w-read) 18.5px/30px var(--font-read);
+  --type-read-sm: var(--w-read) 16px/26px var(--font-read);
+  --type-quote: italic var(--w-read) 15px/22px var(--font-read);
+  --type-numeral-xl: 400 44px/44px var(--font-read);
+  --type-numeral-md: 400 24px/28px var(--font-read);
+  --type-code: var(--w-mono) 13.5px/22px var(--font-mono);
+  --type-mono: var(--w-mono) 12.5px/20px var(--font-mono);
+  --type-mono-sm: 450 11.5px/16px var(--font-mono);
+  --type-kbd: 500 11px/16px var(--font-mono);
+  --measure: 68ch;
+
+  /* space (5.1) */
+  --s-0: 0; --s-1: 2px; --s-2: 4px; --s-3: 6px; --s-4: 8px; --s-5: 12px; --s-6: 16px;
+  --s-7: 20px; --s-8: 24px; --s-9: 32px; --s-10: 40px; --s-11: 48px; --s-12: 64px; --s-13: 80px;
+  --row-dense: 28px;
+  --row-comfy: 36px;
+
+  /* frame (5.2) */
+  --topbar-h: 48px;
+  --keystrip-h: 28px;
+  --rail-w: 248px;
+  --gutter-w: 40px;
+  --column-w: 660px;
+  --column-gap: 36px;
+  --margin-w: 300px;
+  --content-w: 1036px;
+  --drawer-w: min(640px, 56vw);
+
+  /* radii (5.4) */
+  --r-0: 0; --r-1: 2px; --r-2: 4px; --r-3: 6px; --r-4: 8px; --r-full: 999px;
+
+  /* borders (5.5) */
+  --hairline: 1px solid var(--rule);
+  --control-border: 1px solid var(--rule-strong);
+
+  /* motion (8.1). Springs are WAAPI linear() curves built in JS */
+  --d-0: 0ms;
+  --d-1: 120ms;
+  --d-2: 160ms;
+  --d-2-out: 100ms;
+  --d-3: 200ms;
+  --d-4: 320ms;
+  --d-4-out: 200ms;
+  --d-5: 420ms;
+  --d-fade: 120ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-linear: linear;
+}
+
+/* layer and group mapping, so components read --l-* / --g-* and never name a hue */
+[data-layer="water"]  { --l-fill: var(--water-fill);  --l-band: var(--water-band);  --l-band-strong: var(--water-band-strong);  --l-mid: var(--water-mid);  --l-ink: var(--water-ink);  --l-hatch: var(--hatch-water); }
+[data-layer="heath"]  { --l-fill: var(--heath-fill);  --l-band: var(--heath-band);  --l-band-strong: var(--heath-band-strong);  --l-mid: var(--heath-mid);  --l-ink: var(--heath-ink);  --l-hatch: var(--hatch-heath); }
+[data-layer="spruce"] { --l-fill: var(--spruce-fill); --l-band: var(--spruce-band); --l-band-strong: var(--spruce-band-strong); --l-mid: var(--spruce-mid); --l-ink: var(--spruce-ink); --l-hatch: var(--hatch-spruce); }
+[data-layer="sand"]   { --l-fill: var(--sand-fill);   --l-band: var(--sand-band);   --l-band-strong: var(--sand-band-strong);   --l-mid: var(--sand-mid);   --l-ink: var(--sand-ink);   --l-hatch: var(--hatch-sand); }
+[data-layer="moor"]   { --l-fill: var(--moor-fill);   --l-band: var(--moor-band);   --l-band-strong: var(--moor-band-strong);   --l-mid: var(--moor-mid);   --l-ink: var(--moor-ink);   --l-hatch: var(--hatch-moor); }
+[data-layer="lichen"] { --l-fill: var(--lichen-fill); --l-band: var(--lichen-band); --l-band-strong: var(--lichen-band-strong); --l-mid: var(--lichen-mid); --l-ink: var(--lichen-ink); --l-hatch: var(--hatch-lichen); }
+[data-layer="clay"]   { --l-fill: var(--clay-fill);   --l-band: var(--clay-band);   --l-band-strong: var(--clay-band-strong);   --l-mid: var(--clay-mid);   --l-ink: var(--clay-ink);   --l-hatch: var(--hatch-clay); }
+[data-layer="dusk"]   { --l-fill: var(--dusk-fill);   --l-band: var(--dusk-band);   --l-band-strong: var(--dusk-band-strong);   --l-mid: var(--dusk-mid);   --l-ink: var(--dusk-ink);   --l-hatch: var(--hatch-dusk); }
+[data-layer="water"][data-dense]  { --l-hatch: var(--hatch-water-dense); }
+[data-layer="heath"][data-dense]  { --l-hatch: var(--hatch-heath-dense); }
+[data-layer="spruce"][data-dense] { --l-hatch: var(--hatch-spruce-dense); }
+[data-layer="sand"][data-dense]   { --l-hatch: var(--hatch-sand-dense); }
+[data-layer="moor"][data-dense]   { --l-hatch: var(--hatch-moor-dense); }
+[data-layer="lichen"][data-dense] { --l-hatch: var(--hatch-lichen-dense); }
+[data-layer="clay"][data-dense]   { --l-hatch: var(--hatch-clay-dense); }
+[data-layer="dusk"][data-dense]   { --l-hatch: var(--hatch-dusk-dense); }
+
+/* Studio groups (3.4): plan clay, visual heath, agent spruce, learn water, code sand */
+[data-group="plan"]   { --g-fill: var(--clay-fill);   --g-band: var(--clay-band);   --g-band-strong: var(--clay-band-strong);   --g-mid: var(--clay-mid);   --g-ink: var(--clay-ink);   --g-hatch: var(--hatch-clay); }
+[data-group="visual"] { --g-fill: var(--heath-fill);  --g-band: var(--heath-band);  --g-band-strong: var(--heath-band-strong);  --g-mid: var(--heath-mid);  --g-ink: var(--heath-ink);  --g-hatch: var(--hatch-heath); }
+[data-group="agent"]  { --g-fill: var(--spruce-fill); --g-band: var(--spruce-band); --g-band-strong: var(--spruce-band-strong); --g-mid: var(--spruce-mid); --g-ink: var(--spruce-ink); --g-hatch: var(--hatch-spruce); }
+[data-group="learn"]  { --g-fill: var(--water-fill);  --g-band: var(--water-band);  --g-band-strong: var(--water-band-strong);  --g-mid: var(--water-mid);  --g-ink: var(--water-ink);  --g-hatch: var(--hatch-water); }
+[data-group="code"]   { --g-fill: var(--sand-fill);   --g-band: var(--sand-band);   --g-band-strong: var(--sand-band-strong);   --g-mid: var(--sand-mid);   --g-ink: var(--sand-ink);   --g-hatch: var(--hatch-sand); }
+
+/* reusable hatch swatches: .hatch reads data-layer (or data-group), .hatch-<layer> is fixed */
+.hatch { background: var(--l-hatch, var(--g-hatch, var(--paper-3))); }
+.hatch-water { background: var(--hatch-water); }
+.hatch-heath { background: var(--hatch-heath); }
+.hatch-spruce { background: var(--hatch-spruce); }
+.hatch-sand { background: var(--hatch-sand); }
+.hatch-moor { background: var(--hatch-moor); }
+.hatch-lichen { background: var(--hatch-lichen); }
+.hatch-clay { background: var(--hatch-clay); }
+.hatch-dusk { background: var(--hatch-dusk); }
+
+/* Reduced motion (8.5): every duration to 0, opacity fades for cards and menus stay at 120ms.
+   data-motion="reduce" is the Settings override. */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) {
+    --d-1: 0ms; --d-2: 0ms; --d-2-out: 0ms; --d-3: 0ms; --d-4: 0ms; --d-4-out: 0ms; --d-5: 0ms;
+  }
+}
+:root[data-motion="reduce"] {
+  --d-1: 0ms; --d-2: 0ms; --d-2-out: 0ms; --d-3: 0ms; --d-4: 0ms; --d-4-out: 0ms; --d-5: 0ms;
+}
+
+/* forced colours (15): hatches give way to plain boxes */
+@media (forced-colors: active) {
+  .hatch, [class*="hatch-"] { background: Canvas; border: 1px solid CanvasText; }
+}

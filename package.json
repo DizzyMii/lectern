@@ -1,0 +1,8 @@
+{
+  "name": "notebook-spike",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest"
+  }
+}
