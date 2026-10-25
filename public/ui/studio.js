@@ -173,7 +173,7 @@ export function initStudio(el) {
 
   // Studio is a full view in the page area, not a column (DESIGN 0.3, 5.2)
   Object.assign(ctx, {
-    toggleStudio: (force) => setStudio(force ?? !studioOpen()),
+    toggleStudio: (force, opts) => setStudio(force ?? !studioOpen(), opts),
     studioShown: studioOpen,
   });
   document.addEventListener('keydown', globalP);
@@ -200,7 +200,7 @@ function setStudio(open, { focus = true } = {}) {
   root.inert = !open;
   emit('studio', open);
   if (open) { draw(); if (focus) focusSel(); }
-  else if (!document.getElementById('center')?.classList.contains('show-canvas')) document.querySelector('#chat textarea')?.focus({ preventScroll: true });
+  else if (focus && !document.getElementById('center')?.classList.contains('show-canvas')) document.querySelector('#chat textarea')?.focus({ preventScroll: true });
 }
 
 

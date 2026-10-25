@@ -101,6 +101,8 @@ Object.assign(ctx, {
       if (MODELS.some((m) => m.id === last)) state.model = last;
       store.set('conv.' + state.nbId, id);
       if (canvasOpen()) closeCanvas({ keepHash: true });
+      // picking a question while Studio is up has to show it, or it loads behind the sheet index
+      if (ctx.studioShown()) ctx.toggleStudio(false, { focus: false });
       clearCursor();
       setHash();
       renderThread();
