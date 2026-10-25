@@ -12,16 +12,10 @@ import properties from '/vendor/highlight.js/es/languages/properties.js';
 import ini from '/vendor/highlight.js/es/languages/ini.js';
 import { esc } from './dom.js';
 import { sourceFor, statusOf } from './layers.js';
-
-// highlight.js ships es/core.js as a wrapper around the CommonJS lib/core.js, which a
-// browser cannot import. lib/core.js has no requires, so evaluate it with a module shim.
-async function loadHljs() {
-  const src = await (await fetch('/vendor/highlight.js/lib/core.js')).text();
-  const module = { exports: {} };
-  new Function('module', 'exports', src)(module, module.exports);
-  return module.exports;
-}
-const hljs = await loadHljs();
+import { SANITIZE_CONFIG, afterAttributes } from './sanitize.js';
+// highlight.js ships es/core.js as a wrapper around the CommonJS lib/core.js, which a browser
+// cannot import, so the server wraps lib/core.js as a module at this path
+import hljs from '/vendor/highlight.js/lib/core.esm.js';
 
 for (const [n, l] of Object.entries({ java, json, javascript, xml, bash, markdown, properties, ini })) hljs.registerLanguage(n, l);
 
@@ -103,24 +97,9 @@ const md = new Marked({
   },
 });
 
-DOMPurify.addHook('afterSanitizeAttributes', (node) => {
-  if (node.tagName === 'A' && node.getAttribute('href')) {
-    const href = node.getAttribute('href');
-    if (/^https?:/i.test(href)) { node.setAttribute('target', '_blank'); node.setAttribute('rel', 'noopener noreferrer'); }
-  }
-  // model text must not phone home: only same-origin and inline images load
-  if (node.tagName === 'IMG') {
-    const s = node.getAttribute('src') || '';
-    if (!/^(\/(?!\/)|data:image\/)/i.test(s)) node.removeAttribute('src');
-  }
-});
-
-// No styles or forms from model or source text: they could restyle the app or overlay a fake UI.
-// Buttons stay because citation chips are buttons.
-const clean = (html) => DOMPurify.sanitize(html, {
-  USE_PROFILES: { html: true }, ADD_ATTR: ['data-n', 'data-layer', 'data-dense'],
-  FORBID_TAGS: ['style', 'form', 'input', 'textarea', 'select', 'option'], FORBID_ATTR: ['style'],
-});
+// model and source text must not phone home; the server's CSP is the second line
+DOMPurify.addHook('afterSanitizeAttributes', afterAttributes);
+export const clean = (html) => DOMPurify.sanitize(html, SANITIZE_CONFIG);
 
 const CHIP_PUNCT = /((?:<button type="button" class="chip [^"]*"[^>]*>\d+<\/button>)+)([.,;:!?)\]]+)/g;
 

@@ -24,8 +24,9 @@ async function req(method, path, body, signal) {
   const type = r.headers.get('content-type') || '';
   if (!r.ok) {
     let msg = `${r.status} ${r.statusText || ''}`.trim();
-    try { const j = type.includes('json') ? await r.json() : { error: await r.text() }; msg = j.error || j.message || msg; } catch {}
-    const err = new Error(msg); err.status = r.status; throw err;
+    let j = null;
+    try { j = type.includes('json') ? await r.json() : { error: await r.text() }; msg = j.error || j.message || msg; } catch {}
+    const err = new Error(msg); err.status = r.status; err.body = j; throw err;
   }
   if (r.status === 204) return null;
   return type.includes('json') ? r.json() : r.text();

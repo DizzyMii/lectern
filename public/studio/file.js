@@ -100,7 +100,8 @@ export function render(container, artifact, ctx = {}) {
       const refused = e.status === 403 || /outside|root|not allowed|refus/i.test(e.message || '');
       if (exists && !overwrite) {
         writeBtn.querySelector('span').textContent = 'Overwrite…';
-        setStatus('warn', glyph('moved', 14), h('span', null, h('code', null, path), ' already exists. Replace it?'),
+        // the server's resolved absolute path, so it is clear which file would be replaced
+        setStatus('warn', glyph('moved', 14), h('span', null, h('code', null, e.body?.path || path), ' already exists. Replace it?'),
           btn('Overwrite', () => write(true), { cls: 'danger small' }),
           btn('Keep it', () => { status.replaceChildren(); status.className = 'sf-status'; writeBtn.querySelector('span').textContent = 'Write to file'; }, { cls: 'quiet small' }));
         status.querySelector('.danger')?.focus();
