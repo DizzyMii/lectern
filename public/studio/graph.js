@@ -778,6 +778,7 @@ export function render(container, artifact, ctx = {}) {
     if (i < 0) { card.hidden = true; return; }
     drawCard();
     card.hidden = false;
+    if (cardBelow() && !inView(i)) centerOn(i);
   }
   function drawCard() {
     const n = nodes[selected];
@@ -896,7 +897,15 @@ export function render(container, artifact, ctx = {}) {
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
   // the part of the stage not covered by the search box, card and foot
-  const insets = () => ({ top: 60, bottom: (foot.offsetHeight || 40) + 20, right: card.hidden ? 28 : CARD_W + 20, left: 28 });
+  // on a phone the card is a bottom sheet across the stage and covers the bottom
+  const cardBelow = () => !card.hidden && card.offsetWidth >= stage.clientWidth - 1;
+  const insets = () => {
+    // the find box and tools stack into two rows on a phone
+    const top = Math.max(60, tools.offsetTop + tools.offsetHeight + 8);
+    return cardBelow()
+      ? { top, bottom: card.offsetHeight + 20, right: 28, left: 28 }
+      : { top, bottom: (foot.offsetHeight || 40) + 20, right: card.hidden ? 28 : CARD_W + 20, left: 28 };
+  };
   function fit() {
     const W = stage.clientWidth, H = stage.clientHeight;
     if (!W || !H || !lay) return;
@@ -957,7 +966,7 @@ export function render(container, artifact, ctx = {}) {
     let covered = 0;
     const drawer = document.querySelector('.drawer:not([hidden])');
     if (drawer) covered = Math.max(0, stage.getBoundingClientRect().right - drawer.getBoundingClientRect().left);
-    const right = Math.max(ins.right, covered + (card.hidden ? 0 : CARD_W));
+    const right = Math.max(ins.right, covered + (card.hidden || cardBelow() ? 0 : CARD_W));
     const aw = Math.max(160, stage.clientWidth - ins.left - right);
     const ah = stage.clientHeight - ins.top - ins.bottom;
     view = { k, x: ins.left + aw / 2 - (p.cx ?? p.x) * k, y: ins.top + ah / 2 - (p.cy ?? p.y) * k };
@@ -965,14 +974,40 @@ export function render(container, artifact, ctx = {}) {
     apply();
   }
 
-  // drag to pan; a press that does not move is a click
+  // drag to pan; a press that does not move is a click. Two fingers pinch to zoom
   let drag = null;
+  const touches = new Map();
+  let pinch = null;
+  const pinchState = () => {
+    const [a, b] = [...touches.values()];
+    const r = stage.getBoundingClientRect();
+    return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, x: (a.x + b.x) / 2 - r.left, y: (a.y + b.y) / 2 - r.top };
+  };
   stage.addEventListener('pointerdown', (e) => {
     if ((e.button !== 0 && e.button !== 1) || e.target.closest('.sg-card, .sg-foot, .sg-find, .sg-tools')) return;
-    drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false, node: e.target.closest('.sg-node') };
+    if (e.pointerType === 'touch') {
+      touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.size === 2) { drag = null; pinch = pinchState(); stage.classList.add('panning'); }
+    }
+    if (!pinch) drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false, node: e.target.closest('.sg-node') };
     try { stage.setPointerCapture(e.pointerId); } catch {}
   });
+  const dropTouch = (e) => {
+    if (!touches.delete(e.pointerId) || !pinch || touches.size >= 2) return;
+    pinch = null;
+    stage.classList.remove('panning');
+  };
+  stage.addEventListener('pointerup', dropTouch);
+  stage.addEventListener('pointercancel', dropTouch);
   stage.addEventListener('pointermove', (e) => {
+    if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && touches.size === 2) {
+      const now = pinchState();
+      view.x += now.x - pinch.x; view.y += now.y - pinch.y;
+      zoomAt(now.d / pinch.d, now.x, now.y);
+      pinch = now;
+      return;
+    }
     if (!drag) return;
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     if (!drag.moved && Math.hypot(dx, dy) < 4) return;

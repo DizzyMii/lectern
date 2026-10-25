@@ -663,3 +663,36 @@
 
 /* step rows keep the status glyph inside the column */
 .artifact-canvas .sq-list .g { flex: none; margin-left: auto; }
+
+/* ---------- phones (5.3, under 768) ---------- */
+
+.artifact-canvas .sq-scroll { touch-action: pan-x pan-y; }
+@media (max-width: 767px) {
+  /* graph: the detail card rises from the bottom */
+  .artifact-canvas .sg-stage, .artifact-canvas .sg-matrix { min-height: max(420px, calc(100dvh - 300px)); }
+  .artifact-canvas .sg-find, .artifact-canvas .sg-find.has-q { left: 8px; right: 8px; top: 8px; width: auto; }
+  .artifact-canvas .sg-tools, .artifact-canvas .sg-find.has-q ~ .sg-tools { left: 8px; top: 56px; }
+  .artifact-canvas .sg-tools .btn { height: 40px; }
+  .artifact-canvas .sg-find kbd { display: none; }
+  .artifact-canvas .sg-find .sa-input { height: 40px; }
+  .artifact-canvas .sg-tools .segmented { height: 40px; }
+  .artifact-canvas .sg-card { top: auto; left: 0; width: auto; max-height: 55%; border-left: 0; border-top: 1px solid var(--rule-strong); box-shadow: var(--float); }
+  .artifact-canvas .sg-card:not([hidden]) ~ .sg-foot { right: 0; display: none; }
+  .artifact-canvas .sg-foot { gap: 8px; padding: 2px 4px 2px 12px; }
+  .artifact-canvas .sg-legend { display: none; }
+  .artifact-canvas .sg-totals { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .artifact-canvas .sg-zoom .icon-btn, .artifact-canvas .sg-pct, .artifact-canvas .sg-fit { min-width: 40px; height: 40px; }
+  .artifact-canvas .sg-fit { margin-left: 0; }
+  /* sequence: the diagram gets most of the screen, the step list follows */
+  .artifact-canvas .sq-scroll { max-height: calc(100dvh - 240px); }
+  .artifact-canvas .sq-list button { min-height: 40px; }
+  /* doc: contents become one scrolling row of section links */
+  .artifact-canvas .sd-toc { gap: 6px; }
+  .artifact-canvas .sd-toc ol { display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .artifact-canvas .sd-toc li { flex: none; }
+  .artifact-canvas .sd-toc a, .artifact-canvas .sd-toc a.lv1, .artifact-canvas .sd-toc a.lv2 { display: flex; align-items: center; height: 36px; padding: 0 12px; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: inset 0 0 0 1px var(--rule); border-radius: var(--r-2); }
+  .artifact-canvas .sd-toc a.lv1, .artifact-canvas .sd-toc a.lv2 { display: none; }
+  .artifact-canvas .sd-toc a.on { box-shadow: inset 0 0 0 1px var(--ink); }
+  .artifact-canvas .sd-main { padding-left: 24px; }
+  .artifact-canvas .sd-pre .sd-copy { opacity: 1; width: 40px; height: 40px; }
+}

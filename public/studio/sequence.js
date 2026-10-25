@@ -230,6 +230,22 @@ export function render(container, artifact, ctx = {}) {
     requestAnimationFrame(edge);
   };
   const fitWidth = () => setZoom(Math.min(1.2, (scroller.clientWidth - 8) / W0));
+  // one finger scrolls the diagram natively; two pinch the zoom around their midpoint
+  let pinch = null;
+  const spread = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1;
+  scroller.addEventListener('touchstart', (e) => { if (e.touches.length === 2) pinch = { d: spread(e.touches), k }; }, { passive: true });
+  scroller.addEventListener('touchmove', (e) => {
+    if (!pinch || e.touches.length !== 2) return;
+    e.preventDefault();
+    const r = scroller.getBoundingClientRect();
+    const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left, my = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+    const before = k;
+    setZoom(pinch.k * spread(e.touches) / pinch.d);
+    const f = k / before;
+    scroller.scrollLeft = (scroller.scrollLeft + mx) * f - mx;
+    scroller.scrollTop = (scroller.scrollTop + my) * f - my;
+  }, { passive: false });
+  scroller.addEventListener('touchend', (e) => { if (e.touches.length < 2) pinch = null; }, { passive: true });
 
   // ---------- legend ----------
   const usedLayers = [];

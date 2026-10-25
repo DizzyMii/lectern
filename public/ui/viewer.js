@@ -14,7 +14,7 @@ let active = null;
 let shown = null;        // key of the tab whose body is on screen, for saving its scroll
 let collapsed = false;   // drawer hidden but tabs kept
 const files = new Map(); // `${nb}:${path}` -> Promise<{path,text,lang,lines}>
-let wrap = false;
+let wrap = window.matchMedia('(max-width: 767px)').matches; // phones start wrapped so a long line needs no panning
 let selBar = null;
 
 const hlCache = new Map();

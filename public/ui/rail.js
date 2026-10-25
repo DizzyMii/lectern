@@ -5,6 +5,7 @@ import { api, nbPath } from './api.js';
 import { state, ctx, on, emit, normTreeEntries } from './state.js';
 import { sourcesOf, swatch, layerAttrs, qnum, kbd, inScope, toggleScope } from './layers.js';
 import { confirmDialog } from './dialogs.js';
+import { effectiveTheme } from './chrome.js';
 
 let rail, legend, hist, notesEl, footEl, menuEl = null, filterEl = null, selected = null;
 const dirCache = new Map(); // `${nb}|${root}|${dir}` -> Promise<entries>
@@ -26,7 +27,7 @@ export function initRail(el) {
   hist = h('section', { class: 'history', 'aria-label': 'History' });
   notesEl = h('section', { class: 'notes', 'aria-label': 'Notes' });
   footEl = h('div', { class: 'rail-foot' });
-  rail.append(h('div', { class: 'rail-scroll' }, legend, hist, notesEl), footEl);
+  rail.append(h('div', { class: 'rail-scroll' }, phoneNav(), legend, hist, notesEl), footEl);
   on('notebook', drawAll);
   on('refresh', drawAll);
   on('conversation', drawHistory);
@@ -39,6 +40,20 @@ export function initRail(el) {
   hist.addEventListener('keydown', listKeys);
   legend.addEventListener('keydown', listKeys);
   drawAll();
+}
+
+// A phone has no P key and no room for the theme button, so the rail sheet carries both
+function phoneNav() {
+  const app = document.getElementById('app');
+  const done = () => app.classList.remove('rail-open');
+  const theme = h('button', { type: 'button', class: 'btn quiet' });
+  const drawTheme = () => { const dark = effectiveTheme() === 'dark'; theme.replaceChildren(icon(dark ? 'sun' : 'moon'), dark ? 'Light' : 'Night'); };
+  theme.addEventListener('click', () => { ctx.toggleTheme(); drawTheme(); });
+  drawTheme();
+  return h('nav', { class: 'rail-phone', 'aria-label': 'Views' },
+    h('button', { type: 'button', class: 'btn quiet', onclick: () => { if (ctx.studioShown()) ctx.toggleStudio(false, { focus: false }); else ctx.closeCanvas(); done(); } }, icon('chat'), 'Answers'),
+    h('button', { type: 'button', class: 'btn quiet', onclick: () => { ctx.toggleStudio(true, { focus: false }); done(); } }, icon('layers'), 'Studio'),
+    theme);
 }
 
 function drawAll() { drawLegend(); drawHistory(); drawNotes(); drawFoot(); }

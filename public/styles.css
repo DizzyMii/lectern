@@ -680,7 +680,7 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 .composer-wrap { position: relative; flex: none; padding: 8px 24px 24px 32px; }
 .chat-view.onboarding .composer-wrap { display: none; }
 .composer {
-  display: grid; gap: 4px; max-width: var(--content-w); padding: 12px 16px 12px;
+  display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; max-width: var(--content-w); padding: 12px 16px 12px;
   background: var(--paper); border: 1px solid var(--rule); border-radius: var(--r-4); cursor: text;
   transition: border-color var(--d-1) var(--ease-out);
 }
@@ -1346,4 +1346,144 @@ dialog.dlg::backdrop { background: var(--scrim); }
   .drawer { width: 100vw; border-left: 0; }
   .drawer-open .drawer-div { display: none; }
   .tb-brand { margin-left: 4px; }
+}
+
+/* ---------- touch and phones (5.3, under 768) ---------- */
+
+/* the key strip is all keyboard hints, so touch screens and phones drop it; its row keeps only the home-bar inset */
+@media (max-width: 767px), (hover: none) and (pointer: coarse) {
+  :root { --keystrip-h: env(safe-area-inset-bottom, 0px); }
+  .keystrip { display: none; }
+}
+/* controls that only appear on hover stay visible when there is no hover */
+@media (hover: none) {
+  .src-row .scope-tog, .row-more { opacity: 1; }
+  .src-row .src-open { padding-right: 84px; }
+  .src-row:hover .src-count, .src-row:focus-within .src-count { visibility: visible; }
+}
+.rail-phone { display: none; }
+@media (max-width: 767px) {
+  :root { --topbar-h: calc(52px + env(safe-area-inset-top, 0px)); }
+
+  /* top bar: menu, mark, notebook, search */
+  .topbar { gap: 4px; padding: env(safe-area-inset-top, 0px) max(4px, env(safe-area-inset-right, 0px)) 0 max(4px, env(safe-area-inset-left, 0px)); }
+  .topbar .icon-btn, .tb-rail { width: 40px; height: 40px; }
+  .tb-rail { margin-right: 0; }
+  .tb-brand { margin-left: 0; }
+  .tb-sep, #tb-theme, .tb-run { display: none; }
+  .tb-notebook { flex: 0 1 auto; min-width: 0; max-width: none; height: 40px; margin-left: 2px; }
+  .tb-palette { flex: none; width: 40px; min-width: 0; height: 40px; padding: 0; justify-content: center; border: 0; background: none; color: var(--ink-2); }
+  .tb-palette svg { width: 20px; height: 20px; }
+  .tb-palette .ph, .tb-palette .keys { display: none; }
+
+  /* key caps mean nothing without a keyboard */
+  .btn kbd, .icon-btn kbd, .cites-head .keys, .trail-sum kbd, .rl-head kbd, .add-src kbd, .p-keys, .palette-foot { display: none; }
+  .icon-btn.esc { width: 40px; padding: 0; }
+
+  /* the page */
+  .page-scroll { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+  .turn + .turn { margin-top: 32px; padding-top: 24px; }
+  .trail-sum { height: 40px; }
+  .fold-receipt { flex-wrap: wrap; row-gap: 4px; margin: -12px 0 16px; }
+  .act-row .btn { height: 40px; }
+  .suggest-row { min-height: 52px; }
+  .new-below { height: 36px; }
+
+  /* citation chips: bigger, with a 32px hit area around them */
+  .chip { position: relative; width: 22px; height: 22px; font-size: 12.5px; vertical-align: 0.08em; }
+  .chip::after { content: ""; position: absolute; inset: -5px; }
+
+  /* the citation card becomes a bottom sheet */
+  .hovercard {
+    left: 0 !important; right: 0; top: auto !important; bottom: 0; width: auto; max-width: none; max-height: 70dvh; overflow: auto;
+    border-width: 1px 0 0; border-radius: var(--r-4) var(--r-4) 0 0; padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: sheet-up var(--d-3) var(--ease-out);
+  }
+  .hc-head { height: 44px; }
+  .hc-acts { flex-wrap: wrap; }
+  .hc-acts .btn { height: 40px; flex: 1 1 auto; }
+  .hc-code { overflow-x: auto; }
+  .hc-code .c { overflow: visible; text-overflow: clip; }
+
+  /* composer: full width, the Ask button always on screen */
+  .composer-wrap { padding: 8px max(12px, env(safe-area-inset-right, 0px)) 12px max(12px, env(safe-area-inset-left, 0px)); }
+  .composer { padding: 10px 12px; }
+  .c-row3 { gap: 4px; }
+  .c-scope { flex: 0 1 auto; overflow: hidden; }
+  .scope-chip { height: 28px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .scope-chip .sw-row { display: none; }
+  .model-btn, .ask-btn, .btn.primary.ask-btn { height: 40px; }
+  .ask-btn { padding: 0 16px; }
+
+  /* rail sheet: views on top, 44px rows */
+  .rail { padding-left: env(safe-area-inset-left, 0px); }
+  .rail-phone { display: flex; gap: 4px; padding: 0 12px 12px; margin-bottom: 8px; border-bottom: 1px solid var(--rule); }
+  .rail-phone .btn { flex: 1 1 0; height: 40px; gap: 6px; padding: 0 6px; color: var(--ink); }
+  .rail-phone .btn svg { color: var(--ink-3); }
+  .rail-scroll { padding-top: 12px; }
+  .rl-head { height: 40px; }
+  .rl-head .icon-btn { width: 40px; height: 40px; margin-right: -10px; }
+  .src-open, .src-row.two .src-open { height: 44px; align-items: center; padding-top: 0; }
+  .src-row.two .swatch, .src-row.two .src-count { margin-top: 0; padding-top: 0; }
+  .src-row .scope-tog, .src-row.two .scope-tog { top: 15px; }
+  .scope-tog::before { content: ""; position: absolute; inset: -14px -8px; }
+  .row-more, .src-row.two .row-more { top: 50%; width: 40px; height: 40px; }
+  .src-row .row-more { right: 46px; }
+  .h-open { padding: 10px 44px 10px 16px; }
+  .slot, .add-src { height: 44px; }
+  .rail-foot { padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+
+  /* source drawer: a full-screen sheet with its own close button */
+  .drawer { top: 0; bottom: 0; width: 100%; padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); box-shadow: none; z-index: 70; }
+  .dr-head { height: 52px; gap: 6px; padding: 0 4px 0 16px; }
+  .dr-head .icon-btn { width: 40px; height: 40px; }
+  .dr-name { max-width: 34%; }
+  .dr-path .dir { display: none; }
+  .dr-path .file { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .dr-tabs { flex-wrap: wrap; row-gap: 0; padding: 0 12px; }
+  .dr-tabs .tab { height: 40px; }
+  .dr-status { height: auto; min-height: 40px; flex-wrap: wrap; padding: 4px 4px 4px 16px; }
+  .dr-status .kbtn { width: 40px; height: 40px; place-items: center; }
+  .dr-status .kbtn kbd { height: 28px; min-width: 28px; }
+  .dr-tab, .dr-tab > button:first-child { height: 36px; }
+  .dr-tab .x { width: 32px; height: 32px; }
+  .code .n { width: 44px; padding-right: 10px; }
+  .drawer .page { padding: 20px 16px 40px; }
+
+  /* palette: a sheet from the top, scopes on their own row */
+  .palette { padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+  .palette-box { width: calc(100vw - 16px); max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px)); }
+  .palette-input { flex-wrap: wrap; height: auto; padding: 6px 4px 8px 14px; row-gap: 4px; }
+  .palette-input input { flex: 1 1 calc(100% - 40px); height: 44px; font-size: 17px; }
+  .palette-input .p-scopes { order: 3; flex: 1 1 100%; height: 32px; }
+  .palette-input .p-scopes > button { flex: 1 1 auto; }
+  .palette-input kbd { display: none; }
+  .p-item { height: 44px; }
+  .palette-list { padding: 4px 6px 8px; }
+
+  /* menus, dialogs, toasts */
+  .menu-item { height: 40px; }
+  dialog.dlg, dialog.dlg.large { width: calc(100vw - 16px); max-height: calc(100dvh - 32px); }
+  .dlg-head { padding: 16px 8px 8px 18px; }
+  .dlg-body { padding: 8px 18px 16px; }
+  .dlg-foot { padding: 12px 18px calc(18px + env(safe-area-inset-bottom, 0px)); flex-wrap: wrap; }
+  .dlg-foot .btn { height: 40px; }
+  .row2 { grid-template-columns: minmax(0, 1fr); }
+  .keys-grid { grid-template-columns: minmax(0, 1fr); }
+  .toasts { left: 8px; right: 8px; width: auto; bottom: calc(var(--keystrip-h) + 88px); }
+  .toast { min-height: 44px; }
+  .selbar .btn { height: 40px; }
+}
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } }
+
+/* a phone column holds about 45 characters, so the type steps down and long inline code may break */
+@container page (max-width: 600px) {
+  .headline, .headline.long { font: 500 23px/29px var(--font-read); letter-spacing: -0.006em; margin-bottom: 16px; }
+  .prose { font-size: 17px; line-height: 28px; }
+  .prose .glue code { white-space: normal; }
+  .prose :not(pre) > code { overflow-wrap: anywhere; }
+  .codeblock { margin-left: -16px; margin-right: -16px; }
+  .codeblock pre { padding-right: 16px; }
+  .codeblock .cl::before { width: 32px; padding-right: 12px; }
+  .q-kicker { flex-wrap: wrap; row-gap: 2px; }
 }
