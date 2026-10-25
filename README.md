@@ -31,7 +31,7 @@ That $3 is the one to watch. A big shelf on Opus costs real money to load, so us
 
 ## Install
 
-Needs Node 20 or newer (I've only tested on 22).
+Needs Node 20 or newer (I've only tested on 22). Running from a clone of the repo, phone access over Tailscale and starting at logon are in [docs/SETUP.md](docs/SETUP.md).
 
 ```
 npx @dizzymii/lectern serve
