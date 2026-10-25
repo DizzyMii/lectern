@@ -1056,9 +1056,14 @@ dialog.dlg::backdrop { background: var(--scrim); }
 .sheet-foot code { font: var(--type-mono-sm); color: var(--ink); }
 @container page (max-width: 860px) {
   .sheet { padding: 24px 20px; }
-  .sheet-grid { grid-template-columns: 1fr; gap: 8px; }
+  /* minmax(0, ...) so a long nowrap path ellipsizes instead of widening the column */
+  .sheet-grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
   .crop { display: none; }
   .sheet-foot { flex-wrap: wrap; }
+}
+@container page (max-width: 600px) {
+  .sheet { padding: 20px 14px; }
+  .ob-mark { grid-template-columns: 44px minmax(0, 1fr); }
 }
 
 /* ---------- highlight.js on the well (3.5) ---------- */

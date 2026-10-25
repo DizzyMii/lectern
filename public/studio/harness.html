@@ -63,7 +63,7 @@
     };
     const written = new Set();
     // sample roots so refs land on layers the way a real notebook assigns them
-    const roots = [{ name: 'neoforge' }, { name: 'geckolib' }, { name: 'src', own: true }, { name: 'wtg', own: true }];
+    const roots = [{ name: 'fastify' }, { name: 'pg' }, { name: 'src', own: true }, { name: 'service', own: true }];
     const ctxFor = (a) => ({
       openRef: (ref) => log('openRef ' + ref),
       openCitation: (n) => log('openCitation ' + n),

@@ -1,0 +1,38 @@
+{
+  "id": "neoforge-1.21.1",
+  "title": "NeoForge 1.21.1",
+  "color": "amber",
+  "description": "The NeoForge docs for 1.21.1 and the porting primers from 1.20.5 on. With --code, also the NeoForge and GeckoLib sources.",
+  "target": "Minecraft 1.21.1 with NeoForge 21.1",
+  "system": "Never answer NeoForge API questions from memory. Check the primers for anything that changed between versions.",
+  "sources": [
+    {
+      "name": "neoforge-docs",
+      "git": "https://github.com/neoforged/Documentation",
+      "sparse": ["versioned_docs/version-1.21.1"],
+      "pin": ["versioned_docs/version-1.21.1/**/*.md"]
+    },
+    {
+      "name": "neoforge-github",
+      "git": "https://github.com/neoforged/.github",
+      "sparse": ["primers/1.20.5", "primers/1.20.6", "primers/1.21", "primers/1.21.1"],
+      "pin": ["primers/1.20.5/*.md", "primers/1.20.6/*.md", "primers/1.21/*.md", "primers/1.21.1/*.md"]
+    },
+    {
+      "name": "neoforge",
+      "code": true,
+      "git": "https://github.com/neoforged/NeoForge",
+      "branch": "1.21.1",
+      "sparse": ["src/main/java"],
+      "roots": { "neoforge": "src/main/java" }
+    },
+    {
+      "name": "geckolib",
+      "code": true,
+      "git": "https://github.com/bernie-g/geckolib",
+      "branch": "1.21.1",
+      "sparse": ["common/src/main/java", "neoforge/src/main/java"],
+      "roots": { "geckolib": "common/src/main/java", "geckolib-neoforge": "neoforge/src/main/java" }
+    }
+  ]
+}

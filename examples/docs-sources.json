@@ -1,0 +1,23 @@
+{
+  "about": "First-run doc suggestions. A project folder that uses one of these gets the docs offered. npm, cargo and python match a dependency name; gradle matches a gradle.properties key. {key} in a url is filled from gradle.properties and the entry is skipped when it is missing.",
+  "sources": [
+    { "type": "npm", "dep": "express", "url": "https://expressjs.com/en/5x/api.html", "label": "Express API" },
+    { "type": "npm", "dep": "fastify", "url": "https://fastify.dev/docs/latest/", "label": "Fastify docs" },
+    { "type": "npm", "dep": "hono", "url": "https://hono.dev/docs/", "label": "Hono docs" },
+    { "type": "npm", "dep": "react", "url": "https://react.dev/reference/react", "label": "React reference" },
+    { "type": "npm", "dep": "next", "url": "https://nextjs.org/docs", "label": "Next.js docs" },
+    { "type": "npm", "dep": "vue", "url": "https://vuejs.org/guide/introduction.html", "label": "Vue guide" },
+    { "type": "npm", "dep": "svelte", "url": "https://svelte.dev/docs/svelte/overview", "label": "Svelte docs" },
+    { "type": "npm", "dep": "vite", "url": "https://vite.dev/guide/", "label": "Vite guide" },
+    { "type": "npm", "dep": "typescript", "url": "https://www.typescriptlang.org/docs/handbook/intro.html", "label": "TypeScript handbook" },
+    { "type": "cargo", "dep": "tokio", "url": "https://docs.rs/tokio/latest/tokio/", "label": "docs.rs/tokio" },
+    { "type": "cargo", "dep": "axum", "url": "https://docs.rs/axum/latest/axum/", "label": "docs.rs/axum" },
+    { "type": "cargo", "dep": "serde", "url": "https://serde.rs/", "label": "serde.rs" },
+    { "type": "cargo", "dep": "bevy", "url": "https://docs.rs/bevy/latest/bevy/", "label": "docs.rs/bevy" },
+    { "type": "python", "dep": "django", "url": "https://docs.djangoproject.com/en/stable/", "label": "Django docs" },
+    { "type": "python", "dep": "fastapi", "url": "https://fastapi.tiangolo.com/", "label": "FastAPI docs" },
+    { "type": "python", "dep": "flask", "url": "https://flask.palletsprojects.com/", "label": "Flask docs" },
+    { "type": "python", "dep": "pydantic", "url": "https://docs.pydantic.dev/latest/", "label": "Pydantic docs" },
+    { "type": "gradle", "key": "neo_version", "url": "https://docs.neoforged.net/docs/{minecraft_version}/", "label": "docs.neoforged.net/docs/{minecraft_version}" }
+  ]
+}

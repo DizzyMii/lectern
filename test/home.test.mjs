@@ -69,7 +69,7 @@ test('bin prints the version, help, and lists and creates notebooks in LECTERN_H
   assert.match(bogus.stderr, /usage:/);
   const empty = run('list');
   assert.equal(empty.status, 0);
-  assert.match(empty.stdout, /No notebooks yet\. Try `lectern new <id>`/);
+  assert.match(empty.stdout, /No notebooks yet\. Try `lectern example node-docs`/);
   const dir = path.join(root, 'anywhere', 'nb1');
   const made = run('new', 'nb1', '--title', 'Nb One', '--dir', dir);
   assert.equal(made.status, 0, made.stderr);

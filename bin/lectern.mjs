@@ -14,6 +14,8 @@ usage:
   lectern show <notebook> <conversationId|artifactId> [--json]
   lectern new <id> [--title t] [--dir folder]
   lectern add <notebook> <url|path|git-url> [--name n] [--branch b] [--subdir d]
+  lectern example [name] [--dir folder] [--code]
+                                             set up a ready-made notebook (no name lists them)
   lectern migrate <old app folder>           copy an old data/registry.json into the home folder
   lectern --version | --help
 
@@ -62,6 +64,19 @@ async function main(argv) {
     if (cmd === 'show') return cli.showCmd(args, opts);
     if (cmd === 'new') return cli.newCmd(args, opts);
     if (cmd === 'add') return await cli.addCmd(args, opts);
+    if (cmd === 'example') {
+      const ex = await import('../lib/examples.mjs');
+      const name = args.find((a) => a !== '--code');
+      if (!name) {
+        for (const n of ex.listExamples()) console.log(`${n.padEnd(14)} ${ex.readExample(n).description ?? ''}`);
+        return 0;
+      }
+      if (!ex.readExample(name)) { console.error(`no example named ${name}. Try one of: ${ex.listExamples().join(', ')}`); return 1; }
+      const r = await ex.runExample(name, { dir: opts.dir, code: argv.includes('--code'), progress: (l) => process.stderr.write(`  ${l}\n`) });
+      console.log(`notebook ${r.id} at ${r.dir}: ${r.pinned.length} pinned globs, ${Object.keys(r.roots).length} code roots`);
+      if (r.skipped.length) console.log(`skipped code sources ${r.skipped.join(', ')}; run it again with --code to add them`);
+      return 0;
+    }
     if (cmd === 'migrate') {
       if (!args[0]) throw cli.usageError('migrate needs the old app folder');
       const { migrateFrom } = await import('../lib/migrate.mjs');

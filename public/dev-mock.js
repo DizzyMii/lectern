@@ -1,112 +1,102 @@
 // Dev-only fake backend, loaded when the page URL has ?mock=1.
-// Mirrors the HTTP API and SSE events from SPEC.md with scripted data.
+// Mirrors the HTTP API and SSE events from SPEC.md with scripted data: a small orders
+// service, the docs of the web framework it runs on, and that framework's source.
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 const now = () => new Date().toISOString();
 
-const DOCS = 'corpus/neoforge-docs/versioned_docs/version-1.21.1';
-const PRIMERS = 'corpus/neoforge-github/primers';
+const DOCS = 'corpus/fastify-docs/docs';
 const DOC_GROUPS = {
-  advanced: ['accesstransformers', 'extensibleenums', 'featureflags'],
-  blockentities: ['index', 'ber', 'container'],
-  blocks: ['index', 'states'],
-  concepts: ['events', 'registries', 'sides'],
-  datastorage: ['attachments', 'codecs', 'nbt', 'saveddata'],
-  gettingstarted: ['index', 'modfiles', 'structuring', 'versioning'],
-  gui: ['menus', 'screens'],
-  inventories: ['capabilities', 'container', 'itemhandler'],
-  items: ['index', 'datacomponents', 'interactionpipeline', 'mobeffects', 'tools'],
-  misc: ['config', 'gametest', 'keymappings', 'updatechecker'],
-  networking: ['index', 'payload', 'streamcodecs', 'entities'],
-  rendering: ['index', 'modelloaders', 'particles'],
-  resources: ['index', 'client/models/index', 'server/recipes/index'],
-  worldgen: ['biomemodifier'],
+  Reference: ['Server', 'Routes', 'Hooks', 'Validation-and-Serialization', 'Plugins', 'Decorators', 'Encapsulation', 'Errors', 'Logging', 'Reply', 'Request', 'TypeScript'],
+  Guides: ['Getting-Started', 'Testing', 'Database', 'Plugins-Guide', 'Recommendations', 'Migration-Guide-V5'],
 };
 const shelf = [
   ...Object.entries(DOC_GROUPS).map(([g, fs]) => ({ title: g, files: fs.map((f) => `${DOCS}/${g}/${f}.md`), tokens: 9000 + fs.length * 3100 })),
-  { title: '1.20.5', files: [`${PRIMERS}/1.20.5/index.md`] },
-  { title: '1.20.6', files: [`${PRIMERS}/1.20.6/index.md`] },
-  { title: '1.21', files: [`${PRIMERS}/1.21/index.md`] },
+  { title: 'architecture', files: ['docs/architecture/overview.md', 'docs/architecture/realtime.md'], tokens: 6200 },
+  { title: 'api', files: ['docs/api/rate-limits.md', 'docs/api/errors.md'], tokens: 3100 },
 ];
 
 const ROOTS = [
-  { name: 'neoforge', path: 'corpus/neoforge/src/main/java', files: 956 },
-  { name: 'geckolib', path: 'corpus/geckolib/common/src/main/java', files: 312 },
-  { name: 'geckolib-neoforge', path: 'corpus/geckolib/neoforge/src/main/java', files: 41 },
+  { name: 'service', path: '../orders-service', files: 184, own: true, branch: 'main', version: '2.3.0' },
+  { name: 'fastify', path: 'corpus/fastify', files: 412, version: '5.2.1' },
 ];
 
-const C1 = 'corpus/neoforge-docs/versioned_docs/version-1.21.1/items/datacomponents.md';
-const C2 = 'corpus/neoforge/src/main/java/net/neoforged/neoforge/registries/DeferredRegister.java';
-const C3 = 'corpus/neoforge-github/primers/1.20.5/index.md';
-const C4 = 'corpus/neoforge/src/main/java/net/neoforged/neoforge/common/ItemStackTagHelper.java';
+const C1 = `${DOCS}/Reference/Validation-and-Serialization.md`;
+const C2 = 'fastify/lib/error-handler.js';
+const C3 = `${DOCS}/Guides/Migration-Guide-V5.md`;
+const C4 = 'service/src/api/validate.ts';
 
-const ANSWER_RAW = `Use a **data component**, not NBT. Since 1.20.5 an \`ItemStack\` no longer carries a free-form \`CompoundTag\`; each piece of data is a typed component keyed by a \`DataComponentType<T>\` [[${C1}|"Data components are key-value pairs within a map used to store data on an \`ItemStack\`"]].
+const ANSWER_RAW = `Give the route a **JSON Schema** and let the framework validate it, then shape the 400 in one error handler. The schema is compiled once at startup, not per request [[${C1}|"Fastify uses a schema-based approach"]].
 
-### 1. Register the type
+### 1. Put the schema on the route
 
-Register it through \`DeferredRegister.DataComponents\`, which wraps \`Registries.DATA_COMPONENT_TYPE\` [[${C2}#L612-L618]]:
-
-\`\`\`java
-public static final DeferredRegister.DataComponents COMPONENTS =
-    DeferredRegister.createDataComponents(Registries.DATA_COMPONENT_TYPE, MODID);
-
-public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CHARGE =
-    COMPONENTS.registerComponentType("charge", b -> b
-        .persistent(Codec.INT)
-        .networkSynchronized(ByteBufCodecs.VAR_INT));
+\`\`\`ts
+app.post('/orders', {
+  schema: {
+    body: {
+      type: 'object',
+      required: ['listId', 'items'],
+      properties: {
+        listId: { type: 'string', format: 'uuid' },
+        items: { type: 'array', minItems: 1, items: { $ref: 'orderItem#' } },
+      },
+      additionalProperties: false,
+    },
+  },
+}, createOrder);
 \`\`\`
 
-\`persistent\` makes it save with the world, \`networkSynchronized\` sends it to the client so tooltips and models see it.
+A body that fails never reaches \`createOrder\`; the framework replies 400 on its own.
 
-### 2. Read and write it
+### 2. Shape the 400 once
 
-- \`stack.getOrDefault(CHARGE, 0)\` reads with a fallback.
-- \`stack.set(CHARGE, value)\` writes; component values must be immutable, so always set a new value rather than mutating.
-- \`stack.update(CHARGE, 0, v -> v + 1)\` is the shorthand for read, change, write.
+- \`error.validation\` holds the validator errors when the failure came from a schema.
+- \`error.validationContext\` says which part failed: \`body\`, \`querystring\`, \`params\` or \`headers\`.
+- Set the handler with \`app.setErrorHandler\`; it runs for every route in that plugin scope [[${C2}#L48-L61]].
 
-The primer calls this out directly: \`getOrCreateTag\` and \`getTag\` are gone, and arbitrary NBT now lives only in \`DataComponents.CUSTOM_DATA\` [[${C3}|"The tag on an ItemStack has been replaced by data components"]].
+The v5 migration guide says the shorthand schemas are gone, so every \`body\`, \`querystring\` and \`params\` schema needs \`type: 'object'\` [[${C3}|"The jsonShortHand option has been removed"]].
 
-> Avoid \`ItemStackTagHelper\`; it was removed along with the tag API [[${C4}#L40-L44]].`;
+> The service still has a hand-written check in \`validate.ts\`; drop it once the schemas are in [[${C4}#L12-L30]].`;
 
 let n = 0;
 const CITES = [];
 const ANSWER_FINAL = ANSWER_RAW.replace(/\[\[[^\]]+\]\]/g, () => `[^${++n}]`);
 CITES.push(
-  { n: 1, path: C1, line: 9, endLine: 9, quote: 'Data components are key-value pairs within a map used to store data on an `ItemStack`', status: 'verified' },
-  { n: 2, path: C2, line: 614, citedLine: 612, endLine: 618, quote: 'registerComponentType', status: 'moved' },
-  { n: 3, path: C3, line: 48, endLine: 48, quote: 'The tag on an ItemStack has been replaced by data components', status: 'unverified' },
-  { n: 4, path: C4, line: 40, endLine: 44, quote: null, status: 'missing' },
+  { n: 1, path: C1, line: 5, endLine: 5, quote: 'Fastify uses a schema-based approach', status: 'verified' },
+  { n: 2, path: C2, line: 50, citedLine: 48, endLine: 61, quote: 'setErrorHandler', status: 'moved' },
+  { n: 3, path: C3, line: 48, endLine: 48, quote: 'The jsonShortHand option has been removed', status: 'unverified' },
+  { n: 4, path: C4, line: 12, endLine: 30, quote: null, status: 'missing' },
 );
 
 const TOOLS = [
-  { name: 'Grep', input: { pattern: 'DataComponentType', path: 'corpus/neoforge/src/main/java' }, summary: 'Grep "DataComponentType" in neoforge', chars: 2140 },
-  { name: 'Read', input: { file_path: C2, offset: 580, limit: 60 }, summary: 'Read neoforge/.../registries/DeferredRegister.java 580-640', chars: 3302 },
-  { name: 'Glob', input: { pattern: '**/ItemStack*.java' }, summary: 'Glob "**/ItemStack*.java" in neoforge', chars: 380 },
-  { name: 'Read', input: { file_path: 'corpus/neoforge/src/main/java/net/neoforged/neoforge/common/extensions/IItemStackExtension.java' }, summary: 'Read neoforge/.../extensions/IItemStackExtension.java 1-200', chars: 8810 },
-  { name: 'Grep', input: { pattern: 'getOrCreateTag' }, summary: 'Grep "getOrCreateTag" in neoforge', chars: 0, ok: true },
+  { name: 'Grep', input: { pattern: 'setErrorHandler', path: 'corpus/fastify' }, summary: 'Grep "setErrorHandler" in fastify', chars: 2140 },
+  { name: 'Read', input: { file_path: 'corpus/fastify/lib/error-handler.js', offset: 30, limit: 60 }, summary: 'Read fastify/lib/error-handler.js 30-90', chars: 3302 },
+  { name: 'Glob', input: { pattern: 'src/api/**/*.ts' }, summary: 'Glob "src/api/**/*.ts" in service', chars: 380 },
+  { name: 'Read', input: { file_path: '../orders-service/src/api/orders.ts' }, summary: 'Read service/src/api/orders.ts 1-200', chars: 8810 },
+  { name: 'Grep', input: { pattern: 'validationContext' }, summary: 'Grep "validationContext" in service', chars: 0, ok: true },
 ];
 
 const db = {
   notebooks: {
-    'neoforge-1.21.1': { id: 'neoforge-1.21.1', title: 'NeoForge 1.21.1', color: '#e3a94b', description: 'The NeoForge docs for 1.21.1, the porting primers from 1.20.5 on, and the NeoForge and GeckoLib sources.', shelf, roots: ROOTS, pinned: [`${DOCS}/**/*.md`, `${PRIMERS}/1.20.5/*.md`, `${PRIMERS}/1.20.6/*.md`, `${PRIMERS}/1.21/*.md`] },
-    'fabric-1.21.1': { id: 'fabric-1.21.1', title: 'Fabric 1.21.1', color: '#4cc9a0', description: '', shelf: [{ title: 'fabric-docs', files: ['corpus/fabric-docs/develop/index.md'] }], roots: [], pinned: ['corpus/fabric-docs/**/*.md'] },
+    'orders-service': { id: 'orders-service', title: 'Orders service', color: '#e3a94b', description: 'The Fastify 5 docs and migration guide, our architecture notes, the orders service and the Fastify source.', shelf, roots: ROOTS, pinned: [`${DOCS}/Reference/*.md`, `${DOCS}/Guides/*.md`, 'docs/**/*.md'] },
+    'django-5.1': { id: 'django-5.1', title: 'Django 5.1', color: '#4cc9a0', description: '', shelf: [{ title: 'django-docs', files: ['corpus/django-docs/docs/index.txt'] }], roots: [], pinned: ['corpus/django-docs/docs/**/*.txt'] },
   },
   conversations: {
-    'neoforge-1.21.1': [
-      { id: 'c-demo-1', title: 'How do I register an entity renderer safely?', updated: new Date(Date.now() - 3600e3 * 5).toISOString(), turns: [
-        { question: 'How do I register an entity renderer so it does not crash a dedicated server?', answer: 'Subscribe to `EntityRenderersEvent.RegisterRenderers` on the **mod bus**, in a class annotated `@EventBusSubscriber(modid = MODID, bus = Bus.MOD, value = Dist.CLIENT)` [^1]. The `Dist.CLIENT` value keeps the class from loading on a dedicated server [^2].\n\n```java\n@SubscribeEvent\npublic static void renderers(EntityRenderersEvent.RegisterRenderers e) {\n    e.registerEntityRenderer(MyEntities.GOLEM.get(), GolemRenderer::new);\n}\n```',
-          citations: [{ n: 1, path: `${DOCS}/concepts/events.md`, line: 60, endLine: 72, quote: null, status: 'verified' }, { n: 2, path: `${DOCS}/concepts/sides.md`, line: 30, endLine: 30, quote: 'Dist.CLIENT', status: 'unverified' }],
-          toolCalls: [{ id: 't1', name: 'Grep', summary: 'Grep "RegisterRenderers" in neoforge', ok: true }, { id: 't2', name: 'Read', summary: 'Read neoforge/.../EntityRenderersEvent.java 1-120', ok: true }],
+    'orders-service': [
+      { id: 'c-demo-1', title: 'Why is my decorator missing in another plugin?', updated: new Date(Date.now() - 3600e3 * 5).toISOString(), turns: [
+        { question: 'I decorate the app with `db` in one plugin but another plugin says it is undefined. Why?', answer: 'Each plugin gets its own **encapsulated context**, so a decorator added inside one plugin is only visible to that plugin and its children [^1]. Wrap the plugin that adds `db` with `fastify-plugin` to skip encapsulation and expose it to the parent [^2].\n\n```ts\nimport fp from \'fastify-plugin\';\n\nexport default fp(async (app) => {\n  app.decorate(\'db\', await connect(app.config.DATABASE_URL));\n});\n```',
+          citations: [{ n: 1, path: `${DOCS}/Reference/Encapsulation.md`, line: 60, endLine: 72, quote: null, status: 'verified' }, { n: 2, path: `${DOCS}/Reference/Plugins.md`, line: 30, endLine: 30, quote: 'fastify-plugin', status: 'unverified' }],
+          toolCalls: [{ id: 't1', name: 'Grep', summary: 'Grep "decorate(" in service', ok: true }, { id: 't2', name: 'Read', summary: 'Read fastify/lib/pluginUtils.js 1-120', ok: true }],
           usage: { input_tokens: 4100, cache_read_input_tokens: 182000, output_tokens: 640 }, model: 'sonnet', seconds: 21.4 },
       ] },
-      { id: 'c-demo-2', title: 'Per-player mana that survives death', updated: new Date(Date.now() - 86400e3 * 2).toISOString(), turns: [] },
+      { id: 'c-demo-2', title: 'Moving the order routes to v5', updated: new Date(Date.now() - 86400e3 * 2).toISOString(), turns: [] },
     ],
-    'fabric-1.21.1': [],
+    'django-5.1': [],
   },
   notes: {
-    'neoforge-1.21.1': [{ slug: 'cheat-sheet', title: 'Cheat sheet', kind: 'cheat-sheet', updated: new Date(Date.now() - 86400e3).toISOString(), body: '# NeoForge 1.21.1 cheat sheet\n\n| Need | Use |\n| --- | --- |\n| Item data | `DataComponentType` |\n| Packets | `CustomPacketPayload` + `RegisterPayloadHandlersEvent` |\n| Player data | `AttachmentType` with `copyOnDeath()` |\n| Capabilities | `RegisterCapabilitiesEvent` |\n' }],
-    'fabric-1.21.1': [],
+    'orders-service': [{ slug: 'cheat-sheet', title: 'Cheat sheet', kind: 'cheat-sheet', updated: new Date(Date.now() - 86400e3).toISOString(), body: '# Fastify 5 cheat sheet\n\n| Need | Use |\n| --- | --- |\n| Validate input | `schema.body` on the route |\n| Share a decorator | `fastify-plugin` |\n| Per-request state | `decorateRequest` |\n| Clean shutdown | the `onClose` hook |\n' }],
+    'django-5.1': [],
   },
 };
 
@@ -132,62 +122,63 @@ function detail(id) {
 
 // ---------- fake file contents ----------
 
-function fakeJava(path) {
-  const cls = path.split('/').pop().replace('.java', '');
-  const pkg = path.replace(/^.*?src\/main\/java\//, '').split('/').slice(0, -1).join('.');
+function fakeCode(path) {
+  const ts = path.endsWith('.ts');
+  const name = path.split('/').pop().replace(/\.(ts|js)$/, '');
   const out = [
-    '/*', ' * Copyright (c) NeoForged and contributors', ' * SPDX-License-Identifier: LGPL-2.1-only', ' */', '',
-    `package ${pkg};`, '', 'import com.mojang.serialization.Codec;', 'import net.minecraft.core.Registry;', 'import net.minecraft.core.component.DataComponentType;',
-    'import net.minecraft.network.codec.StreamCodec;', 'import net.minecraft.resources.ResourceKey;', 'import java.util.function.Supplier;', 'import java.util.function.UnaryOperator;', '',
-    '/**', ` * ${cls}: a helper that registers entries for one mod against one registry.`, ' */', `public class ${cls}<T> {`,
+    "'use strict'", '',
+    ts ? "import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';" : "const { kErrorHandler } = require('./symbols')",
+    ts ? "import { OrderService } from '../domain/orderService';" : "const { FST_ERR_ERROR_HANDLER_NOT_FN } = require('./errors')",
+    '', `// ${name}: part of the mock corpus, standing in for ${path}`, '',
   ];
   let i = 0;
   while (out.length < 700) {
     i++;
-    out.push('', `    /** Registers entry number ${i}. */`, `    public <I extends T> DeferredHolder<T, I> register${i}(String name, Supplier<? extends I> sup) {`,
-      `        final ResourceLocation key = ResourceLocation.fromNamespaceAndPath(namespace, name + "_${i}");`, '        if (seenRegisterEvent) throw new IllegalStateException("Cannot register new entries after RegisterEvent has been fired.");',
-      '        return createHolder(registryKey, key); // keeps the holder lazy', '    }');
+    out.push('', `// step ${i}`, ts ? `export async function handler${i}(req: FastifyRequest, reply: FastifyReply) {` : `function handler${i} (request, reply) {`,
+      `  const id = ${ts ? '(req.params as { id: string }).id' : 'request.params.id'}`, `  if (!id) return reply.code(400).send({ error: 'missing id', step: ${i} })`,
+      `  return reply.send({ id, step: ${i} })`, '}');
   }
-  out.splice(605, 20,
-    '', '    /**', '     * Specialised register for {@link DataComponentType data component types}.', '     */',
-    '    public static class DataComponents extends DeferredRegister<DataComponentType<?>> {',
-    '        protected DataComponents(ResourceKey<? extends Registry<DataComponentType<?>>> registryKey, String namespace) {',
-    '            super(registryKey, namespace);', '        }', '',
-    '        public <D> DeferredHolder<DataComponentType<?>, DataComponentType<D>> registerComponentType(String name, UnaryOperator<DataComponentType.Builder<D>> builder) {',
-    '            return this.register(name, () -> builder.apply(DataComponentType.builder()).build());', '        }', '    }', '');
-  out.push('}', '');
+  out.splice(49, 16,
+    'function setErrorHandler (func) {', '  throwIfAlreadyStarted(\'Cannot call "setErrorHandler"!\')', '',
+    '  if (typeof func !== \'function\') {', '    throw new FST_ERR_ERROR_HANDLER_NOT_FN()', '  }', '',
+    '  // a handler set inside a plugin applies to that plugin and its children only', '  this[kErrorHandler] = buildErrorHandler(this[kErrorHandler], func.bind(this))',
+    '  return this', '}', '',
+    'function defaultErrorHandler (error, request, reply) {', '  if (error.validation) reply.code(400)', '  reply.send(error)', '}');
+  out.push('');
   return out.join('\n');
 }
 
 function fakeDoc(path) {
   const name = path.split('/').pop().replace('.md', '');
   if (path === C1) {
-    return `---\nsidebar_position: 2\n---\nimport Tabs from '@theme/Tabs';\nimport TabItem from '@theme/TabItem';\n\n# Data Components\n\nData components are key-value pairs within a map used to store data on an \`ItemStack\`. Each piece of data, such as firework explosions or tools, are stored as actual objects on the stack, making the values visible and operable without having to dynamically transform a general encoded instance (e.g., \`CompoundTag\`, \`JsonElement\`).\n\n## \`DataComponentType\`\n\nEach data component has an associated \`DataComponentType<T>\`, where \`T\` is the component value type.\n\n:::note\nComponent values can very easily be implemented using a record. Record fields are immutable and implement \`hashCode\` and \`equals\`.\n:::\n\n\`\`\`java\npublic record ExampleRecord(int value1, boolean value2) {}\n\`\`\`\n\n${'A standard `DataComponentType` can be created via `DataComponentType#builder` and built using `DataComponentType.Builder#build`. The builder contains three settings: `persistent`, `networkSynchronized`, `cacheEncoding`.\n\n'.repeat(12)}## Using the component\n\n- \`getOrDefault\`\n- \`set\`\n- \`update\`\n`;
+    return `<h1 align="center">Fastify</h1>\n\n## Validation and Serialization\n\nFastify uses a schema-based approach, and even if it is not mandatory we recommend using JSON Schema to validate your routes and serialize your outputs. Internally, Fastify compiles the schema into a highly performant function.\n\n### Core concepts\n\nThe validation and the serialization tasks are processed by two different, and customizable, actors.\n\n${'Route validation uses `schema.body`, `schema.querystring`, `schema.params` and `schema.headers`. A request that fails is answered with a 400 before the handler runs.\n\n'.repeat(12)}### Error handling\n\n- \`error.validation\`\n- \`error.validationContext\`\n- \`setErrorHandler\`\n`;
   }
-  let body = `# ${name[0].toUpperCase() + name.slice(1)}\n\nThis page is part of the mock corpus. It stands in for \`${path}\`.\n\n`;
-  for (let i = 1; i <= 30; i++) body += `## Section ${i}\n\nParagraph ${i} of the mock document. Item stacks keep their data in typed components.\n\n`;
+  let body = `# ${name.replace(/-/g, ' ')}\n\nThis page is part of the mock corpus. It stands in for \`${path}\`.\n\n`;
+  for (let i = 1; i <= 30; i++) body += `## Section ${i}\n\nParagraph ${i} of the mock document. Routes declare a schema and the framework checks every request against it.\n\n`;
   return body;
 }
 
 // ---------- fake tree ----------
 
+const TREES = {
+  service: {
+    '': ['src/', 'migrations/', 'test/', 'package.json', 'tsconfig.json', 'README.md'],
+    src: ['api/', 'domain/', 'events/', 'store/', 'auth/', 'app.ts', 'server.ts'],
+    'src/api': ['middleware/', 'orders.ts', 'router.ts', 'validate.ts', 'lists.ts'],
+    'src/domain': ['order.ts', 'orderService.ts', 'payments.ts', 'pricing.ts'],
+    migrations: ['0001_init.sql', '0012_lists.sql', '0030_soft_delete.sql'],
+  },
+  fastify: {
+    '': ['lib/', 'test/', 'types/', 'docs/', 'fastify.js', 'package.json'],
+    lib: ['error-handler.js', 'errors.js', 'hooks.js', 'pluginUtils.js', 'reply.js', 'request.js', 'route.js', 'schemas.js', 'symbols.js', 'validation.js'],
+    test: Array.from({ length: 450 }, (_, i) => `route-${String(i).padStart(3, '0')}.test.js`),
+  },
+};
+
 function fakeTree(rootName, dir) {
-  const parts = dir ? dir.split('/') : [];
-  const depth = parts.length;
-  const r = ROOTS.find((x) => x.name === rootName);
-  if (!r) return null;
-  const top = rootName.startsWith('gecko') ? 'software/bernie/geckolib' : 'net/neoforged/neoforge';
-  const chain = top.split('/');
-  if (depth < chain.length) return [{ name: chain[depth], type: 'dir' }];
-  if (depth === chain.length) {
-    return ['client', 'common', 'registries', 'network', 'event', 'capabilities', 'items', 'attachment'].map((name) => ({ name, type: 'dir' }))
-      .concat([{ name: 'NeoForgeMod.java', type: 'file' }, { name: 'package-info.java', type: 'file' }]);
-  }
-  if (parts.at(-1) === 'client' && depth === chain.length + 1) {
-    return [{ name: 'model', type: 'dir' }, ...Array.from({ length: 450 }, (_, i) => ({ name: `ClientHook${String(i).padStart(3, '0')}.java`, type: 'file' }))];
-  }
-  if (parts.at(-1) === 'registries') return ['DeferredRegister.java', 'DeferredHolder.java', 'RegisterEvent.java', 'NeoForgeRegistries.java'].map((name) => ({ name, type: 'file' }));
-  return ['Helper.java', 'Events.java', 'Util.java', 'Constants.java'].map((name) => ({ name, type: 'file' }));
+  const t = TREES[rootName];
+  if (!t) return null;
+  return (t[dir] ?? ['helpers.ts', 'index.ts', 'types.ts']).map((e) => (e.endsWith('/') ? { name: e.slice(0, -1), type: 'dir' } : { name: e, type: 'file' }));
 }
 
 // ---------- SSE ----------
@@ -243,10 +234,10 @@ async function* generateScript(nbId, kind) {
   yield { type: 'tool', id: 'g1', name: 'Glob', input: { pattern: '**/*.md' }, summary: 'Glob "**/*.md" in docs' };
   await wait(500);
   yield { type: 'tool_result', id: 'g1', ok: true, chars: 1800 };
-  const text = `# ${kind.replace(/-/g, ' ')}\n\n1. **Registries** go through \`DeferredRegister\` [[${C2}#L612-L618]].\n2. **Item data** uses data components [[${C1}|"Data components are key-value pairs"]].\n3. **Packets** implement \`CustomPacketPayload\`.\n`;
+  const text = `# ${kind.replace(/-/g, ' ')}\n\n1. **Errors** go through one \`setErrorHandler\` per scope [[${C2}#L48-L61]].\n2. **Input** is checked by the route schema [[${C1}|"Fastify uses a schema-based approach"]].\n3. **Shared services** are decorators wrapped in \`fastify-plugin\`.\n`;
   for (let i = 0; i < text.length; i += 6) { yield { type: 'delta', text: text.slice(i, i + 6) }; await wait(16); }
   const slug = `${kind}-${Date.now().toString(36)}`;
-  const answer = text.replace(`[[${C2}#L612-L618]]`, '[^1]').replace(`[[${C1}|"Data components are key-value pairs"]]`, '[^2]');
+  const answer = text.replace(`[[${C2}#L48-L61]]`, '[^1]').replace(`[[${C1}|"Fastify uses a schema-based approach"]]`, '[^2]');
   db.notes[nbId].unshift({ slug, title: kind.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase()), kind, updated: now(), body: answer });
   yield { type: 'done', answer, citations: [{ ...CITES[1], n: 1, status: 'verified' }, { ...CITES[0], n: 2 }], usage: { input_tokens: 2000, output_tokens: 300 }, seconds: 3.1, note: { slug } };
 }
@@ -277,11 +268,11 @@ export async function mockFetch(url, opts = {}) {
   if (p === '/api/status') return json({ claude: { found: true, version: '2.1.4 (mock)' }, apiEngine: false });
   if (p === '/api/candidates') return json({
     roots: [
-      { path: 'D:/projects/wtg', name: 'wtg', kind: 'repo', branch: 'main' },
-      { path: 'D:/projects/neoforge-src', name: 'neoforge-src', kind: 'root', version: '21.1.77' },
-      { path: 'D:/projects/geckolib', name: 'geckolib', kind: 'root', version: '4.7.1' },
+      { path: 'C:/code/web-admin', name: 'web-admin', kind: 'repo', branch: 'main' },
+      { path: 'C:/code/billing-worker', name: 'billing-worker', kind: 'root', version: '0.9.4' },
+      { path: 'C:/code/search-api', name: 'search-api', kind: 'root', version: '1.4.0' },
     ],
-    docs: [{ url: 'https://docs.neoforged.net/docs/1.21.1/', label: 'docs.neoforged.net/docs/1.21.1' }],
+    docs: [{ url: 'https://react.dev/reference/react', label: 'React reference' }, { url: 'https://docs.rs/axum/latest/axum/', label: 'docs.rs/axum' }],
   });
   if (p === '/api/notebooks' && method === 'GET') return json({ notebooks: Object.values(db.notebooks).map(summary) });
   if (p === '/api/notebooks' && method === 'POST') {
@@ -311,8 +302,9 @@ export async function mockFetch(url, opts = {}) {
     if (!path || path.includes('..')) return json({ error: 'path escapes the notebook' }, 400);
     if (path === C4) return json({ error: 'file not found' }, 404);
     const note = db.notes[nbId].find((x) => `notes/${x.slug}.md` === path);
-    const text = note ? note.body : path.endsWith('.java') ? fakeJava(path) : fakeDoc(path);
-    return json({ path, text, lang: path.endsWith('.java') ? 'java' : 'markdown', lines: text.split('\n').length });
+    const code = /\.(ts|js)$/.test(path);
+    const text = note ? note.body : code ? fakeCode(path) : fakeDoc(path);
+    return json({ path, text, lang: code ? (path.endsWith('.ts') ? 'typescript' : 'javascript') : 'markdown', lines: text.split('\n').length });
   }
   if (rest === '/tree') {
     const t = fakeTree(u.searchParams.get('root'), u.searchParams.get('dir') || '');
@@ -322,7 +314,7 @@ export async function mockFetch(url, opts = {}) {
     const q = u.searchParams.get('q') || '';
     await wait(200);
     const hits = [];
-    const files = [C1, C3, C2, `${DOCS}/networking/payload.md`, 'corpus/neoforge/src/main/java/net/neoforged/neoforge/common/NeoForgeMod.java'];
+    const files = [C1, C3, C2, `${DOCS}/Reference/Routes.md`, 'service/src/api/orders.ts'];
     for (const [fi, f] of files.entries()) for (let k = 0; k < 3 + fi * 4; k++) hits.push({ path: f, line: 10 + k * 17, text: `    ${k % 2 ? 'public static final' : '//'} something about ${q} here, then ${q.toUpperCase()} again` });
     return json({ hits: hits.slice(0, 200) });
   }

@@ -93,8 +93,8 @@ export function openAddSource(tabId = 'url', presetFiles = null) {
       bodyEl.append(input, zone);
       if (files.length) bodyEl.append(h('div', { class: 'file-list' }, files.map((f) => h('div', null, h('span', null, f.name), h('span', null, fmtNum(f.size) + 'B')))));
     } else if (tab === 'folder') {
-      bodyEl.append(field('Folder path on this machine', { name: 'path', placeholder: 'D:/projects/my-mod/src/main/java', required: true, autofocus: true }),
-        field('Root name', { name: 'name', placeholder: 'my-mod', required: true, pattern: '([A-Za-z0-9._]|-)+' }, 'Short id used in citations and searches.'));
+      bodyEl.append(field('Folder path on this machine', { name: 'path', placeholder: 'D:/projects/my-app/src', required: true, autofocus: true }),
+        field('Root name', { name: 'name', placeholder: 'my-app', required: true, pattern: '([A-Za-z0-9._]|-)+' }, 'Short id used in citations and searches.'));
     } else {
       bodyEl.append(field('Repository URL', { name: 'url', placeholder: 'https://github.com/owner/repo', required: true, autofocus: true }),
         h('div', { class: 'row2' }, field('Branch', { name: 'branch', placeholder: 'default' }), field('Subdirectory', { name: 'subdir', placeholder: 'src/main/java' })),
@@ -170,8 +170,8 @@ export function initDrop() {
 
 export function openNewNotebook() {
   const color = HUES[(state.notebooks.length + 1) % HUES.length];
-  const title = h('input', { class: 'input', type: 'text', name: 'title', placeholder: 'Fabric 1.21.1', required: true, autofocus: true });
-  const id = h('input', { class: 'input', type: 'text', name: 'id', placeholder: 'fabric-1.21.1', required: true, pattern: '[a-z0-9]([a-z0-9._]|-)*' });
+  const title = h('input', { class: 'input', type: 'text', name: 'title', placeholder: 'Django 5.1', required: true, autofocus: true });
+  const id = h('input', { class: 'input', type: 'text', name: 'id', placeholder: 'django-5.1', required: true, pattern: '[a-z0-9]([a-z0-9._]|-)*' });
   let touched = false;
   title.addEventListener('input', () => { if (!touched) id.value = title.value.toLowerCase().trim().replace(/[^a-z0-9.]+/g, '-').replace(/^-+|-+$/g, ''); });
   id.addEventListener('input', () => { touched = true; });

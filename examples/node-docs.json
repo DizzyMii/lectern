@@ -1,0 +1,16 @@
+{
+  "id": "node-docs",
+  "title": "Node.js 22",
+  "color": "mint",
+  "description": "A few pages of the Node.js 22 API docs. Small enough to try Lectern in a minute; add your own project folder as a code root.",
+  "target": "Node.js 22",
+  "sources": [
+    {
+      "name": "node-api",
+      "label": "Node.js API",
+      "fetch": "https://raw.githubusercontent.com/nodejs/node/v22.x/doc/api/",
+      "files": ["path.md", "events.md", "timers.md"],
+      "pin": ["*.md"]
+    }
+  ]
+}

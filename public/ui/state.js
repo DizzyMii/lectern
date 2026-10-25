@@ -29,7 +29,7 @@ export const GENERATORS = [
   { kind: 'study-guide', label: 'Study guide', desc: 'A structured path through the notebook' },
   { kind: 'faq', label: 'FAQ', desc: 'Questions people actually ask, answered' },
   { kind: 'cheat-sheet', label: 'Cheat sheet', desc: 'One page of the APIs you reach for' },
-  { kind: 'porting-guide', label: 'Porting guide', desc: 'From older Forge and NeoForge' },
+  { kind: 'porting-guide', label: 'Porting guide', desc: 'From the last version to this one' },
   { kind: 'glossary', label: 'Glossary', desc: 'Every term, defined against the sources' },
   { kind: 'gotchas', label: 'Gotchas', desc: 'Traps, crashes and silent failures' },
 ];
@@ -144,6 +144,7 @@ export function normNotebook(d, summary) {
     notes: (d.notes || []).map(normNote),
     tokens: pick(d, 'tokens', 'shelfTokens', 'estTokens', 'estimatedTokens') ?? s.tokens ?? 0,
     suggestions: d.suggestions || cfg.suggestions || null,
+    labels: cfg.labels || {},
   };
 }
 

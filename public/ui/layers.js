@@ -16,7 +16,7 @@ const ORDER = {
 
 const cache = new WeakMap();
 
-// "neoforge-docs" -> "NeoForge docs", borrowing the casing of words in the notebook title
+// "fastify-docs" -> "Fastify docs", borrowing the casing of words in the notebook title
 function pretty(slug, title = '') {
   const known = new Map(String(title).split(/[\s/]+/).filter(Boolean).map((w) => [w.toLowerCase(), w]));
   const words = String(slug).split(/[-_\s]+/).filter(Boolean).map((w) => known.get(w.toLowerCase()) || w.toLowerCase());
@@ -38,7 +38,7 @@ export function sourcesOf(nb = state.nb) {
       const prefix = (primer ? seg.slice(0, pi + 1) : base).join('/') + '/';
       if (!groups.has(prefix)) {
         const slug = base[base.length - 1];
-        const name = primer ? 'Primers' : slug === 'sources' ? 'Saved pages' : slug === 'notes' ? 'Notes' : pretty(slug, nb.title);
+        const name = nb.labels?.[prefix.slice(0, -1)] || (primer ? 'Primers' : slug === 'sources' ? 'Saved pages' : slug === 'notes' ? 'Notes' : pretty(slug, nb.title));
         groups.set(prefix, { id: 'd:' + prefix, kind: primer ? 'primer' : 'docs', name, prefix, files: [], path: prefix.slice(0, -1) });
       }
       groups.get(prefix).files.push(f);

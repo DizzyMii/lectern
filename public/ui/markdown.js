@@ -90,7 +90,7 @@ const md = new Marked({
   renderer: {
     // a header with the language and a Copy button, and one span per line for the numbers
     code({ text, lang }) {
-      // "java PingPayload.java", "java title=PingPayload.java" or just "PingPayload.java" name the file
+      // "ts orders.ts", "ts title=orders.ts" or just "orders.ts" name the file
       const words = String(lang || '').split(/\s+/).filter(Boolean);
       const named = words.map((w) => w.replace(/^(title|file|filename)=/, '').replace(/^["']|["']$/g, '')).find((w) => /^[\w./-]+\.[A-Za-z0-9]{1,8}$/.test(w));
       let raw = words[0] || '';

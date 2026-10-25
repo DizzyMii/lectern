@@ -4,10 +4,10 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
 
-const C1 = 'corpus/neoforge-docs/versioned_docs/version-1.21.1/items/datacomponents.md';
-const C2 = 'corpus/neoforge/src/main/java/net/neoforged/neoforge/registries/DeferredRegister.java';
-const C3 = 'corpus/neoforge-github/primers/1.20.5/index.md';
-const C5 = 'corpus/neoforge-docs/versioned_docs/version-1.21.1/networking/payload.md';
+const C1 = 'corpus/fastify-docs/docs/Reference/Validation-and-Serialization.md';
+const C2 = 'fastify/lib/error-handler.js';
+const C3 = 'corpus/fastify-docs/docs/Guides/Migration-Guide-V5.md';
+const C5 = 'docs/architecture/realtime.md';
 
 const T = (name, label, type, required = false, extra = {}) => ({ name, label, type, required, ...extra });
 
@@ -15,18 +15,18 @@ export const RECIPES = [
   { id: 'prd', group: 'plan', kind: 'doc', title: 'PRD', blurb: 'Turn a rough idea into a product requirements doc', inputs: [T('idea', 'Idea', 'longtext', true, { placeholder: 'What should exist, and for whom?' })] },
   { id: 'tech-spec', group: 'plan', kind: 'doc', title: 'Tech spec', blurb: 'Design the build, grounded in the codebase', inputs: [T('from', 'From PRD', 'artifact', false, { from: ['prd'] }), T('idea', 'Or describe it', 'longtext', false, { placeholder: 'Skip if you picked a PRD' })] },
   { id: 'impl-plan', group: 'plan', kind: 'plan', title: 'Implementation plan', blurb: 'Phased tasks with files, deps and checks', inputs: [T('from', 'From spec', 'artifact', false, { from: ['tech-spec', 'prd'] }), T('idea', 'Or describe it', 'longtext')] },
-  { id: 'adr', group: 'plan', kind: 'doc', title: 'Decision record', blurb: 'Weigh the options and record the call', inputs: [T('decision', 'Decision', 'text', true, { placeholder: 'Which storage to use for per-player data' }), T('options', 'Options', 'longtext', false, { placeholder: 'One per line' })] },
+  { id: 'adr', group: 'plan', kind: 'doc', title: 'Decision record', blurb: 'Weigh the options and record the call', inputs: [T('decision', 'Decision', 'text', true, { placeholder: 'Which queue to use for order events' }), T('options', 'Options', 'longtext', false, { placeholder: 'One per line' })] },
   { id: 'test-plan', group: 'plan', kind: 'doc', title: 'Test plan', blurb: 'What to test, how, and what proves it', inputs: [T('from', 'From spec', 'artifact', false, { from: ['tech-spec', 'prd'] }), T('feature', 'Or describe the feature', 'longtext')] },
 
   { id: 'code-map', group: 'visual', kind: 'graph', title: 'Code map', blurb: 'The important packages and classes of a root', inputs: [T('root', 'Root', 'root', true), T('focus', 'Focus', 'text', false, { placeholder: 'Optional, like networking' })] },
   { id: 'concept-map', group: 'visual', kind: 'graph', title: 'Concept map', blurb: 'How the ideas in the docs connect', inputs: [T('topic', 'Topic', 'text', false, { placeholder: 'Optional' })] },
-  { id: 'flow-diagram', group: 'visual', kind: 'graph', title: 'Flow diagram', blurb: 'Trace how something happens, step by step', inputs: [T('flow', 'Trace how', 'text', true, { placeholder: 'a packet gets from client to server' })] },
-  { id: 'sequence-diagram', group: 'visual', kind: 'sequence', title: 'Sequence diagram', blurb: 'Who calls whom, in order', inputs: [T('feature', 'Feature', 'text', true, { placeholder: 'Opening a menu' })] },
+  { id: 'flow-diagram', group: 'visual', kind: 'graph', title: 'Flow diagram', blurb: 'Trace how something happens, step by step', inputs: [T('flow', 'Trace how', 'text', true, { placeholder: 'an order gets from checkout to the database' })] },
+  { id: 'sequence-diagram', group: 'visual', kind: 'sequence', title: 'Sequence diagram', blurb: 'Who calls whom, in order', inputs: [T('feature', 'Feature', 'text', true, { placeholder: 'Signing in' })] },
   { id: 'dependency-graph', group: 'visual', kind: 'graph', title: 'Dependency graph', blurb: 'Imports between packages, cycles marked', inputs: [T('root', 'Root', 'root', true)] },
 
   { id: 'claude-md', group: 'agent', kind: 'file', title: 'CLAUDE.md', blurb: 'House rules an agent reads before it codes', inputs: [T('root', 'Root', 'root'), T('audience', 'Audience', 'text', false, { placeholder: 'Optional' })] },
   { id: 'agents-md', group: 'agent', kind: 'file', title: 'AGENTS.md', blurb: 'The same, for any coding agent', inputs: [T('root', 'Root', 'root')] },
-  { id: 'skill', group: 'agent', kind: 'file', title: 'Skill', blurb: 'A SKILL.md with frontmatter, ready to drop in', inputs: [T('topic', 'Topic', 'text', true, { placeholder: 'Registering things' })] },
+  { id: 'skill', group: 'agent', kind: 'file', title: 'Skill', blurb: 'A SKILL.md with frontmatter, ready to drop in', inputs: [T('topic', 'Topic', 'text', true, { placeholder: 'Adding a route' })] },
   { id: 'agent-quiz', group: 'agent', kind: 'quiz', title: 'Agent quiz', blurb: 'Questions to check an agent knows the sources', inputs: [T('topic', 'Topic', 'text')] },
 
   { id: 'onboarding', group: 'learn', kind: 'doc', title: 'Onboarding guide', blurb: 'Day one through week one, in order', inputs: [] },
@@ -38,126 +38,127 @@ export const RECIPES = [
 
   { id: 'gap-report', group: 'code', kind: 'doc', title: 'Gap report', blurb: 'Where the code and the docs disagree', inputs: [T('root', 'Root', 'root', true)] },
   { id: 'diff-review', group: 'code', kind: 'doc', title: 'Diff review', blurb: 'Findings ranked, each with the right way', inputs: [T('diff', 'Diff', 'diff', true)] },
-  { id: 'build-x', group: 'code', kind: 'doc', title: 'How would I build', blurb: 'A plan that reuses patterns already here', inputs: [T('what', 'Build what', 'text', true, { placeholder: 'a config screen' })] },
+  { id: 'build-x', group: 'code', kind: 'doc', title: 'How would I build', blurb: 'A plan that reuses patterns already here', inputs: [T('what', 'Build what', 'text', true, { placeholder: 'a settings page' })] },
   { id: 'release-notes', group: 'code', kind: 'doc', title: 'Release notes', blurb: 'From a git range to notes people read', inputs: [T('log', 'Commits', 'gitlog', true)] },
 ];
 
 const cites = [
-  { n: 1, path: C1, line: 9, endLine: 9, quote: 'Data components are key-value pairs within a map used to store data on an `ItemStack`', status: 'verified' },
-  { n: 2, path: C2, line: 612, endLine: 618, quote: null, status: 'verified' },
-  { n: 3, path: C3, line: 4, endLine: 4, quote: 'The tag on an ItemStack has been replaced by data components', status: 'moved' },
+  { n: 1, path: C1, line: 9, endLine: 9, quote: 'Fastify uses a schema-based approach', status: 'verified' },
+  { n: 2, path: C2, line: 48, endLine: 61, quote: null, status: 'verified' },
+  { n: 3, path: C3, line: 4, endLine: 4, quote: 'The jsonShortHand option has been removed', status: 'moved' },
   { n: 4, path: C5, line: 20, endLine: 26, quote: null, status: 'unverified' },
 ];
 
 const DOC_MD = `## Who this is for
 
-New contributors who can read Java and want to ship a first change inside a week. Read it top to bottom once, then keep it open as a map.
+New contributors who can read TypeScript and want to ship a first change to the orders service inside a week. Read it top to bottom once, then keep it open as a map.
 
 ## Day one: the shape of things
 
-Everything registered goes through a deferred register, which collects entries and hands them to the registry event at the right moment [^2]. Item data lives in typed components, not in a free-form tag [^1].
+Every route is a plugin registered on the app, and errors from any of them land in one error handler per scope [^2]. Request bodies are checked by a JSON Schema on the route, never by hand [^1].
 
 | Area | Start here | Why |
 | --- | --- | --- |
-| Registration | \`DeferredRegister\` | Every block, item and component starts here |
-| Item data | Data components | Replaces the old tag API [^3] |
-| Networking | Payloads | Typed packets with stream codecs [^4] |
+| Routes | \`src/api/router.ts\` | Every route is registered here |
+| Input | Route schemas | Replaces the old hand-written checks [^3] |
+| Realtime | The list channel | Pushes item changes to open clients [^4] |
 
 ## Day two: make one change end to end
 
-1. Register a component type.
-2. Read it with \`getOrDefault\`, write it with \`set\`.
-3. Sync it by giving it a network codec.
+1. Add a route with a body schema.
+2. Call the domain service from the handler, never the store.
+3. Return the shape the API docs promise.
 
-\`\`\`java
-public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> CHARGE =
-    COMPONENTS.registerComponentType("charge", b -> b.persistent(Codec.INT).networkSynchronized(ByteBufCodecs.VAR_INT));
+\`\`\`ts
+app.post('/lists/:id/items', { schema: { body: AddItemBody } }, async (req) => {
+  return lists.addItem(req.params.id, req.body, req.user);
+});
 \`\`\`
 
 ## Week one: the traps
 
-> Component values must be immutable. Mutating one in place changes every stack that shares it.
+> A decorator added inside a plugin is invisible to its siblings. Wrap shared ones with \`fastify-plugin\`.
 
 ### Things that fail silently
 
-- Registering after the registry event has fired.
-- Sending a payload that was never registered on both sides.
-- Forgetting the codec, so the value never reaches the client.
+- Registering a route after the server started listening.
+- A schema without \`type: 'object'\`, which v5 rejects.
+- Sending a reply twice from an async handler.
 
 ## Where to look next
 
-The primers explain each breaking change in the order it happened [^3]. The payload page covers networking end to end [^4].`;
+The migration guide explains each breaking change in v5 [^3]. The realtime doc covers the list channel end to end [^4].`;
 
 const GRAPH = {
-  title: 'Registries and item data',
+  title: 'Request path through the service',
   layout: 'layered',
   nodes: [
-    { id: 'mod', label: 'Mod entry', kind: 'class', group: 'core', detail: 'Constructs the deferred registers and binds them to the mod bus.' },
-    { id: 'bus', label: 'Mod event bus', kind: 'event', group: 'core', detail: 'Fires registration and setup events in a fixed order.' },
-    { id: 'dr', label: 'DeferredRegister', kind: 'class', group: 'registries', detail: 'Collects entries and registers them on RegisterEvent.', ref: `${C2}#L612-L618` },
-    { id: 'dh', label: 'DeferredHolder', kind: 'class', group: 'registries', detail: 'A lazy handle to a registered value.' },
-    { id: 'reg', label: 'RegisterEvent', kind: 'event', group: 'registries' },
-    { id: 'items', label: 'Items', kind: 'package', group: 'content' },
-    { id: 'blocks', label: 'Blocks', kind: 'package', group: 'content' },
-    { id: 'dct', label: 'DataComponentType', kind: 'interface', group: 'data', detail: 'Typed key for one piece of item data.', ref: `${C1}#L9` },
-    { id: 'codec', label: 'Codec', kind: 'external', group: 'data', detail: 'Serialises values to disk.' },
-    { id: 'stream', label: 'StreamCodec', kind: 'external', group: 'data', detail: 'Serialises values over the network.' },
-    { id: 'stack', label: 'ItemStack', kind: 'class', group: 'data' },
-    { id: 'payload', label: 'Payloads', kind: 'concept', group: 'network', ref: `${C5}#L20` },
-    { id: 'sync', label: 'Client sync', kind: 'step', group: 'network' },
-    { id: 'save', label: 'World save', kind: 'step', group: 'data' },
+    { id: 'app', label: 'App entry', kind: 'class', group: 'core', detail: 'Builds the server and registers every plugin.' },
+    { id: 'hooks', label: 'Lifecycle hooks', kind: 'event', group: 'core', detail: 'onRequest, preHandler and onSend run in a fixed order.' },
+    { id: 'router', label: 'Router', kind: 'class', group: 'api', detail: 'Registers the order and list routes.' },
+    { id: 'schema', label: 'Route schema', kind: 'interface', group: 'api', detail: 'JSON Schema for body, params and query.', ref: `${C1}#L9` },
+    { id: 'err', label: 'Error handler', kind: 'class', group: 'api', detail: 'Turns validation and domain errors into the API error shape.', ref: `${C2}#L48-L61` },
+    { id: 'orders', label: 'Orders', kind: 'package', group: 'domain' },
+    { id: 'lists', label: 'Lists', kind: 'package', group: 'domain' },
+    { id: 'svc', label: 'OrderService', kind: 'class', group: 'domain', detail: 'The only place that changes an order.' },
+    { id: 'repo', label: 'OrderRepository', kind: 'interface', group: 'store', detail: 'Storage behind the service.' },
+    { id: 'pg', label: 'Postgres', kind: 'external', group: 'store', detail: 'Rows and the outbox table.' },
+    { id: 'outbox', label: 'Outbox', kind: 'class', group: 'events' },
+    { id: 'channel', label: 'List channel', kind: 'concept', group: 'events', ref: `${C5}#L20` },
+    { id: 'push', label: 'Client push', kind: 'step', group: 'events' },
+    { id: 'save', label: 'Commit', kind: 'step', group: 'store' },
   ],
   edges: [
-    { from: 'mod', to: 'bus', label: 'listens' }, { from: 'mod', to: 'dr', label: 'creates' }, { from: 'bus', to: 'reg', label: 'fires' },
-    { from: 'reg', to: 'dr' }, { from: 'dr', to: 'dh', label: 'returns' }, { from: 'dr', to: 'items' }, { from: 'dr', to: 'blocks' },
-    { from: 'dr', to: 'dct' }, { from: 'dct', to: 'codec', label: 'persistent' }, { from: 'dct', to: 'stream', label: 'synced' },
-    { from: 'stack', to: 'dct', label: 'get / set' }, { from: 'items', to: 'stack' }, { from: 'codec', to: 'save' },
-    { from: 'stream', to: 'sync' }, { from: 'payload', to: 'stream', label: 'uses' }, { from: 'sync', to: 'payload', kind: 'cycle' },
+    { from: 'app', to: 'hooks', label: 'adds' }, { from: 'app', to: 'router', label: 'registers' }, { from: 'hooks', to: 'router', label: 'wraps' },
+    { from: 'router', to: 'schema' }, { from: 'router', to: 'err', label: 'falls back to' }, { from: 'router', to: 'orders' }, { from: 'router', to: 'lists' },
+    { from: 'orders', to: 'svc' }, { from: 'svc', to: 'repo', label: 'reads / writes' }, { from: 'repo', to: 'pg' },
+    { from: 'svc', to: 'outbox', label: 'same transaction' }, { from: 'lists', to: 'svc' }, { from: 'pg', to: 'save' },
+    { from: 'outbox', to: 'channel' }, { from: 'channel', to: 'push', label: 'fans out' }, { from: 'push', to: 'channel', kind: 'cycle' },
   ],
 };
 
 const SEQ = {
-  title: 'Sending a payload to the server',
-  actors: [{ id: 'player', label: 'Player', kind: 'external' }, { id: 'client', label: 'Client' }, { id: 'net', label: 'Network' }, { id: 'server', label: 'Server' }],
+  title: 'Adding an item to a shared list',
+  actors: [{ id: 'user', label: 'User', kind: 'external' }, { id: 'web', label: 'Web app' }, { id: 'api', label: 'API' }, { id: 'db', label: 'Database' }],
   steps: [
-    { from: 'player', to: 'client', label: 'Presses the key' },
-    { from: 'client', to: 'client', label: 'Builds the payload record', note: 'Fields are immutable' },
-    { from: 'client', to: 'net', label: 'sendToServer(payload)', ref: `${C5}#L20` },
-    { from: 'net', to: 'server', label: 'Encodes with the stream codec', async: true },
-    { from: 'server', to: 'server', label: 'Handler runs on the network thread' },
-    { from: 'server', to: 'server', label: 'enqueueWork to touch the world', note: 'Never touch the level off-thread' },
-    { from: 'server', to: 'net', label: 'Reply payload', async: true },
-    { from: 'net', to: 'client', label: 'Client handler updates the screen' },
+    { from: 'user', to: 'web', label: 'Types an item and presses Enter' },
+    { from: 'web', to: 'web', label: 'Adds it optimistically', note: 'Marked pending until the API answers' },
+    { from: 'web', to: 'api', label: 'POST /lists/:id/items', ref: `${C5}#L20` },
+    { from: 'api', to: 'api', label: 'Schema check on the body', note: 'A bad body never reaches the handler' },
+    { from: 'api', to: 'db', label: 'Insert item and outbox row', async: true },
+    { from: 'db', to: 'api', label: 'Committed' },
+    { from: 'api', to: 'web', label: '201 with the stored item', async: true },
+    { from: 'api', to: 'web', label: 'Channel push to other members' },
   ],
 };
 
 const PLAN = {
-  title: 'Charge meter on tools',
-  goal: 'Tools carry a charge value that saves with the world, syncs to the client and shows in the tooltip.',
+  title: 'Who added each item',
+  goal: 'Every list item stores who added it and when, and every member sees it on the row.',
   phases: [
     { name: 'Data', tasks: [
-      { id: 't1', title: 'Register the charge component', detail: 'A persistent, synced integer component.', files: ['registry/ModComponents.java'], dependsOn: [], ref: `${C2}#L612-L618`, estimate: 'S', acceptance: ['Registered on the mod bus', 'Has both codecs'] },
-      { id: 't2', title: 'Read and write helpers', detail: 'getOrDefault and update wrappers on the tool item.', files: ['item/ChargedTool.java'], dependsOn: ['t1'], estimate: 'S', acceptance: ['No mutation in place'] },
+      { id: 't1', title: 'Add addedBy and addedAt', detail: 'A migration with both columns, backfilled from the audit log.', files: ['migrations/0031_item_added_by.sql'], dependsOn: [], ref: `${C2}#L48-L61`, estimate: 'S', acceptance: ['Migration runs twice safely', 'Backfill covers old rows'] },
+      { id: 't2', title: 'Write them on insert', detail: 'The list service sets both from the request user.', files: ['src/store/lists.ts'], dependsOn: ['t1'], estimate: 'S', acceptance: ['Never taken from the body'] },
     ] },
-    { name: 'Behaviour', tasks: [
-      { id: 't3', title: 'Charge on use', detail: 'Each use adds one charge up to a cap.', files: ['item/ChargedTool.java'], dependsOn: ['t2'], estimate: 'M', acceptance: ['Caps at 100', 'Survives reload'] },
-      { id: 't4', title: 'Spend charge for the ability', detail: 'Sneak-use spends 10 charge.', files: ['item/ChargedTool.java', 'net/AbilityPayload.java'], dependsOn: ['t3'], estimate: 'L', acceptance: ['Server validates the cost', 'Client cannot cheat the value'] },
+    { name: 'API', tasks: [
+      { id: 't3', title: 'Return them from the list route', detail: 'Add both fields to the response schema.', files: ['src/api/lists.ts'], dependsOn: ['t2'], estimate: 'M', acceptance: ['Schema updated', 'Old clients still parse it'] },
+      { id: 't4', title: 'Push them on the channel', detail: 'The ItemAdded event carries the display name.', files: ['src/events/types.ts', 'src/events/outbox.ts'], dependsOn: ['t3'], estimate: 'L', acceptance: ['No email addresses in the event', 'Other members see it within 1 s'] },
     ] },
     { name: 'Polish', tasks: [
-      { id: 't5', title: 'Tooltip and bar', detail: 'Show the charge as a bar like durability.', files: ['client/ChargeBar.java'], dependsOn: ['t2'], estimate: 'M', acceptance: ['Matches the item color'] },
-      { id: 't6', title: 'Game tests', detail: 'Save, reload and sync round trips.', files: ['test/ChargeTests.java'], dependsOn: ['t3', 't5'], estimate: 'M', acceptance: ['Runs in CI'] },
+      { id: 't5', title: 'Show it on the row', detail: 'Name and relative time under each item.', files: ['web/src/lists/ItemRow.tsx'], dependsOn: ['t2'], estimate: 'M', acceptance: ['Readable at phone width'] },
+      { id: 't6', title: 'End to end test', detail: 'Two browsers, one list, one added item.', files: ['test/lists.e2e.ts'], dependsOn: ['t3', 't5'], estimate: 'M', acceptance: ['Runs in CI'] },
     ] },
   ],
 };
 
 const QUIZ = {
-  title: 'Item data and registration',
+  title: 'Routes and validation',
   questions: [
-    { id: 'q1', q: 'Where does arbitrary custom data live on an item stack now?', kind: 'single', options: ['In getOrCreateTag()', 'In a typed data component', 'In a capability', 'In the item class'], answer: 'In a typed data component', explain: 'Free-form tags were replaced by typed components [^1].', ref: `${C1}#L9` },
-    { id: 'q2', q: 'Which settings can a component type builder have?', kind: 'multi', options: ['persistent', 'networkSynchronized', 'cacheEncoding', 'mutable'], answer: ['persistent', 'networkSynchronized', 'cacheEncoding'], explain: 'Three settings, none of them make values mutable.' },
-    { id: 'q3', q: 'What class collects registrations and fires them at the right time?', kind: 'short', answer: 'DeferredRegister', explain: 'It listens for the registry event [^2].', ref: `${C2}#L612` },
-    { id: 'q4', q: 'Why must component values be immutable?', kind: 'short', answer: 'Stacks can share one value instance', explain: 'Mutating one changes every stack holding it.' },
-    { id: 'q5', q: 'What serialises a value over the network?', kind: 'single', options: ['Codec', 'StreamCodec', 'NbtOps', 'JsonOps'], answer: 'StreamCodec', explain: 'Codecs go to disk, stream codecs go over the wire.' },
+    { id: 'q1', q: 'Where should request body checks live?', kind: 'single', options: ['In the handler', 'In a JSON Schema on the route', 'In the repository', 'In a global hook'], answer: 'In a JSON Schema on the route', explain: 'The framework validates against the route schema before the handler runs [^1].', ref: `${C1}#L9` },
+    { id: 'q2', q: 'Which request parts can a route schema check?', kind: 'multi', options: ['body', 'querystring', 'params', 'cookies'], answer: ['body', 'querystring', 'params'], explain: 'Headers too, but cookies are not part of the route schema.' },
+    { id: 'q3', q: 'What sets one place to turn errors into the API error shape?', kind: 'short', answer: 'setErrorHandler', explain: 'It applies to the plugin scope it is called in [^2].', ref: `${C2}#L48` },
+    { id: 'q4', q: 'Why is a decorator from one plugin missing in another?', kind: 'short', answer: 'Plugins are encapsulated', explain: 'Wrap the plugin with fastify-plugin to share it with the parent.' },
+    { id: 'q5', q: 'What did v5 remove from schemas?', kind: 'single', options: ['The shorthand form', '$ref', 'Response schemas', 'Ajv'], answer: 'The shorthand form', explain: 'Every schema now needs a full JSON Schema with a type [^3].' },
   ],
 };
 
@@ -169,18 +170,18 @@ const FILE = {
 Read this before you change anything.
 
 ## Ground rules
-- Register everything through a deferred register. Never call the registry directly.
-- Item data is a typed component. Do not reach for tags.
-- Component values are immutable records.
+- Every route has a JSON Schema for its body and params. Never check input by hand.
+- Handlers call a domain service. They never touch the store directly.
+- Events go through the outbox in the same transaction as the change.
 
 ## Where things are
-- \`registry/\` holds every deferred register.
-- \`net/\` holds payload records and their handlers.
-- \`client/\` is client only. Never import it from common code.
+- \`src/api/\` holds routes and the error handler.
+- \`src/domain/\` holds the services and their rules.
+- \`src/store/\` is the only code that knows about Postgres.
 
 ## Before you finish
-- Run the game tests.
-- Check both sides start without errors.
+- Run \`npm test\`.
+- Start the service and hit the changed route once.
 `,
   notes: 'Written for an agent that has never seen the codebase. Keep it under 80 lines.',
 };
@@ -189,14 +190,14 @@ const base = (id, recipe, kind, title, extra, min) => ({ id, recipe, kind, title
 
 const db = {
   artifacts: [
-    base('a-onb', 'onboarding', 'doc', 'Onboarding guide', { markdown: DOC_MD, summary: 'A week-one path through registration, item data and networking.' }, 12),
-    base('a-map', 'code-map', 'graph', 'Code map: registries', { data: GRAPH, inputs: { root: 'neoforge' }, summary: 'The 14 pieces you touch first, from the mod entry to the client sync [^2].' }, 34),
-    base('a-seq', 'sequence-diagram', 'sequence', 'Sending a payload', { data: SEQ, inputs: { feature: 'Sending a payload' }, model: 'sonnet' }, 60 * 3),
-    base('a-plan', 'impl-plan', 'plan', 'Plan: charge meter', { data: PLAN, parent: 'a-onb', model: 'opus', costUsd: 0.31 }, 60 * 26),
-    base('a-quiz', 'agent-quiz', 'quiz', 'Agent quiz: item data', { data: QUIZ }, 60 * 30),
-    base('a-cards', 'flashcards', 'quiz', 'Flashcards: registration', { data: { ...QUIZ, title: 'Registration flashcards', questions: QUIZ.questions.map((q) => ({ ...q, kind: 'short', answer: Array.isArray(q.answer) ? q.answer.join(', ') : q.answer, options: undefined })) } }, 60 * 50),
-    base('a-claude', 'claude-md', 'file', 'CLAUDE.md', { data: FILE, inputs: { root: 'neoforge' } }, 60 * 72),
-    base('a-dep', 'dependency-graph', 'graph', 'Dependency graph', { status: 'invalid', data: null, raw: '```json\n{ "title": "deps", "nodes": [ { "id": "a" } ], "edges": [ { "from": "a", "to": "zz" } ] }\n```', errors: ['nodes: need at least 3', 'edges[0].to: unknown node "zz"'], inputs: { root: 'geckolib' } }, 60 * 80),
+    base('a-onb', 'onboarding', 'doc', 'Onboarding guide', { markdown: DOC_MD, summary: 'A week-one path through routes, validation and the realtime channel.' }, 12),
+    base('a-map', 'code-map', 'graph', 'Code map: request path', { data: GRAPH, inputs: { root: 'service' }, summary: 'The 14 pieces a request passes through, from the app entry to the client push [^2].' }, 34),
+    base('a-seq', 'sequence-diagram', 'sequence', 'Adding a list item', { data: SEQ, inputs: { feature: 'Adding a list item' }, model: 'sonnet' }, 60 * 3),
+    base('a-plan', 'impl-plan', 'plan', 'Plan: who added each item', { data: PLAN, parent: 'a-onb', model: 'opus', costUsd: 0.31 }, 60 * 26),
+    base('a-quiz', 'agent-quiz', 'quiz', 'Agent quiz: validation', { data: QUIZ }, 60 * 30),
+    base('a-cards', 'flashcards', 'quiz', 'Flashcards: routes', { data: { ...QUIZ, title: 'Route flashcards', questions: QUIZ.questions.map((q) => ({ ...q, kind: 'short', answer: Array.isArray(q.answer) ? q.answer.join(', ') : q.answer, options: undefined })) } }, 60 * 50),
+    base('a-claude', 'claude-md', 'file', 'CLAUDE.md', { data: FILE, inputs: { root: 'service' } }, 60 * 72),
+    base('a-dep', 'dependency-graph', 'graph', 'Dependency graph', { status: 'invalid', data: null, raw: '```json\n{ "title": "deps", "nodes": [ { "id": "a" } ], "edges": [ { "from": "a", "to": "zz" } ] }\n```', errors: ['nodes: need at least 3', 'edges[0].to: unknown node "zz"'], inputs: { root: 'fastify' } }, 60 * 80),
   ],
 };
 
@@ -245,8 +246,8 @@ const summary = (a) => ({
 // a doc streamed section by section, with citations, so Studio can show per-section progress
 function docText(r) {
   const names = r.sections || ['Overview', 'Details', 'Open questions'];
-  return [`# ${r.title}\n\nA short summary of what this sheet covers [[${C1}|"Data components are key-value pairs"]].\n\n`,
-    ...names.map((n, i) => `## ${n}\n\nWhat the sources say about ${n.toLowerCase()} [[${C2}#L612]]${i % 2 ? ` and the primer [[${C3}|"replaced by data components"]]` : ''}.\n\n`)];
+  return [`# ${r.title}\n\nA short summary of what this sheet covers [[${C1}|"Fastify uses a schema-based approach"]].\n\n`,
+    ...names.map((n, i) => `## ${n}\n\nWhat the sources say about ${n.toLowerCase()} [[${C2}#L48]]${i % 2 ? ` and the migration guide [[${C3}|"jsonShortHand option has been removed"]]` : ''}.\n\n`)];
 }
 
 const TEMPLATE = { doc: 'a-onb', graph: 'a-map', sequence: 'a-seq', plan: 'a-plan', quiz: 'a-quiz', file: 'a-claude' };
@@ -274,7 +275,7 @@ async function* genScript(recipeId, inputs, model, replaceId) {
   const r = STUDIO.recipes.find((x) => x.id === recipeId);
   if (!r) { yield { type: 'error', message: `unknown recipe ${recipeId}` }; return; }
   const steps = [
-    ['Glob', '**/*.java in neoforge', 4100], ['Grep', '"DeferredRegister" in neoforge', 2300], ['Read', `${C2.split('/').slice(-1)[0]} 600-640`, 3800], ['Read', 'items/datacomponents.md', 9100],
+    ['Glob', '**/*.ts in service', 4100], ['Grep', '"setErrorHandler" in fastify', 2300], ['Read', `${C2.split('/').slice(-1)[0]} 30-90`, 3800], ['Read', 'Reference/Validation-and-Serialization.md', 9100],
   ];
   for (const [i, [name, sum, chars]] of steps.entries()) {
     await wait(380);
@@ -327,7 +328,7 @@ export async function studioFetch(url, opts = {}) {
   }
   if (rest[1] === 'write') {
     if (!body.overwrite && /CLAUDE\.md$/.test(body.path || '')) return json({ error: 'file exists', exists: true }, 409);
-    return json({ path: 'D:/projects/notebook-spike/' + body.path });
+    return json({ path: 'C:/code/orders-service/' + body.path });
   }
   if (method === 'GET') { await wait(80); return json(art); }
   if (method === 'DELETE') { db.artifacts = db.artifacts.filter((a) => a !== art); return json({ ok: true }); }

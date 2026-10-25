@@ -96,7 +96,7 @@ export function renderOnboarding() {
 
   // Found on this machine, then Pin docs (SCREENS 9); rows turn into "Added" once taken
   const foundEl = h('div', { class: 'ob-found' });
-  const help = h('p', { class: 't-ui-sm ob-help' }, 'A folder becomes a code root, a git URL is cloned, a docs URL is saved as a page. Drop files anywhere to pin them.');
+  const help = h('p', { class: 't-ui-sm ob-help' }, 'A folder becomes a code root, a git URL is cloned, a docs URL is saved as a page. Drop files anywhere to pin them. To look around first, run ', h('code', null, 'lectern example node-docs'), ' in a terminal.');
   const drawFound = () => {
     if (!found) return;
     const taken = new Set(added.map((a) => a.value));
