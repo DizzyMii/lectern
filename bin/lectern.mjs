@@ -101,5 +101,5 @@ function argValue(argv, name) {
 // null means a long-running command (serve, mcp) owns the process from here
 main(process.argv.slice(2)).then(
   (code) => { if (code !== null) process.exit(code); },
-  (e) => { console.error(`${e.message ?? String(e)}\nsee lectern --help`); process.exit(1); },
+  (e) => { console.error(e.message ?? String(e)); process.exit(1); },
 );

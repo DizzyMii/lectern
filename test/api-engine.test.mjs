@@ -144,6 +144,16 @@ test('deep mode is opus at high effort', async () => {
   assert.deepEqual(engine.MODES.fast, { model: 'haiku', effort: 'low', maxTurns: 4 });
 });
 
+test('ANTHROPIC_WORKSPACE_ID goes out as the anthropic-workspace-id header', async () => {
+  process.env.ANTHROPIC_WORKSPACE_ID = 'wrkspc_test123';
+  try {
+    script.push({ file: 'cited-answer.sse' });
+    const { job } = run({ question: 'q', fast: true });
+    await job.done;
+    assert.equal(requests[0].headers['anthropic-workspace-id'], 'wrkspc_test123');
+  } finally { delete process.env.ANTHROPIC_WORKSPACE_ID; }
+});
+
 test('cancel mid-stream aborts the request', async () => {
   script.push({ hang: 'cancel-head.sse' });
   const { job, events } = run({ question: 'slow one', onEvent: (e, j) => { if (e.type === 'delta') j.cancel(); } });
