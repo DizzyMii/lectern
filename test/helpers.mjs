@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export function setupNotebook() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'lectern-test-'));
@@ -22,4 +23,4 @@ export function setupNotebook() {
   return { root, home, nbDir, registry, cleanup: () => fs.rmSync(root, { recursive: true, force: true }) };
 }
 
-export const FIXTURE = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), 'fixtures', 'stream.jsonl');
+export const FIXTURE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'stream.jsonl');

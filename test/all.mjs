@@ -5,6 +5,9 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+// Node 20 walks test/ itself and already runs every file in it, so this one has nothing to add there
+if (Number(process.versions.node.split('.')[0]) < 21) process.exit(0);
+
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const files = fs.readdirSync(dir).filter((f) => f.endsWith('.test.mjs')).map((f) => path.join(dir, f));
 const env = { ...process.env };
