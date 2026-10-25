@@ -34,9 +34,16 @@ process.env.ANTHROPIC_BASE_URL = `http://127.0.0.1:${fake.address().port}`;
 delete process.env.LECTERN_FAKE_ENGINE;
 
 const engine = await import('../lib/engine.mjs');
+const spend = await import('../lib/spend.mjs');
 const { getNotebook, getConversation } = await import('../lib/store.mjs');
 const { toolDefs } = await import('../lib/shelf.mjs');
 const { ask, priceUsage, pickEngine, defaultEngine, engineStatus, inputError } = engine;
+
+const cfgFile = path.join(env.nbDir, 'notebook.json');
+const baseCfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+const setBudget = (usd) => fs.writeFileSync(cfgFile, JSON.stringify(usd == null ? baseCfg : { ...baseCfg, budgetUsd: usd }));
+const spendFile = path.join(env.home, 'spend.json');
+const seedSpend = (usd) => fs.writeFileSync(spendFile, JSON.stringify(usd == null ? {} : { [spend.monthKey()]: { test: { usd, runs: 1 } } }));
 
 function run(opts) {
   const events = [];
@@ -44,7 +51,7 @@ function run(opts) {
   return { job, events };
 }
 
-test.beforeEach(() => { script.length = 0; requests.length = 0; });
+test.beforeEach(() => { script.length = 0; requests.length = 0; setBudget(null); seedSpend(null); });
 test.after(() => { fake.closeAllConnections(); fake.close(); env.cleanup(); });
 
 test('a tool round then a cited answer, with the request shaped per the API rules', async () => {
@@ -108,6 +115,7 @@ test('a tool round then a cited answer, with the request shaped per the API rule
   const want = priceUsage('claude-opus-5-5', { input_tokens: 1200, cache_creation_input_tokens: 3000, output_tokens: 80 })
     + priceUsage('claude-opus-5-5', { input_tokens: 300, cache_read_input_tokens: 3000, output_tokens: 120 });
   assert.ok(Math.abs(out.costUsd - want) < 1e-6, `${out.costUsd} vs ${want}`);
+  assert.ok(Math.abs(spend.spentUsd('test') - want) < 1e-6);
   const conv = getConversation(getNotebook('test'), out.conversationId);
   assert.equal(conv.engine, 'api');
   assert.equal(conv.turns[0].costUsd, out.costUsd);
@@ -123,6 +131,7 @@ test('fast mode is haiku at low effort with no server fallback, and a refusal fa
   assert.equal(r.fallbacks, undefined);
   assert.ok(!String(requests[0].headers['anthropic-beta'] ?? '').includes('server-side-fallback'));
   assert.equal(events.at(-1).type, 'error');
+  assert.ok(spend.spentUsd('test') > 0, 'the refused run is still counted');
 });
 
 test('deep mode is opus at high effort', async () => {
@@ -162,6 +171,51 @@ test('round cap with a tool call still pending fails like the claude-code engine
   await assert.rejects(job.done, /1-round cap/);
 });
 
+test('budget: warning at 80%, refusal at 100% unless override', async () => {
+  setBudget(1);
+  seedSpend(0.85);
+  script.push({ file: 'cited-answer.sse' });
+  let r = run({ question: 'q' });
+  await r.job.done;
+  const warn = r.events.find((e) => e.type === 'warning');
+  assert.ok(warn, 'warned');
+  assert.match(warn.message, /\$0\.85 of a \$1\.00 budget \(85%\)/);
+  assert.equal(r.events.indexOf(warn), 0, 'warning comes before any answer text');
+
+  seedSpend(1);
+  assert.throws(() => ask({ notebook: 'test', engine: 'api', question: 'q' }), (e) => e.status === 402 && /override/.test(e.message) && e.budget.state === 'over');
+  assert.equal(requests.length, 1, 'no request went out');
+
+  script.push({ file: 'cited-answer.sse' });
+  r = run({ question: 'q', override: true });
+  await r.job.done;
+  assert.ok(spend.spentUsd('test') > 1);
+});
+
+test('budget: a run that crosses 80% warns at the end', async () => {
+  setBudget(1);
+  seedSpend(0.5);
+  script.push({ file: 'max-tokens.sse' }); // sonnet, 64000 output tokens is about $0.65
+  const r = run({ question: 'q', model: 'sonnet' });
+  const out = await r.job.done;
+  const warn = r.events.find((e) => e.type === 'warning');
+  assert.ok(warn);
+  assert.ok(r.events.indexOf(warn) < r.events.findIndex((e) => e.type === 'done'));
+  assert.equal(out.budget.state, 'over');
+  assert.equal(spend.budgetStatus(getNotebook('test')).state, 'over');
+});
+
+test('the claude-code engine ignores the API budget', () => {
+  setBudget(1);
+  seedSpend(5);
+  process.env.LECTERN_FAKE_ENGINE = '1';
+  try {
+    const job = ask({ notebook: 'test', engine: 'claude-code', question: 'q' });
+    job.cancel();
+    return job.done.catch(() => {});
+  } finally { delete process.env.LECTERN_FAKE_ENGINE; }
+});
+
 test('engine choice: key means api, then claude, explicit requests honoured when possible', () => {
   assert.equal(defaultEngine(), 'api');
   assert.equal(pickEngine(undefined), 'api');
@@ -192,12 +246,17 @@ test('tool input is checked against the schema', () => {
   assert.match(inputError(read, { root: 'code', path: 'a', extra: 1 }), /unexpected/);
 });
 
-test('/api/status exposes the engine', async () => {
+test('/api/notebooks and /api/status expose spend and the engine', async () => {
+  setBudget(2);
+  seedSpend(0.5);
   const { createServer } = await import('../lib/server.mjs');
   const srv = createServer();
   await new Promise((r) => srv.listen(0, '127.0.0.1', r));
   try {
     const base = `http://127.0.0.1:${srv.address().port}`;
+    const list = await (await fetch(`${base}/api/notebooks`)).json();
+    const nb = list.find((n) => n.id === 'test');
+    assert.deepEqual({ ...nb.spend, month: null }, { month: null, spentUsd: 0.5, budgetUsd: 2, fraction: 0.25, state: 'ok' });
     const st = await (await fetch(`${base}/api/status`)).json();
     assert.equal(st.engine.default, 'api');
     assert.equal(st.apiEngine, true);
