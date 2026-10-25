@@ -79,4 +79,4 @@ node app/cli.mjs ask neoforge-1.21.1 "How do attachments sync to the client?" --
 
 ## Tests
 
-`node --test test/mcp.test.mjs` spawns the server with `NB_FAKE_ENGINE=1` on a throwaway notebook and talks to it over stdio: initialize and version negotiation, JSON-RPC errors, tools/list schemas, search, read_source with escaping paths, verify, ask with a saved conversation, artifacts and the round-cap error. No model calls, about a second.
+`node --test test/mcp.test.mjs` spawns the server with `LECTERN_FAKE_ENGINE=1` on a throwaway notebook and talks to it over stdio: initialize and version negotiation, JSON-RPC errors, tools/list schemas, search, read_source with escaping paths, verify, ask with a saved conversation, artifacts and the round-cap error. No model calls, about a second.

@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { processAnswer } from '../cite.mjs';
+import { processAnswer } from '../lib/cite.mjs';
 
 test('a quote used as the end of a sentence keeps its words', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nb-'));

@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import { setupNotebook, FIXTURE } from './helpers.mjs';
 
 const env = setupNotebook();
-const { createStreamParser, summarizeTool, buildSystem, streamArgs, streamStdin } = await import('../engine.mjs');
+const { createStreamParser, summarizeTool, buildSystem, streamArgs, streamStdin } = await import('../lib/engine.mjs');
 const { spawn } = await import('node:child_process');
-const { getNotebook } = await import('../store.mjs');
+const { getNotebook } = await import('../lib/store.mjs');
 const nb = getNotebook('test');
 const raw = fs.readFileSync(FIXTURE, 'utf8');
 const resultLine = JSON.parse(raw.trim().split('\n').at(-1));
@@ -97,22 +97,22 @@ test('system prompt names roots and the citation format', () => {
 });
 
 test('every ask carries a round cap, and fast is haiku at low effort with 4 rounds', async () => {
-  const { MODES, DEFAULT_MAX_TURNS } = await import('../engine.mjs');
+  const { MODES, DEFAULT_MAX_TURNS } = await import('../lib/engine.mjs');
   const args = streamArgs(nb, { model: 'opus', system: 's', maxTurns: DEFAULT_MAX_TURNS });
   assert.equal(args[args.indexOf('--max-turns') + 1], '12');
   assert.deepEqual(MODES.fast, { model: 'haiku', effort: 'low', maxTurns: 4 });
   assert.deepEqual(MODES.deep, { model: 'opus', effort: 'high', maxTurns: 12 });
-  const { ask } = await import('../engine.mjs');
+  const { ask } = await import('../lib/engine.mjs');
   assert.throws(() => ask({ notebook: nb, question: 'x', maxTurns: 0 }), /maxTurns must be a whole number/);
 });
 
 test('cancelling a fake ask rejects its done promise', async () => {
-  const { ask } = await import('../engine.mjs');
-  process.env.NB_FAKE_ENGINE = '1';
-  process.env.NB_FAKE_DELAY = '200';
+  const { ask } = await import('../lib/engine.mjs');
+  process.env.LECTERN_FAKE_ENGINE = '1';
+  process.env.LECTERN_FAKE_DELAY = '200';
   try {
     const job = ask({ notebook: nb, question: 'x', persist: false });
     setTimeout(() => job.cancel(), 50);
     await assert.rejects(job.done, /cancelled/);
-  } finally { delete process.env.NB_FAKE_ENGINE; delete process.env.NB_FAKE_DELAY; }
+  } finally { delete process.env.LECTERN_FAKE_ENGINE; delete process.env.LECTERN_FAKE_DELAY; }
 });

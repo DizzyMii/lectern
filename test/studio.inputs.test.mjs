@@ -6,10 +6,10 @@ import { spawnSync } from 'node:child_process';
 import { setupNotebook } from './helpers.mjs';
 
 const env = setupNotebook();
-const { getNotebook } = await import('../store.mjs');
-const { resolveInputs, resolveDiff, resolveGitlog, artifactText } = await import('../studio/inputs.mjs');
-const { getRecipe } = await import('../studio/recipes.mjs');
-const { saveArtifact, getArtifact } = await import('../studio/engine.mjs');
+const { getNotebook } = await import('../lib/store.mjs');
+const { resolveInputs, resolveDiff, resolveGitlog, artifactText } = await import('../lib/studio/inputs.mjs');
+const { getRecipe } = await import('../lib/studio/recipes.mjs');
+const { saveArtifact, getArtifact } = await import('../lib/studio/engine.mjs');
 test.after(() => env.cleanup());
 
 // a small repo as the "code" root, so git diff and log have something real to read

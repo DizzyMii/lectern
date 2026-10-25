@@ -1,2 +1,8 @@
 node_modules/
-app/data/
+.env
+.env.*
+!.env.example
+docs/internal/
+coverage/
+*.log
+*.tmp

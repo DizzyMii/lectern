@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { RECIPES, GROUPS, listRecipes, getRecipe } from '../studio/recipes.mjs';
-import { INPUT_TYPES } from '../studio/inputs.mjs';
-import { KINDS, CONTRACTS } from '../studio/schemas.mjs';
+import { RECIPES, GROUPS, listRecipes, getRecipe } from '../lib/studio/recipes.mjs';
+import { INPUT_TYPES } from '../lib/studio/inputs.mjs';
+import { KINDS, CONTRACTS } from '../lib/studio/schemas.mjs';
 
 // SPEC-studio.md lists these ids (it says 23, the list itself has 24)
 const IDS = [

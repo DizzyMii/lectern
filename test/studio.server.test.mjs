@@ -17,12 +17,12 @@ result.result = `The package holds one class [[docs/guide/a.md|"Register handler
 lines[lines.length - 1] = JSON.stringify(result);
 const fixture = path.join(env.root, 'fixture.jsonl');
 fs.writeFileSync(fixture, lines.join('\n') + '\n');
-process.env.NB_FAKE_ENGINE = '1';
-process.env.NB_FAKE_FIXTURE = fixture;
+process.env.LECTERN_FAKE_ENGINE = '1';
+process.env.LECTERN_FAKE_FIXTURE = fixture;
 
-const { createServer } = await import('../server.mjs');
-const studio = await import('../studio/engine.mjs');
-const { getNotebook } = await import('../store.mjs');
+const { createServer } = await import('../lib/server.mjs');
+const studio = await import('../lib/studio/engine.mjs');
+const { getNotebook } = await import('../lib/store.mjs');
 const server = createServer();
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;

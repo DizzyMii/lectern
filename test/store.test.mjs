@@ -5,8 +5,8 @@ import path from 'node:path';
 import { setupNotebook } from './helpers.mjs';
 
 const env = setupNotebook();
-const store = await import('../store.mjs');
-const sources = await import('../sources.mjs');
+const store = await import('../lib/store.mjs');
+const sources = await import('../lib/sources.mjs');
 test.after(() => env.cleanup());
 
 test('registry resolves the notebook dir and config', () => {
@@ -65,13 +65,21 @@ test('notes round-trip', () => {
   assert.equal(store.listNotes(nb).length, 1);
 });
 
-test('createNotebook writes notebook.json under the data root and registers it', () => {
+test('createNotebook writes notebook.json under the home folder and registers it by absolute path', () => {
   const nb = store.createNotebook({ id: 'fresh', title: 'Fresh' });
-  assert.ok(fs.existsSync(path.join(env.root, 'notebooks', 'fresh', 'notebook.json')));
+  assert.ok(fs.existsSync(path.join(env.home, 'notebooks', 'fresh', 'notebook.json')));
+  assert.equal(store.loadRegistry().notebooks.fresh.dir, path.join(env.home, 'notebooks', 'fresh').split(path.sep).join('/'));
   assert.equal(store.getNotebook('fresh').title, 'Fresh');
   assert.throws(() => store.createNotebook({ id: 'fresh' }), /already exists/);
   assert.throws(() => store.createNotebook({ id: '../x' }), /id must be/);
   assert.equal(nb.id, 'fresh');
+});
+
+test('createNotebook registers a folder anywhere', () => {
+  const dir = path.join(env.root, 'elsewhere', 'mine');
+  const nb = store.createNotebook({ id: 'mine', title: 'Mine', dir });
+  assert.equal(nb.dir, dir);
+  assert.equal(store.readConfig(dir).title, 'Mine');
 });
 
 test('shelf groups pinned docs like nb.mjs', async () => {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validate, validateRecipe, extractJson, CONTRACTS, KINDS } from '../studio/schemas.mjs';
+import { validate, validateRecipe, extractJson, CONTRACTS, KINDS } from '../lib/studio/schemas.mjs';
 
 const clone = (x) => JSON.parse(JSON.stringify(x));
 // applies a mutation to a copy of a valid object and expects an error matching re

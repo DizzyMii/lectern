@@ -1,8 +1,17 @@
 {
-  "name": "notebook-spike",
+  "name": "notebook-app",
   "private": true,
   "type": "module",
+  "scripts": {
+    "start": "node lib/server.mjs",
+    "test": "node --test test/"
+  },
   "dependencies": {
-    "@anthropic-ai/sdk": "latest"
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.2.5",
+    "@fontsource-variable/newsreader": "^5.3.0",
+    "dompurify": "^3.2.6",
+    "highlight.js": "^11.11.1",
+    "marked": "^15.0.12"
   }
 }

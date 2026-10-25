@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { setupNotebook } from './helpers.mjs';
 
 const env = setupNotebook();
-const { parseCitations, verify, processAnswer } = await import('../cite.mjs');
+const { parseCitations, verify, processAnswer } = await import('../lib/cite.mjs');
 const roots = { code: 'src/java' };
 test.after(() => env.cleanup());
 

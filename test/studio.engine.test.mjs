@@ -5,8 +5,8 @@ import path from 'node:path';
 import { setupNotebook } from './helpers.mjs';
 
 const env = setupNotebook();
-const { getNotebook } = await import('../store.mjs');
-const studio = await import('../studio/engine.mjs');
+const { getNotebook } = await import('../lib/store.mjs');
+const studio = await import('../lib/studio/engine.mjs');
 test.after(() => env.cleanup());
 const nb = getNotebook('test');
 
@@ -118,15 +118,15 @@ test('a deliberately strict recipe check forces a repair: flashcards must be sho
   assert.equal(artifact.data.questions[0].answer, 'Foo');
 });
 
-test('the NB_STUDIO_FORCE_REPAIR hook repairs a valid answer', async () => {
-  process.env.NB_STUDIO_FORCE_REPAIR = '1';
+test('the LECTERN_STUDIO_FORCE_REPAIR hook repairs a valid answer', async () => {
+  process.env.LECTERN_STUDIO_FORCE_REPAIR = '1';
   try {
     const { artifact, calls } = await runRecipe('code-map', { root: 'code' }, [fence(goodGraph), fence(goodGraph)]);
     assert.equal(calls.length, 2);
     assert.match(calls[1].question, /forced repair/);
     assert.equal(artifact.status, 'ok');
     assert.match(artifact.attempts[0].errors[0], /test hook/);
-  } finally { delete process.env.NB_STUDIO_FORCE_REPAIR; }
+  } finally { delete process.env.LECTERN_STUDIO_FORCE_REPAIR; }
 });
 
 test('doc recipes: markdown with citations, repair when uncited', async () => {

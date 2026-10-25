@@ -113,12 +113,12 @@ export function renderOnboarding() {
     // the suggestions say what each kind becomes, so the help line steps aside
     help.hidden = roots.length + docs.length > 0;
     foundEl.replaceChildren(
-      roots.length ? h('div', { class: 'ob-found-h' }, h('span', { class: 't-kicker' }, 'Found on this machine'), h('span', { class: 't-mono-sm' }, `${roots.length} folder${roots.length === 1 ? '' : 's'}`)) : '',
+      roots.length ? h('div', { class: 'ob-found-h' }, h('span', { class: 't-kicker' }, 'Found on this machine'), h('span', { class: 't-mono-sm', title: found.scanned ? `Read only, one level deep in ${found.scanned}. Set LECTERN_PROJECTS_DIR to look elsewhere.` : null }, `${roots.length} folder${roots.length === 1 ? '' : 's'}${found.scanned ? ` in ${found.scanned.split(/[\/]/).filter(Boolean).pop()}` : ''}`)) : '',
       ...roots,
       docs.length ? h('div', { class: 'ob-found-h' }, h('span', { class: 't-kicker' }, 'Pin docs')) : '',
       ...docs);
   };
-  if (!found) api.get('/api/candidates').then((c) => { found = { roots: c?.roots || [], docs: c?.docs || [] }; drawAdded(); }).catch(() => { found = { roots: [], docs: [] }; });
+  if (!found) api.get('/api/candidates').then((c) => { found = { roots: c?.roots || [], docs: c?.docs || [], scanned: c?.scanned || null }; drawAdded(); }).catch(() => { found = { roots: [], docs: [] }; });
 
   const mark = (st, word, text, extra) => h('div', { class: `ob-mark st-${st}` },
     h('span', { class: 'ob-glyph' }, st === 'none' ? h('span', { class: 'ob-empty' }) : glyph(st), extra || null),

@@ -9,10 +9,10 @@ const w = (rel, text) => { fs.mkdirSync(path.dirname(path.join(env.nbDir, rel)),
 w('docs/r.md', '# Recheck\n\nintro line\nthe quick brown fox jumps over the lazy dog\nlast line\n');
 w('src/java/net/x/Bar.java', 'package net.x;\n\npublic class Bar {\n  int a;\n  int b;\n}\n');
 
-const store = await import('../store.mjs');
-const { processAnswer, reverify } = await import('../cite.mjs');
-const studio = await import('../studio/engine.mjs');
-const { createServer } = await import('../server.mjs');
+const store = await import('../lib/store.mjs');
+const { processAnswer, reverify } = await import('../lib/cite.mjs');
+const studio = await import('../lib/studio/engine.mjs');
+const { createServer } = await import('../lib/server.mjs');
 const nb = store.getNotebook('test');
 const server = createServer();
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -66,7 +66,7 @@ test('quote moves: moved, line updated, persisted once', async () => {
 
 test('quote disappears: unverified, changed', async () => {
   w('docs/r.md', '# Recheck\n\nintro line\nthe slow red fox\nlast line\n');
-  const c = (await import('../store.mjs')).getConversation(nb, 'c1', { recheck: true });
+  const c = (await import('../lib/store.mjs')).getConversation(nb, 'c1', { recheck: true });
   const doc = c.turns[0].citations[0];
   assert.equal(doc.status, 'unverified');
   assert.equal(doc.status0, 'verified');

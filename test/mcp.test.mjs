@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { setupNotebook } from './helpers.mjs';
 
 const env = setupNotebook();
-const MCP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'mcp.mjs');
+const MCP = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'lib', 'mcp.mjs');
 test.after(() => env.cleanup());
 
 // a stream-json run whose answer cites one doc quote, one code line and one file that is not there
@@ -29,7 +29,7 @@ const capFixture = fixture('cap.jsonl', { subtype: 'error_max_turns', is_error: 
 
 function start(fixturePath) {
   const child = spawn(process.execPath, [MCP], {
-    env: { ...process.env, NB_FAKE_ENGINE: '1', NB_FAKE_FIXTURE: fixturePath, NB_REGISTRY: env.registry, NB_DATA_ROOT: env.root },
+    env: { ...process.env, LECTERN_FAKE_ENGINE: '1', LECTERN_FAKE_FIXTURE: fixturePath, LECTERN_HOME: env.home },
     stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
   });
   const waiting = new Map();

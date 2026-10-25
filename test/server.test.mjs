@@ -13,10 +13,10 @@ result.result = 'Use the event [[docs/guide/a.md|"Register handlers in RegisterP
 lines[lines.length - 1] = JSON.stringify(result);
 const fixture = path.join(env.root, 'fixture.jsonl');
 fs.writeFileSync(fixture, lines.join('\n') + '\n');
-process.env.NB_FAKE_ENGINE = '1';
-process.env.NB_FAKE_FIXTURE = fixture;
+process.env.LECTERN_FAKE_ENGINE = '1';
+process.env.LECTERN_FAKE_FIXTURE = fixture;
 
-const { createServer } = await import('../server.mjs');
+const { createServer } = await import('../lib/server.mjs');
 const server = createServer();
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
@@ -191,7 +191,7 @@ test('ask takes a scope list and refuses anything else', async () => {
   assert.equal(events.at(-1).event, 'done');
   const conv = await (await fetch(`${base}/api/conversations/test/${events.at(-1).data.conversationId}`)).json();
   assert.equal(conv.turns[0].question, 'Scoped?');
-  const { scopedQuestion } = await import('../engine.mjs');
+  const { scopedQuestion } = await import('../lib/engine.mjs');
   assert.equal(scopedQuestion('q', undefined), 'q');
   assert.match(scopedQuestion('q', ['code', 'docs/guide/']), /use only these sources: code, docs\/guide\/\./);
 });
@@ -202,7 +202,7 @@ test('first-run candidates list project folders no notebook uses yet', async () 
   mk('mymod/.git/HEAD', 'ref: refs/heads/main\n');
   mk('neolib/gradle.properties', 'minecraft_version=1.21.1\nneo_version=21.1.77\nmod_version=4.7.1\n');
   mk('notes/readme.txt', 'not a project\n');
-  process.env.NB_PROJECTS_DIR = dir;
+  process.env.LECTERN_PROJECTS_DIR = dir;
   try {
     const c = await (await fetch(base + '/api/candidates')).json();
     const byName = Object.fromEntries(c.roots.map((r) => [r.name, r]));
@@ -214,5 +214,5 @@ test('first-run candidates list project folders no notebook uses yet', async () 
     assert.deepEqual(c.docs.map((d) => d.label), ['docs.neoforged.net/docs/1.21.1']);
     // a folder already used as a root is not suggested again
     assert.ok(!c.roots.some((r) => r.path.endsWith('src/java')));
-  } finally { delete process.env.NB_PROJECTS_DIR; }
+  } finally { delete process.env.LECTERN_PROJECTS_DIR; }
 });
