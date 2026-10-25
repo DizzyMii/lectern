@@ -2,7 +2,7 @@
 
 `lectern mcp` puts Lectern behind the Model Context Protocol, so Claude Code, Cursor or any MCP client can ask a notebook questions and get answers with citations checked against the files. It speaks JSON-RPC over stdio and calls the engine and store directly, so the web server doesn't need to be running (it's fine if it is, they share the same files on disk).
 
-Node 22, no extra packages. Asks go through the same `claude` binary the app already uses, on your Claude Code login.
+Asks use the same engine as the app and the CLI (see Engines in the README).
 
 ## Register it
 

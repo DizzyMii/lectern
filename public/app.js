@@ -2,7 +2,7 @@
 
 import { h, clear, icon, toast, store } from './ui/dom.js';
 import { api, nbPath, initApi, mockMode } from './ui/api.js';
-import { state, ctx, on, emit, normNotebookSummary, normNotebook, normConversation } from './ui/state.js';
+import { state, ctx, on, emit, normNotebookSummary, normNotebook, normConversation, MODELS } from './ui/state.js';
 import { initRail, focusHistory } from './ui/rail.js';
 import { initChat, renderThread, focusComposer, copyAnswer, stopStreaming } from './ui/chat.js';
 import { initViewer, openFile, openSearch, openNote, openSource, closeViewer, viewerOpen, showViewer, viewerHasTabs, stepDrawerCitation } from './ui/viewer.js';
@@ -96,6 +96,9 @@ Object.assign(ctx, {
       const c = await api.get(`/api/conversations/${encodeURIComponent(state.nbId)}/${encodeURIComponent(id)}`);
       state.conv = normConversation({ id, ...c });
       state.convId = id;
+      // a follow-up stays on the model the conversation last used, not the composer's last pick
+      const last = state.conv.turns?.at(-1)?.model;
+      if (MODELS.some((m) => m.id === last)) state.model = last;
       store.set('conv.' + state.nbId, id);
       if (canvasOpen()) closeCanvas({ keepHash: true });
       clearCursor();

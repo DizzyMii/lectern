@@ -5,13 +5,16 @@ import { h, clear, icon, fmtNum, ago } from './dom.js';
 import { state, ctx, on } from './state.js';
 import { qnum, nextQnum, sourcesOf } from './layers.js';
 
-let nbBtn, crumb, indexEl, themeBtn, menuEl = null;
+let nbBtn, crumb, indexEl, engineEl, themeBtn, menuEl = null;
 
 export function initChrome() {
   nbBtn = document.getElementById('tb-notebook');
   crumb = document.getElementById('tb-crumb');
   indexEl = document.getElementById('tb-index');
   themeBtn = document.getElementById('tb-theme');
+  engineEl = h('span', { class: 'tb-index tb-engine', id: 'tb-engine' });
+  indexEl.after(engineEl);
+  on('status', drawEngine);
   document.getElementById('tb-palette').addEventListener('click', () => ctx.openPalette());
   document.querySelector('.tb-brand').addEventListener('click', (e) => { e.preventDefault(); ctx.newConversation?.(); });
   themeBtn.addEventListener('click', () => ctx.toggleTheme());
@@ -24,7 +27,7 @@ export function initChrome() {
   on('fileindex', drawIndex);
   setInterval(drawIndex, 60000);
   on('firstrun', () => { drawNotebook(); drawCrumb(); drawIndex(); });
-  drawNotebook(); drawCrumb(); drawIndex(); syncTheme();
+  drawNotebook(); drawCrumb(); drawIndex(); drawEngine(); syncTheme();
 }
 
 export function effectiveTheme() {
@@ -64,6 +67,16 @@ function drawIndex() {
   if (!sources) { indexEl.append(h('span', { class: 'sdot', 'aria-hidden': 'true' }), 'Nothing indexed'); return; }
   indexEl.append(h('span', { class: 'sdot ok', 'aria-hidden': 'true' }),
     files ? `${files.toLocaleString()} files · ${state.fileIndexAt ? ago(state.fileIndexAt) : `${sources} source${sources === 1 ? '' : 's'}`}` : `${sources} source${sources === 1 ? '' : 's'}`);
+}
+
+// which engine answers: the API, the personal Claude Code login, or nothing yet
+function drawEngine() {
+  const e = state.status?.engine;
+  clear(engineEl);
+  if (!e) return;
+  const ok = Boolean(e.default);
+  engineEl.title = e.onboarding || (e.default === 'api' ? 'Answers use the Anthropic API with your ANTHROPIC_API_KEY' : 'Answers use Claude Code on this machine');
+  engineEl.append(h('span', { class: `sdot${ok ? ' ok' : ''}`, 'aria-hidden': 'true' }), ok ? e.label : 'No engine: add an API key');
 }
 
 function toggleMenu() {
