@@ -3,7 +3,7 @@
 // SVG/PNG/Mermaid export. Node colour names the source layer of its ref; the
 // kind is a word on the card, never a hue (DESIGN 2.2).
 
-import { layered, radial } from './graph-layout.js';
+import { radial, placeOrdered } from './graph-layout.js';
 import {
   h, icon, s, textWidth, clip, slug, download, copy, btn, iconButton, segmented, menuButton,
   citeHost, md, stateView, emptyView, summaryBlock, inlineSvg, svgToPng, cssVar, mermaidId, mermaidText,
@@ -26,6 +26,379 @@ let uid = 0;
 
 function validGraph(d) {
   return d && Array.isArray(d.nodes) && d.nodes.every((n) => n && n.id != null);
+}
+
+// ---------- layered layout ----------
+// Sugiyama steps: greedy cycle removal, longest-path layering with span-shortening moves,
+// dummy nodes on long edges, median and barycenter sweeps with transposition, Brandes-Kopf
+// coordinates so long edges run straight, then orthogonal routes with a lane per edge in
+// each gap between ranks. Edges out of one node share a lane, nothing else does.
+// The order axis (o) runs across the flow, the rank axis (r) along it.
+function layeredLayout(nodes, edges, { dir = 'TB', rankGap = 60, nodeGap = 20, lane = 9, dummyGap = 10, labelRoom = 0, cap } = {}) {
+  const LR = dir === 'LR';
+  const n = nodes.length;
+  const idx = new Map(nodes.map((nd, i) => [nd.id, i]));
+  const pairs = new Map();
+  edges.forEach((e, ei) => {
+    const u = idx.get(e.from), v = idx.get(e.to);
+    if (u === undefined || v === undefined || u === v) return;
+    const k = u + ':' + v;
+    if (!pairs.has(k)) pairs.set(k, { u, v, eis: [] });
+    pairs.get(k).eis.push(ei);
+  });
+
+  // cycle removal (Eades, Lin, Smyth): sinks to the right, sources to the left, else the node
+  // with the most out minus in; edges that point backwards in that sequence get reversed
+  const outS = Array.from({ length: n }, () => new Set()), inS = Array.from({ length: n }, () => new Set());
+  for (const { u, v } of pairs.values()) { outS[u].add(v); inS[v].add(u); }
+  const alive = new Set(nodes.keys());
+  const drop = (x) => { for (const y of outS[x]) inS[y].delete(x); for (const y of inS[x]) outS[y].delete(x); alive.delete(x); };
+  const left = [], right = [];
+  while (alive.size) {
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const x of alive) if (!outS[x].size) { right.unshift(x); drop(x); changed = true; }
+      for (const x of alive) if (!inS[x].size) { left.push(x); drop(x); changed = true; }
+    }
+    if (!alive.size) break;
+    let best = -1, bs = -Infinity;
+    for (const x of alive) { const sc = outS[x].size - inS[x].size; if (sc > bs) { bs = sc; best = x; } }
+    left.push(best); drop(best);
+  }
+  const seq = left.concat(right);
+  const seqPos = new Array(n);
+  seq.forEach((u, i) => { seqPos[u] = i; });
+  const links = new Map();
+  for (const p of pairs.values()) {
+    p.rev = seqPos[p.u] > seqPos[p.v];
+    const a = p.rev ? p.v : p.u, b = p.rev ? p.u : p.v;
+    const k = a + ':' + b;
+    if (!links.has(k)) links.set(k, { a, b, pairs: [] });
+    links.get(k).pairs.push(p);
+  }
+  const succ = Array.from({ length: n }, () => []), pred = Array.from({ length: n }, () => []);
+  for (const { a, b } of links.values()) { succ[a].push(b); pred[b].push(a); }
+
+  // layering: longest path over the sequence (a topological order), then each node moves
+  // within its slack to the side with more edges, which shortens the total span
+  const layer = new Array(n).fill(0);
+  for (const u of seq) for (const v of succ[u]) layer[v] = Math.max(layer[v], layer[u] + 1);
+  for (let round = 0; round < 12; round++) {
+    let moved = false;
+    for (const u of seq) {
+      const np = pred[u].length, ns = succ[u].length;
+      if (np === ns) continue;
+      const want = np > ns ? Math.max(...pred[u].map((p) => layer[p] + 1)) : Math.min(...succ[u].map((s) => layer[s] - 1));
+      if (want !== layer[u]) { layer[u] = want; moved = true; }
+    }
+    if (!moved) break;
+  }
+  const minL = Math.min(0, ...layer);
+  for (let i = 0; i < n; i++) layer[i] -= minL;
+  // crowded layers push nodes forward while their successors allow
+  const limit = cap ?? Math.max(8, Math.ceil(Math.sqrt(n) * 1.7));
+  let maxL = Math.max(0, ...layer);
+  for (let L = 0; L <= maxL; L++) {
+    const here = [];
+    for (let i = 0; i < n; i++) if (layer[i] === L) here.push(i);
+    if (here.length <= limit) continue;
+    const movable = here.filter((u) => succ[u].every((v) => layer[v] > L + 1)).sort((a, b) => succ[a].length - succ[b].length || pred[a].length - pred[b].length);
+    for (const u of movable.slice(0, here.length - limit)) layer[u] = L + 1;
+    maxL = Math.max(maxL, L + 1);
+  }
+
+  // dummy chains for edges that span more than one layer
+  let N = n;
+  const layerOf = layer.slice();
+  const isD = new Array(n).fill(false);
+  const down = Array.from({ length: n }, () => []), up = Array.from({ length: n }, () => []);
+  for (const lk of links.values()) {
+    lk.chain = [lk.a];
+    for (let L = layer[lk.a] + 1; L < layer[lk.b]; L++) {
+      const d = N++;
+      layerOf[d] = L; isD[d] = true; down[d] = []; up[d] = [];
+      lk.chain.push(d);
+    }
+    lk.chain.push(lk.b);
+    for (let i = 0; i + 1 < lk.chain.length; i++) { down[lk.chain[i]].push(lk.chain[i + 1]); up[lk.chain[i + 1]].push(lk.chain[i]); }
+  }
+  maxL = Math.max(0, ...layerOf);
+
+  // ordering
+  let layers = Array.from({ length: maxL + 1 }, () => []);
+  const pos = new Array(N);
+  const setPos = () => layers.forEach((l) => l.forEach((u, i) => { pos[u] = i; }));
+  const bilayer = (upper, lowerLen) => {
+    // accumulator tree count (Barth, Juenger, Mutzel)
+    let first = 1;
+    while (first < lowerLen) first <<= 1;
+    const tree = new Array(2 * first - 1).fill(0);
+    first -= 1;
+    let c = 0;
+    for (const u of upper) {
+      const ps = down[u].map((v) => pos[v]).sort((a, b) => a - b);
+      for (const p of ps) {
+        let i = p + first;
+        tree[i]++;
+        while (i > 0) { if (i % 2) c += tree[i + 1]; i = (i - 1) >> 1; tree[i]++; }
+      }
+    }
+    return c;
+  };
+  const totalCross = () => { let c = 0; for (let L = 0; L < maxL; L++) c += bilayer(layers[L], layers[L + 1].length); return c; };
+  const median = (nb) => {
+    const ps = nb.map((v) => pos[v]).sort((a, b) => a - b);
+    const m = ps.length;
+    if (!m) return -1;
+    if (m % 2) return ps[(m - 1) / 2];
+    if (m === 2) return (ps[0] + ps[1]) / 2;
+    const l = ps[m / 2 - 1] - ps[0], r = ps[m - 1] - ps[m / 2];
+    return l + r ? (ps[m / 2 - 1] * r + ps[m / 2] * l) / (l + r) : (ps[m / 2 - 1] + ps[m / 2]) / 2;
+  };
+  const bary = (nb) => (nb.length ? nb.reduce((s, v) => s + pos[v], 0) / nb.length : -1);
+  const reorder = (L, nbOf, fn) => {
+    const lay = layers[L];
+    const keys = lay.map((u) => fn(nbOf[u]));
+    // nodes with no neighbours on that side keep their slot
+    const slots = lay.map((_, i) => i).filter((i) => keys[i] >= 0);
+    const sorted = slots.slice().sort((i, j) => keys[i] - keys[j] || i - j);
+    const next = lay.slice();
+    slots.forEach((slot, k) => { next[slot] = lay[sorted[k]]; });
+    layers[L] = next;
+    next.forEach((u, i) => { pos[u] = i; });
+  };
+  const pairCross = (u, v, nbOf) => { let c = 0; for (const a of nbOf[u]) for (const b of nbOf[v]) if (pos[a] > pos[b]) c++; return c; };
+  const transpose = () => {
+    for (let guard = 0, improved = true; improved && guard < 12; guard++) {
+      improved = false;
+      for (const lay of layers) {
+        for (let i = 0; i + 1 < lay.length; i++) {
+          const u = lay[i], v = lay[i + 1];
+          if (pairCross(v, u, up) + pairCross(v, u, down) < pairCross(u, v, up) + pairCross(u, v, down)) {
+            lay[i] = v; lay[i + 1] = u; pos[v] = i; pos[u] = i + 1; improved = true;
+          }
+        }
+      }
+    }
+  };
+  const byLayer = [...Array(N).keys()].sort((a, b) => layerOf[a] - layerOf[b] || a - b);
+  const dfsInit = () => {
+    const ls = Array.from({ length: maxL + 1 }, () => []);
+    const seen = new Uint8Array(N);
+    const visit = (u) => { seen[u] = 1; ls[layerOf[u]].push(u); for (const v of down[u]) if (!seen[v]) visit(v); for (const v of up[u]) if (!seen[v]) visit(v); };
+    for (const u of byLayer) if (!seen[u]) visit(u);
+    return ls;
+  };
+  const plainInit = () => { const ls = Array.from({ length: maxL + 1 }, () => []); for (const u of byLayer) ls[layerOf[u]].push(u); return ls; };
+  let best = null, bestC = Infinity;
+  for (const init of [dfsInit, plainInit]) {
+    layers = init();
+    setPos();
+    let c = totalCross();
+    if (c < bestC) { bestC = c; best = layers.map((l) => l.slice()); }
+    for (let it = 0; it < 24 && bestC > 0; it++) {
+      const fn = it % 4 < 2 ? median : bary;
+      if (it % 2 === 0) for (let L = 1; L <= maxL; L++) reorder(L, up, fn);
+      else for (let L = maxL - 1; L >= 0; L--) reorder(L, down, fn);
+      if (N < 600) transpose();
+      c = totalCross();
+      if (c < bestC) { bestC = c; best = layers.map((l) => l.slice()); }
+    }
+  }
+  layers = best;
+  setPos();
+
+  // coordinates across the flow (Brandes, Koepf): four alignments of medians into straight
+  // blocks, compacted, then balanced; inner segments of long edges win conflicts
+  const so = (u) => (isD[u] ? 0 : LR ? nodes[u].h : nodes[u].w);
+  const sr = (u) => (isD[u] ? 0 : LR ? nodes[u].w : nodes[u].h);
+  const sep = (a, b) => so(a) / 2 + so(b) / 2 + (isD[a] && isD[b] ? dummyGap : isD[a] || isD[b] ? Math.max(dummyGap, nodeGap / 2) : nodeGap);
+  const ck = (a, b) => (a < b ? a + ':' + b : b + ':' + a);
+  const conflict = new Set();
+  for (let i = 0; i < maxL; i++) {
+    const upper = layers[i], lower = layers[i + 1];
+    let k0 = 0, l = 0;
+    for (let l1 = 0; l1 < lower.length; l1++) {
+      const v = lower[l1];
+      const w = isD[v] ? up[v].find((x) => isD[x]) : undefined;
+      if (l1 === lower.length - 1 || w !== undefined) {
+        const k1 = w !== undefined ? pos[w] : upper.length - 1;
+        for (; l <= l1; l++) for (const u of up[lower[l]]) if (pos[u] < k0 || pos[u] > k1) conflict.add(ck(u, lower[l]));
+        k0 = k1;
+      }
+    }
+  }
+  const align4 = (vert, horiz) => {
+    let lays = layers.map((ly) => (horiz === 'l' ? ly.slice() : ly.slice().reverse()));
+    if (vert === 'u') lays = lays.reverse();
+    const pt = new Array(N);
+    lays.forEach((ly) => ly.forEach((u, i) => { pt[u] = i; }));
+    const nb = vert === 'd' ? up : down;
+    const root = [...Array(N).keys()], align = [...Array(N).keys()];
+    for (let L = 1; L < lays.length; L++) {
+      let r = -1;
+      for (const v of lays[L]) {
+        const ws = nb[v].slice().sort((a, b) => pt[a] - pt[b]);
+        const d = ws.length;
+        if (!d) continue;
+        const ms = [Math.floor((d - 1) / 2), Math.ceil((d - 1) / 2)];
+        for (const m of ms[0] === ms[1] ? [ms[0]] : ms) {
+          if (align[v] !== v) break;
+          const w = ws[m];
+          if (!conflict.has(ck(w, v)) && r < pt[w]) { align[w] = v; root[v] = root[w]; align[v] = root[v]; r = pt[w]; }
+        }
+      }
+    }
+    // block graph: consecutive blocks in a layer must sit sep apart
+    const bsucc = new Map(), bpred = new Map();
+    const addB = (m, a, b, w) => { if (!m.has(a)) m.set(a, new Map()); const e = m.get(a); e.set(b, Math.max(e.get(b) ?? -Infinity, w)); };
+    for (const ly of lays) for (let i = 1; i < ly.length; i++) { const w = sep(ly[i - 1], ly[i]); addB(bsucc, root[ly[i - 1]], root[ly[i]], w); addB(bpred, root[ly[i]], root[ly[i - 1]], w); }
+    const roots = [...new Set(root)];
+    const indeg = new Map(roots.map((b) => [b, bpred.get(b)?.size || 0]));
+    const topo = roots.filter((b) => !indeg.get(b));
+    for (let i = 0; i < topo.length; i++) for (const s of bsucc.get(topo[i])?.keys() || []) { indeg.set(s, indeg.get(s) - 1); if (!indeg.get(s)) topo.push(s); }
+    const x = new Map();
+    for (const b of topo) { let v = 0; for (const [p, w] of bpred.get(b) || []) v = Math.max(v, x.get(p) + w); x.set(b, v); }
+    for (let i = topo.length - 1; i >= 0; i--) {
+      const b = topo[i];
+      let m = Infinity;
+      for (const [s, w] of bsucc.get(b) || []) m = Math.min(m, x.get(s) - w);
+      if (m !== Infinity) x.set(b, Math.max(x.get(b), m));
+    }
+    return [...Array(N).keys()].map((u) => (horiz === 'l' ? 1 : -1) * x.get(root[u]));
+  };
+  const runs = [];
+  for (const vert of ['u', 'd']) for (const horiz of ['l', 'r']) {
+    const xs = align4(vert, horiz);
+    let lo = Infinity, hi = -Infinity;
+    xs.forEach((x, u) => { lo = Math.min(lo, x - so(u) / 2); hi = Math.max(hi, x + so(u) / 2); });
+    runs.push({ xs, horiz, lo, hi });
+  }
+  const tight = runs.reduce((a, b) => (b.hi - b.lo < a.hi - a.lo ? b : a));
+  for (const rn of runs) {
+    const d = rn.horiz === 'l' ? tight.lo - rn.lo : tight.hi - rn.hi;
+    rn.xs = rn.xs.map((x) => x + d);
+  }
+  const o = [...Array(N).keys()].map((u) => { const v = runs.map((rn) => rn.xs[u]).sort((a, b) => a - b); return (v[1] + v[2]) / 2; });
+
+  // ports: edges out of a node leave from one bus port (reversed edges get their own),
+  // edges into a node land on ports spread along its side in the order they arrive
+  const segs = [];
+  const outOf = Array.from({ length: N }, () => []), into = Array.from({ length: N }, () => []);
+  for (const lk of links.values()) {
+    lk.segs = [];
+    const fwd = lk.pairs.some((p) => !p.rev);
+    for (let i = 0; i + 1 < lk.chain.length; i++) {
+      const sg = { s: lk.chain[i], t: lk.chain[i + 1], L: layerOf[lk.chain[i]], key: fwd ? 'bus' : 'r' + lk.a + ':' + lk.b };
+      segs.push(sg); lk.segs.push(sg); outOf[sg.s].push(sg); into[sg.t].push(sg);
+    }
+  }
+  const spread = (u, want, center) => {
+    const half = so(u) / 2, m = Math.min(10, half / 2);
+    const lo = o[u] - half + m, hi = o[u] + half - m;
+    const k = want.length;
+    const clamp = (x) => Math.max(lo, Math.min(hi, x));
+    if (k === 1) return [center || want[0] < lo || want[0] > hi ? o[u] : want[0]];
+    const gap = Math.min(12, (hi - lo) / (k - 1));
+    const got = placeOrdered(want.map(clamp), new Array(k - 1).fill(gap));
+    const shift = got[0] < lo ? lo - got[0] : got[k - 1] > hi ? hi - got[k - 1] : 0;
+    return got.map((x) => x + shift);
+  };
+  for (let u = 0; u < N; u++) {
+    if (!outOf[u].length) continue;
+    if (isD[u]) { for (const sg of outOf[u]) sg.top = o[u]; continue; }
+    const groups = new Map();
+    for (const sg of outOf[u]) { if (!groups.has(sg.key)) groups.set(sg.key, []); groups.get(sg.key).push(sg); }
+    const gs = [...groups.entries()].map(([key, list]) => ({ key, list, mean: list.reduce((s, sg) => s + o[sg.t], 0) / list.length }));
+    gs.sort((a, b) => a.mean - b.mean);
+    const ports = spread(u, gs.map((g) => (g.key === 'bus' ? o[u] : g.mean)), gs.length === 1);
+    gs.forEach((g, i) => { for (const sg of g.list) { sg.top = ports[i]; sg.group = u + '|' + g.key; } });
+  }
+  for (let u = 0; u < N; u++) {
+    if (!into[u].length) continue;
+    if (isD[u]) { for (const sg of into[u]) sg.bot = o[u]; continue; }
+    const list = into[u].slice().sort((a, b) => a.top - b.top || o[a.s] - o[b.s]);
+    const ports = spread(u, list.map((sg) => sg.top), false);
+    list.forEach((sg, i) => { sg.bot = ports[i]; });
+  }
+
+  // channel routing: each gap between ranks gets tracks; a net that must jog takes a track,
+  // ordered so its verticals do not cut other nets' horizontals where that can be avoided
+  const tracksIn = new Array(maxL).fill(0);
+  for (let L = 0; L < maxL; L++) {
+    const nets = new Map();
+    for (const sg of segs) {
+      if (sg.L !== L) continue;
+      const key = sg.group && sg.key === 'bus' ? sg.group : sg;
+      if (!nets.has(key)) nets.set(key, { top: sg.top, bots: [], segs: [] });
+      const net = nets.get(key);
+      net.bots.push(sg.bot); net.segs.push(sg); sg.net = net;
+    }
+    const need = [...nets.values()].filter((nt) => nt.bots.some((b) => Math.abs(b - nt.top) > 0.5));
+    for (const nt of need) { nt.lo = Math.min(nt.top, ...nt.bots); nt.hi = Math.max(nt.top, ...nt.bots); nt.preds = new Set(); }
+    const inside = (x, nt) => x >= nt.lo - 0.5 && x <= nt.hi + 0.5;
+    for (let i = 0; i < need.length; i++) {
+      for (let j = i + 1; j < need.length; j++) {
+        const A = need[i], B = need[j];
+        if (A.hi + 6 < B.lo || B.hi + 6 < A.lo) continue;
+        const ab = inside(A.top, B) || B.bots.some((x) => inside(x, A));
+        const ba = inside(B.top, A) || A.bots.some((x) => inside(x, B));
+        if (ab && !ba) B.preds.add(A);
+        else if (ba && !ab) A.preds.add(B);
+      }
+    }
+    let rest = need.slice(), t = 0;
+    while (rest.length) {
+      let free = rest.filter((nt) => [...nt.preds].every((p) => p.track !== undefined && p.track < t));
+      if (!free.length) free = [rest.reduce((a, b) => ([...b.preds].filter((p) => p.track === undefined).length < [...a.preds].filter((p) => p.track === undefined).length ? b : a))];
+      free.sort((a, b) => a.lo - b.lo);
+      let lastHi = -Infinity;
+      for (const nt of free) if (nt.lo > lastHi + 6) { nt.track = t; lastHi = nt.hi; }
+      rest = rest.filter((nt) => nt.track === undefined);
+      t++;
+    }
+    tracksIn[L] = t;
+  }
+
+  // rank coordinates: each gap is as deep as its tracks need; with edge labels the tracks
+  // pack toward the upper rank and leave the last legs long enough to carry a label
+  const rankSize = layers.map((ly) => Math.max(0, ...ly.map(sr)));
+  const r = [], gapOf = [];
+  let acc = 0;
+  for (let L = 0; L <= maxL; L++) {
+    r[L] = acc + rankSize[L] / 2;
+    gapOf[L] = Math.max(rankGap, (tracksIn[L] + 1) * lane + (tracksIn[L] ? labelRoom : 0));
+    acc += rankSize[L] + gapOf[L];
+  }
+  const trackAt = (L, t) => r[L] + rankSize[L] / 2 + (labelRoom ? (t + 1) * lane : ((t + 1) * gapOf[L]) / (tracksIn[L] + 1));
+  const P = (oo, rr) => (LR ? { x: rr, y: oo } : { x: oo, y: rr });
+
+  const outEdges = edges.map(() => null);
+  for (const lk of links.values()) {
+    const first = lk.segs[0], last = lk.segs[lk.segs.length - 1];
+    const raw = [[first.top, r[layerOf[lk.a]] + sr(lk.a) / 2]];
+    for (const sg of lk.segs) if (sg.net.track !== undefined) { const tr = trackAt(sg.L, sg.net.track); raw.push([sg.top, tr], [sg.bot, tr]); }
+    raw.push([last.bot, r[layerOf[lk.b]] - sr(lk.b) / 2]);
+    // drop repeats and points in the middle of a straight run
+    const pts = [];
+    for (const q of raw) {
+      const z = pts[pts.length - 1];
+      if (z && Math.abs(z[0] - q[0]) < 0.01 && Math.abs(z[1] - q[1]) < 0.01) continue;
+      const y = pts[pts.length - 2];
+      if (y && ((Math.abs(y[0] - z[0]) < 0.01 && Math.abs(z[0] - q[0]) < 0.01) || (Math.abs(y[1] - z[1]) < 0.01 && Math.abs(z[1] - q[1]) < 0.01))) pts.pop();
+      pts.push(q);
+    }
+    const route = pts.map(([oo, rr]) => P(oo, rr));
+    for (const p of lk.pairs) for (const ei of p.eis) outEdges[ei] = { points: p.rev ? route.slice().reverse() : route, reversed: p.rev, route: true };
+  }
+  const nodePt = (u) => P(o[u], r[layerOf[u]]);
+  edges.forEach((e, ei) => {
+    const u = idx.get(e.from);
+    if (!outEdges[ei] && u !== undefined && e.from === e.to) outEdges[ei] = { self: true, points: [nodePt(u)] };
+  });
+  const outNodes = nodes.map((nd, i) => ({ ...nodePt(i), w: nd.w, h: nd.h, layer: layerOf[i] }));
+  return { nodes: outNodes, edges: outEdges, dir: LR ? 'LR' : 'TB', crossings: bestC, layers: maxL + 1 };
 }
 
 export function render(container, artifact, ctx = {}) {
@@ -183,6 +556,8 @@ export function render(container, artifact, ctx = {}) {
 
   // ---------- drawing ----------
   let nodeEls = [], edgeEls = [], labelEls = [];
+  // shown label boxes of the drawn layout, so fit and export keep them in frame
+  let labBoxes = { lay: null, list: [] };
 
   function layout() {
     const key = mode === 'radial' ? 'radial' : `layered:${dir}${collapsed() ? ':focus' : ''}`;
@@ -196,7 +571,8 @@ export function render(container, artifact, ctx = {}) {
     const labelled = edges.filter((e) => e.label);
     const maxLab = Math.max(0, ...labelled.map((e) => textWidth(clip(e.label, 28), EDGE_FONT)));
     const rankGap = dir === 'LR' ? Math.max(72, Math.min(190, labelled.length ? maxLab + 48 : 72)) : labelled.length ? 84 : 60;
-    const r = layered(ln, edges, { dir, rankGap, nodeGap: dir === 'LR' ? 16 : 28 });
+    const labelRoom = labelled.length ? (dir === 'LR' ? Math.min(150, maxLab + 16) : 34) : 0;
+    const r = layeredLayout(ln, edges, { dir, rankGap, nodeGap: dir === 'LR' ? 16 : 28, labelRoom });
     // nodes left out sit far off and are not drawn; layered() already skips their edges
     const full = nodes.map(() => ({ ...OFF, off: true }));
     keep.forEach((i, k) => { full[i] = r.nodes[k]; });
@@ -211,31 +587,6 @@ export function render(container, artifact, ctx = {}) {
   };
   const f = (n) => n.toFixed(1);
 
-  // orthogonal route through the layout points: leave along the flow, turn at the midpoint
-  // each source gets its own turning lane, so fan-outs share a bus and other edges do not overlap it
-  const lane = (key) => { let x = 0; for (const ch of String(key)) x = (x * 31 + ch.charCodeAt(0)) >>> 0; return 0.32 + 0.36 * ((x * 0.618034) % 1); };
-  function orthoPoints(raw, LR, keys) {
-    // a dummy point a few px off the line would only add a jog, so it snaps straight
-    const pts = raw.map((p) => ({ ...p }));
-    for (let i = 1; i < pts.length - 1; i++) {
-      if (LR && Math.abs(pts[i].y - pts[i - 1].y) < 10) pts[i].y = pts[i - 1].y;
-      if (!LR && Math.abs(pts[i].x - pts[i - 1].x) < 10) pts[i].x = pts[i - 1].x;
-    }
-    const n = pts.length;
-    if (n > 2) {
-      if (LR && Math.abs(pts[n - 2].y - pts[n - 1].y) < 10) pts[n - 2].y = pts[n - 1].y;
-      if (!LR && Math.abs(pts[n - 2].x - pts[n - 1].x) < 10) pts[n - 2].x = pts[n - 1].x;
-    }
-    const out = [pts[0]];
-    for (let i = 1; i < pts.length; i++) {
-      const a = out[out.length - 1], b = pts[i];
-      if (LR ? Math.abs(a.y - b.y) < 4 : Math.abs(a.x - b.x) < 4) { out.push(b); continue; }
-      const t = lane(i === 1 ? keys[0] : keys[1] + ':' + i);
-      if (LR) { const mx = a.x + (b.x - a.x) * t; out.push({ x: mx, y: a.y }, { x: mx, y: b.y }, b); }
-      else { const my = a.y + (b.y - a.y) * t; out.push({ x: a.x, y: my }, { x: b.x, y: my }, b); }
-    }
-    return out.filter((p, i) => i === 0 || Math.hypot(p.x - out[i - 1].x, p.y - out[i - 1].y) > 0.1);
-  }
   function roundedPath(pts) {
     let d = `M${f(pts[0].x)},${f(pts[0].y)}`;
     for (let i = 1; i < pts.length - 1; i++) {
@@ -263,14 +614,9 @@ export function render(container, artifact, ctx = {}) {
       return { d: roundedPath(pts), end: pts[3], from: pts[2], lab: { x: x + 10, y: y - 18 }, beside: true };
     }
     if (lay.kind === 'layered') {
-      const LR = lay.dir === 'LR';
-      const pts = orthoPoints(geo.points, LR, [geo.reversed ? e.to : e.from, ei]);
-      const end = pts[pts.length - 1], from = pts[pts.length - 2];
-      // label on the last leg that runs along the flow, beside it in top-down
-      let seg = pts.length - 2;
-      for (let i = pts.length - 2; i >= 0; i--) { const along = LR ? Math.abs(pts[i + 1].x - pts[i].x) : Math.abs(pts[i + 1].y - pts[i].y); if (along > 22) { seg = i; break; } }
-      const a = pts[seg], b = pts[seg + 1];
-      return { d: roundedPath(pts), end, from, lab: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 + (LR ? -9 : 0) }, beside: !LR };
+      // the layout already routed it orthogonally; labels pick a leg in draw()
+      const pts = geo.points;
+      return { d: roundedPath(pts), end: pts[pts.length - 1], from: pts[pts.length - 2], pts };
     }
     // radial: straight lines between node edges
     const A = lay.nodes[u], B = lay.nodes[v];
@@ -302,8 +648,39 @@ export function render(container, artifact, ctx = {}) {
     svg.classList.toggle('sg-quiet-labels', edges.filter((e, ei) => e.label && lay.edges[ei]).length > 36);
     // labels never sit on a node or on another label; the ones that would are dropped (DESIGN 12.2)
     const placed = lay.nodes.map((p, i) => ({ x: p.x - nodes[i].w / 2, y: p.y - nodes[i].h / 2, w: nodes[i].w, h: nodes[i].h }));
+    const geos = edges.map((_, ei) => edgeGeometry(ei));
+    labBoxes = { lay, list: [] };
+    // routed legs of every edge, so a label can also keep off other edges' lines
+    const legs = [];
+    geos.forEach((g, ei) => { if (g?.pts) for (let i = 0; i + 1 < g.pts.length; i++) legs.push({ ei, a: g.pts[i], b: g.pts[i + 1] }); });
+    const hitsBox = (box) => placed.some((b) => b.x < box.x + box.w + 2 && box.x < b.x + b.w + 2 && b.y < box.y + box.h + 2 && box.y < b.y + b.h + 2);
+    const hitsLeg = (box, ei) => legs.some((l) => l.ei !== ei && Math.min(l.a.x, l.b.x) < box.x + box.w && Math.max(l.a.x, l.b.x) > box.x && Math.min(l.a.y, l.b.y) < box.y + box.h && Math.max(l.a.y, l.b.y) > box.y);
+    // a leg that runs along another edge (a shared bus) would make its label ambiguous
+    const shared = (a, b, ei) => legs.some((l) => l.ei !== ei && (Math.abs(a.y - b.y) < 0.5
+      ? Math.abs(l.a.y - l.b.y) < 0.5 && Math.abs(l.a.y - a.y) < 1 && Math.min(Math.max(a.x, b.x), Math.max(l.a.x, l.b.x)) - Math.max(Math.min(a.x, b.x), Math.min(l.a.x, l.b.x)) > 4
+      : Math.abs(l.a.x - l.b.x) < 0.5 && Math.abs(l.a.x - a.x) < 1 && Math.min(Math.max(a.y, b.y), Math.max(l.a.y, l.b.y)) - Math.max(Math.min(a.y, b.y), Math.min(l.a.y, l.b.y)) > 4));
+    // candidate spots: the last leg first (beside a vertical one, stepping back from the
+    // arrow; above or below a horizontal one), then earlier legs, shared legs last
+    const spots = (g, w, ei) => {
+      if (!g.pts) return [{ x: g.beside ? g.lab.x + 5 : g.lab.x - w / 2, y: g.lab.y }];
+      const own = [], bus = [];
+      for (let i = g.pts.length - 2; i >= 0; i--) {
+        const a = g.pts[i], b = g.pts[i + 1];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        if (len < 20) continue;
+        const out = shared(a, b, ei) ? bus : own;
+        if (Math.abs(a.x - b.x) < 0.5) {
+          const sgn = Math.sign(b.y - a.y);
+          for (let d = 14; d <= len - 8; d += 18) out.push({ x: b.x + 5, y: b.y - sgn * d }, { x: b.x - 5 - w, y: b.y - sgn * d });
+        } else {
+          for (const t of [0.5, 0.75, 0.25]) { const x = a.x + (b.x - a.x) * t; out.push({ x: x - w / 2, y: a.y - 10 }, { x: x - w / 2, y: a.y + 10 }); }
+        }
+      }
+      const all = own.concat(bus);
+      return all.length ? all : [{ x: (g.pts[0].x + g.end.x) / 2 - w / 2, y: (g.pts[0].y + g.end.y) / 2 }];
+    };
     edges.forEach((e, ei) => {
-      const g = edgeGeometry(ei);
+      const g = geos[ei];
       if (!g) { edgeEls.push(null); labelEls.push(null); return; }
       const kind = String(e.kind || '').toLowerCase();
       const dashed = /async|optional|weak/.test(kind);
@@ -316,13 +693,14 @@ export function render(container, artifact, ctx = {}) {
       if (e.label) {
         const t = clip(e.label, 28);
         const w = textWidth(t, EDGE_FONT) + 6;
-        const x0 = g.beside ? g.lab.x + 5 : g.lab.x - w / 2;
-        const lab = s('g', { class: 'sg-elabel', transform: `translate(${f(x0)},${f(g.lab.y)})` },
+        const boxes = spots(g, w, ei).map((p) => ({ x: p.x, y: p.y - 8, w, h: 16 }));
+        const free = boxes.filter((b) => !hitsBox(b));
+        const box = free.find((b) => !g.pts || !hitsLeg(b, ei)) || free[0] || boxes[0];
+        const hit = !free.length;
+        const lab = s('g', { class: 'sg-elabel', transform: `translate(${f(box.x)},${f(box.y + 8)})` },
           s('rect', { x: 0, y: -8, width: w, height: 16 }),
           s('text', { x: 3, y: 0.5, 'dominant-baseline': 'central' }, t));
-        const box = { x: x0, y: g.lab.y - 8, w, h: 16 };
-        const hit = placed.some((b) => b.x < box.x + box.w + 2 && box.x < b.x + b.w + 2 && b.y < box.y + box.h + 2 && box.y < b.y + b.h + 2);
-        if (!hit) placed.push(box);
+        if (!hit) { placed.push(box); labBoxes.list.push(box); }
         lab.classList.toggle('sg-hidden', hit);
         gLabels.append(lab);
         labelEls.push(lab);
@@ -514,6 +892,7 @@ export function render(container, artifact, ctx = {}) {
     const add = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
     lay.nodes.forEach((p, i) => { if ((only && !only.has(i)) || p.off) return; const n = nodes[i]; add(p.x - n.w / 2, p.y - n.h / 2); add(p.x + n.w / 2, p.y + n.h / 2); });
     if (!only) for (const g of lay.edges) if (g?.points) for (const p of g.points) add(p.x, p.y);
+    if (!only && labBoxes.lay === lay) for (const b of labBoxes.list) { add(b.x, b.y); add(b.x + b.w, b.y + b.h); }
     return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
   }
   // the part of the stage not covered by the search box, card and foot
