@@ -57,7 +57,7 @@ Tool errors (bad arguments, unknown notebook, an escaping path, a capped run) co
 
 A round is one model request, and each batch of tool calls costs another one. Every ask in the app has a cap now: 12 unless something sets it, 4 with `--fast` in the CLI. If a run hits it, you get an error saying so (`stopped at the 4-round cap...`), never a half answer.
 
-What it costs, measured on the NeoForge notebook (~360K tokens of pinned shelf):
+What it costs, measured on the NeoForge notebook (~350K tokens of pinned shelf):
 
 - **fast ask:** $0.02 to $0.05 and about 10 to 30 seconds once the haiku base session is warm. Measured today through the MCP server, $0.024 in 10.4s with 3 of 3 citations verified.
 - **deep ask:** about $0.30 for an opus answer that used 2 tool calls (that one ran at default effort). High effort and 12 rounds push it higher, plan on up to a dollar or so for a question that keeps searching.
