@@ -1,6 +1,6 @@
 # Lectern (MCP server)
 
-`app/mcp.mjs` puts the notebook app behind the Model Context Protocol, so Claude Code, Cursor or any MCP client can ask a notebook questions and get answers with citations checked against the files. It speaks JSON-RPC over stdio and calls the engine and store directly, so the web server on 4317 doesn't need to be running (it's fine if it is, they share the same files on disk).
+`lectern mcp` puts Lectern behind the Model Context Protocol, so Claude Code, Cursor or any MCP client can ask a notebook questions and get answers with citations checked against the files. It speaks JSON-RPC over stdio and calls the engine and store directly, so the web server doesn't need to be running (it's fine if it is, they share the same files on disk).
 
 Node 22, no extra packages. Asks go through the same `claude` binary the app already uses, on your Claude Code login.
 
@@ -9,7 +9,7 @@ Node 22, no extra packages. Asks go through the same `claude` binary the app alr
 Claude Code:
 
 ```sh
-claude mcp add lectern -- node D:/projects/notebook-spike/app/mcp.mjs
+claude mcp add lectern -- lectern mcp
 ```
 
 Add `--scope user` to get it in every project, the default only registers it for the folder you ran it in. `claude mcp list` should show it connected.
@@ -20,22 +20,22 @@ Cursor, in `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project):
 {
   "mcpServers": {
     "lectern": {
-      "command": "node",
-      "args": ["D:/projects/notebook-spike/app/mcp.mjs"]
+      "command": "lectern",
+      "args": ["mcp"]
     }
   }
 }
 ```
 
-Anything else: launch `node <abs path>/app/mcp.mjs` as a stdio server. Newline-delimited JSON-RPC 2.0, protocol versions 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05 (it answers with yours if it knows it, otherwise 2025-11-25). It supports `initialize`, `ping`, `tools/list`, `tools/call`, `notifications/cancelled` and progress notifications when you send a `progressToken`. Logs go to stderr, stdout is protocol only. Closing stdin shuts it down, any running ask gets cancelled first.
+Anything else: launch `lectern mcp` as a stdio server. Newline-delimited JSON-RPC 2.0, protocol versions 2025-11-25, 2025-06-18, 2025-03-26 and 2024-11-05 (it answers with yours if it knows it, otherwise 2025-11-25). It supports `initialize`, `ping`, `tools/list`, `tools/call`, `notifications/cancelled` and progress notifications when you send a `progressToken`. Logs go to stderr, stdout is protocol only. Closing stdin shuts it down, any running ask gets cancelled first.
 
-Use an absolute path. Clients start the server from wherever they like, and the registry is found relative to `mcp.mjs` itself, so the cwd doesn't matter.
+Clients start the server from wherever they like. The registry is found through the Lectern home folder (see the README), so the cwd doesn't matter. If `lectern` isn't on the client's PATH, put the absolute path to it in `command`.
 
 ## Tools
 
 Free ones, no model call, they come back in well under a second:
 
-- `list_notebooks` ids, titles, doc and file counts, code root names, shelf size in tokens. Call it first, everything else takes a notebook id.
+- `list_notebooks` ids, titles, pinned doc and file counts, code root names with how many files each holds (`rootFiles`), shelf size in tokens. Call it first, everything else takes a notebook id.
 - `search {notebook, query, regex?}` the same full-text search as the app's search box, over pinned docs and every text file under the roots. Up to 100 hits as `path:line: text`.
 - `read_source {notebook, path, start?, end?}` numbered lines from a pinned doc or a root file. 400 lines by default, 2000 max per call. Absolute paths, `..` escapes and files outside the shelf and roots (notebook.json, conversations) are refused.
 - `verify {notebook, citations: [...]}` re-checks citation strings against the files as they are now. Takes `[[path#L12]]`, `[[path#L12-L20]]`, `[[path|"quote"]]` and `[[path#L12|"quote"]]`, brackets optional. Each one comes back verified, moved (with the new line), unverified, missing or unparsed.
@@ -73,8 +73,8 @@ So: search and read_source for lookups (free), fast for "where is X / what does 
 The same caps are on the CLI:
 
 ```sh
-node app/cli.mjs ask neoforge-1.21.1 "Which event registers payload handlers?" --fast
-node app/cli.mjs ask neoforge-1.21.1 "How do attachments sync to the client?" --max-turns 20
+lectern ask neoforge-1.21.1 "Which event registers payload handlers?" --fast
+lectern ask neoforge-1.21.1 "How do attachments sync to the client?" --max-turns 20
 ```
 
 ## Tests

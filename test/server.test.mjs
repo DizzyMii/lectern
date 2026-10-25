@@ -164,6 +164,10 @@ test('static files and vendor route', async () => {
   assert.equal(v.status, 200);
   assert.match(v.headers.get('content-type'), /application\/json/);
   assert.notEqual((await fetch(base + '/vendor/..%2f..%2fserver.mjs')).status, 200);
+  // dompurify's exports hide package.json, and the fonts are scoped
+  assert.equal((await fetch(base + '/vendor/dompurify/dist/purify.es.mjs')).status, 200);
+  assert.equal((await fetch(base + '/vendor/@fontsource-variable/archivo/wdth.css')).status, 200);
+  assert.equal((await fetch(base + '/vendor/not-a-dependency/index.js')).status, 403);
   assert.equal((await fetch(base + '/api/nope')).status, 404);
 });
 

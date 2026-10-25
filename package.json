@@ -1,9 +1,35 @@
 {
-  "name": "notebook-app",
-  "private": true,
+  "name": "@dizzymii/lectern",
+  "version": "1.0.0-rc.1",
+  "description": "A local notebook for developers: ask your pinned docs and code roots, get answers with citations checked against the files.",
+  "license": "PolyForm-Shield-1.0.0",
+  "author": "Kade Heglin",
   "type": "module",
+  "bin": {
+    "lectern": "bin/lectern.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "examples/",
+    "public/",
+    "docs/mcp.md",
+    "README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "LICENSE",
+    "!public/dev-mock.js",
+    "!public/ui/mock-studio.js",
+    "!public/studio/harness.html",
+    "!public/studio/fixtures.js",
+    "!public/studio/mock-data.js",
+    "!public/TOKENS.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "start": "node lib/server.mjs",
+    "start": "node bin/lectern.mjs serve",
     "test": "node --test test/"
   },
   "dependencies": {

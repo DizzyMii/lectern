@@ -144,7 +144,7 @@ export function renderOnboarding() {
             mark('unverified', 'Unverified', 'The quote was not found. It is marked in red.'),
             mark('none', 'No mark', 'The sentence has no citation.'))))),
     h('div', { class: 'sheet-foot' }, start, note, h('span', { class: 'grow' }),
-      h('span', { class: 't-ui-sm' }, 'Ask from a terminal: ', h('code', null, `node app/cli.mjs ask ${state.nbId || '<notebook>'}`))));
+      h('span', { class: 't-ui-sm' }, 'Ask from a terminal: ', h('code', null, `lectern ask ${state.nbId || '<notebook>'}`))));
   sheet.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !start.disabled) { e.preventDefault(); start.click(); } });
   drawAdded();
   setTimeout(() => (state.nb ? field : name).focus());

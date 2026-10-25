@@ -5,8 +5,9 @@ export let mockMode = false;
 
 export async function initApi() {
   if (new URLSearchParams(location.search).get('mock') === '1') {
-    const m = await import('/dev-mock.js');
-    const s = await import('./mock-studio.js');
+    // the mocks are dev-only and left out of the npm package; without them it runs for real
+    let m, s;
+    try { [m, s] = await Promise.all([import('/dev-mock.js'), import('./mock-studio.js')]); } catch { return; }
     // dev-mock answers first; studio routes it does not know fall through to the studio mock
     doFetch = async (url, opts) => {
       const r = await m.mockFetch(url, opts);
