@@ -46,6 +46,12 @@ lectern serve --open
 
 `--port` picks another port, `--open` opens the browser for you.
 
+### Lectern.exe
+
+`npm run build:exe` makes `dist/Lectern.exe`, a single file with Node inside, so nobody needs Node installed. Double-click it and it serves and opens the browser, and the console window it opens is the server (close it to stop). With arguments it's the same as the `lectern` command. The first launch unpacks the app into `%LOCALAPPDATA%\Lectern`, which takes a few seconds. It isn't code signed, so SmartScreen will ask before it runs the first time.
+
+Paste the API key in Settings (the gear in the top bar). Settings go in `settings.json` in the home folder and win over environment variables.
+
 First thing to try if you just want to see it work:
 
 ```

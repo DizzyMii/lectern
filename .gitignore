@@ -6,3 +6,4 @@ docs/internal/
 coverage/
 *.log
 *.tmp
+dist/

@@ -30,6 +30,7 @@
   },
   "scripts": {
     "start": "node bin/lectern.mjs serve",
+    "build:exe": "node scripts/build-exe.mjs",
     "test": "node --test test/"
   },
   "dependencies": {
