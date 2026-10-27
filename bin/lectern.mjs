@@ -8,8 +8,7 @@ applySettings();
 const HELP = `lectern: ask your docs and code, get answers with checked citations
 
 usage:
-  lectern serve [--port n] [--open | --window]
-                                             web app on http://127.0.0.1:4317, --window gives it its own window
+  lectern serve [--port n] [--open]          web app on http://127.0.0.1:4317
   lectern ask <notebook> "<question>" [--json] [--fast | --deep] [--continue <conversationId>]
               [--model opus|sonnet|haiku] [--effort e] [--max-turns n] [--engine api|claude-code]
   lectern mcp                                MCP server over stdio
@@ -37,21 +36,6 @@ function openBrowser(url) {
   });
 }
 
-// Edge or Chrome in app mode: a plain window with no tabs or address bar. Its own profile keeps it a
-// separate process, so when that window closes Lectern can stop too.
-async function openWindow(url) {
-  const fs = await import('node:fs');
-  const path = await import('node:path');
-  const roots = [process.env['ProgramFiles(x86)'], process.env.ProgramFiles, process.env.LOCALAPPDATA].filter(Boolean);
-  const bin = ['Microsoft/Edge/Application/msedge.exe', 'Google/Chrome/Application/chrome.exe']
-    .flatMap((rel) => roots.map((r) => path.join(r, rel))).find((f) => fs.existsSync(f));
-  if (!bin) { await openBrowser(url); return null; }
-  const { spawn } = await import('node:child_process');
-  const { lecternHome } = await import('../lib/home.mjs');
-  const args = [`--app=${url}`, `--user-data-dir=${path.join(lecternHome(), 'window')}`, '--no-first-run', '--no-default-browser-check', '--window-size=1400,900'];
-  return spawn(bin, args, { stdio: 'ignore' }).on('error', () => {});
-}
-
 async function main(argv) {
   const cmd = argv[0];
   if (!cmd || cmd === '--help' || cmd === '-h' || cmd === 'help') { console.log(HELP); return 0; }
@@ -75,8 +59,7 @@ async function main(argv) {
       const srv = await startServer({ port });
       // with --port 0 the system picks the port, so read back the one it bound
       const url = `http://127.0.0.1:${srv?.address().port ?? port}`;
-      if (argv.includes('--window')) (await openWindow(url))?.on('exit', () => { if (srv) process.exit(0); });
-      else if (argv.includes('--open')) await openBrowser(url);
+      if (argv.includes('--open')) await openBrowser(url);
       return srv ? null : 0;
     }
     if (cmd === 'ask') return await cli.askCmd(args, opts);

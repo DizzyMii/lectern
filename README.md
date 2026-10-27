@@ -46,9 +46,9 @@ lectern serve --open
 
 `--port` picks another port, `--open` opens the browser for you.
 
-### Lectern.exe
+### Desktop app
 
-`npm run build:exe` makes `dist/Lectern.exe`, a single file with Node inside, so nobody needs Node installed. Double-click it and Lectern opens in its own window (Edge or Chrome in app mode, with its own profile under the home folder), and closing that window stops it. There's no console, so the CLI is better run with `node bin/lectern.mjs`, and a crash at startup lands in `%LOCALAPPDATA%\Lectern\error.log`. `lectern serve --window` does the same from a terminal. The first launch unpacks the app into `%LOCALAPPDATA%\Lectern`, which takes a few seconds. It isn't code signed, so SmartScreen will ask before it runs the first time.
+`npm run build:exe` builds the Electron app into `dist/`: `Lectern Setup.exe` installs it for your user (no admin) and starts in a couple of seconds, `Lectern.exe` is the portable one that runs from anywhere but unpacks itself on every launch, so it takes about 30. Neither needs Node installed. The window has no title bar of its own, the top bar drags it and holds the window buttons, and closing it stops the server. If `lectern serve` is already running on the same port the app just shows that one. It isn't code signed, so SmartScreen will ask the first time. `npm run app` runs it from the clone.
 
 Paste the API key in Settings (the gear in the top bar). Settings go in `settings.json` in the home folder and win over environment variables.
 

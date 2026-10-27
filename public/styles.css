@@ -274,6 +274,10 @@ kbd {
   background: var(--paper-2); border-bottom: 1px solid var(--rule); overflow: hidden;
 }
 .topbar > * { position: relative; z-index: 1; }
+/* In the desktop app the window buttons are drawn over the right end of the bar and the bar drags
+   the window. env(titlebar-area-*) only exists there, so in a browser the padding stays 16px. */
+.topbar { -webkit-app-region: drag; padding-right: calc(16px + 100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)); }
+.topbar a, .topbar button, .topbar input { -webkit-app-region: no-drag; }
 .tb-brand { display: flex; align-items: center; gap: 8px; color: var(--ink); flex: none; }
 .tb-brand:hover { color: var(--ink); text-decoration: none; }
 .tb-brand .mark { width: 18px; height: 18px; color: var(--accent); flex: none; overflow: visible; }

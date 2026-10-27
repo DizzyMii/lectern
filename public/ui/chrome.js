@@ -15,6 +15,7 @@ export function initChrome() {
   engineEl = h('button', { class: 'tb-index tb-engine', id: 'tb-engine', type: 'button' });
   indexEl.after(engineEl);
   on('status', drawEngine);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', syncTheme);
   document.getElementById('tb-palette').addEventListener('click', () => ctx.openPalette());
   document.querySelector('.tb-brand').addEventListener('click', (e) => { e.preventDefault(); ctx.newConversation?.(); });
   themeBtn.addEventListener('click', () => ctx.toggleTheme());
@@ -42,6 +43,7 @@ export function syncTheme() {
   if (!themeBtn) return;
   const dark = effectiveTheme() === 'dark';
   themeBtn.replaceChildren(icon(dark ? 'sun' : 'moon'));
+  window.lecternApp?.setTheme(dark);
   themeBtn.title = `${dark ? 'Switch to light' : 'Switch to dark'}  Ctrl+Shift+L`;
 }
 

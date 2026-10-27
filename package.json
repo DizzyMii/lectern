@@ -5,6 +5,7 @@
   "license": "PolyForm-Shield-1.0.0",
   "author": "Kade Heglin",
   "type": "module",
+  "main": "electron/main.mjs",
   "bin": {
     "lectern": "bin/lectern.mjs"
   },
@@ -30,7 +31,8 @@
   },
   "scripts": {
     "start": "node bin/lectern.mjs serve",
-    "build:exe": "node scripts/build-exe.mjs",
+    "app": "electron .",
+    "build:exe": "electron-builder --win",
     "test": "node --test test/"
   },
   "dependencies": {
@@ -41,5 +43,44 @@
     "dompurify": "^3.2.6",
     "highlight.js": "^11.11.1",
     "marked": "^15.0.12"
+  },
+  "devDependencies": {
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0"
+  },
+  "build": {
+    "appId": "dev.dizzymii.lectern",
+    "productName": "Lectern",
+    "asar": false,
+    "files": [
+      "bin/",
+      "lib/",
+      "public/",
+      "examples/",
+      "electron/",
+      "package.json",
+      "!public/dev-mock.js",
+      "!public/ui/mock-studio.js",
+      "!public/studio/harness.html",
+      "!public/studio/fixtures.js",
+      "!public/studio/mock-data.js",
+      "!public/TOKENS.md"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "portable": {
+      "artifactName": "Lectern.exe"
+    },
+    "nsis": {
+      "oneClick": true,
+      "artifactName": "Lectern Setup.exe"
+    }
   }
 }
