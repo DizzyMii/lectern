@@ -48,4 +48,10 @@ const exe = path.join(dist, process.platform === 'win32' ? 'Lectern.exe' : 'lect
 fs.copyFileSync(process.execPath, exe);
 // ponytail: Windows and Linux only; macOS also needs the signature stripped and redone around this
 sh(`npx --yes postject@1.0.0-alpha.6 "${exe}" NODE_SEA_BLOB "${path.join(dist, 'sea-prep.blob')}" --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`);
+// mark it a GUI program so Windows opens no console window for it (PE optional header Subsystem = 2)
+if (process.platform === 'win32') {
+  const buf = fs.readFileSync(exe);
+  buf.writeUInt16LE(2, buf.readUInt32LE(0x3c) + 0x5c);
+  fs.writeFileSync(exe, buf);
+}
 console.log(`built ${path.relative(root, exe)}`);

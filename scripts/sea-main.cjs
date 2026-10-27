@@ -39,9 +39,12 @@ if (!fs.existsSync(path.join(dir, 'package.json'))) unpack();
 const args = process.argv.slice(2);
 const asScript = /\.[cm]?js$/i.test(args[0] ?? '') && fs.existsSync(args[0]);
 const script = asScript ? path.resolve(args.shift()) : path.join(dir, 'bin', 'lectern.mjs');
-// a double click has no arguments, so it serves and opens the browser
-process.argv = [process.execPath, script, ...(asScript || args.length ? args : ['serve', '--open'])];
-createRequire(path.join(dir, 'x'))('./sea-import.cjs')(pathToFileURL(script).href).catch((e) => {
-  console.error(e?.stack ?? e);
+// a double click has no arguments, so it serves in its own window
+process.argv = [process.execPath, script, ...(asScript || args.length ? args : ['serve', '--window'])];
+// there's no console to print to, so a crash goes in a log beside the unpacked app
+const crashed = (e) => {
+  try { fs.appendFileSync(path.join(base, 'error.log'), `${new Date().toISOString()} ${e?.stack ?? e}\n`); } catch {}
   process.exit(1);
-});
+};
+process.on('uncaughtException', crashed);
+createRequire(path.join(dir, 'x'))('./sea-import.cjs')(pathToFileURL(script).href).catch(crashed);
