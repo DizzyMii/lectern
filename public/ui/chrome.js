@@ -12,12 +12,14 @@ export function initChrome() {
   crumb = document.getElementById('tb-crumb');
   indexEl = document.getElementById('tb-index');
   themeBtn = document.getElementById('tb-theme');
-  engineEl = h('span', { class: 'tb-index tb-engine', id: 'tb-engine' });
+  engineEl = h('button', { class: 'tb-index tb-engine', id: 'tb-engine', type: 'button' });
   indexEl.after(engineEl);
   on('status', drawEngine);
   document.getElementById('tb-palette').addEventListener('click', () => ctx.openPalette());
   document.querySelector('.tb-brand').addEventListener('click', (e) => { e.preventDefault(); ctx.newConversation?.(); });
   themeBtn.addEventListener('click', () => ctx.toggleTheme());
+  document.getElementById('tb-settings').addEventListener('click', () => ctx.openSettings());
+  engineEl.addEventListener('click', () => ctx.openSettings());
   nbBtn.addEventListener('mousedown', (e) => { if (e.button === 0) { e.preventDefault(); toggleMenu(); } });
   nbBtn.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') { e.preventDefault(); toggleMenu(); } });
   for (const ev of ['notebook', 'notebooks', 'refresh']) on(ev, () => { drawNotebook(); drawCrumb(); drawIndex(); });
@@ -75,7 +77,7 @@ function drawEngine() {
   clear(engineEl);
   if (!e) return;
   const ok = Boolean(e.default);
-  engineEl.title = e.onboarding || (e.default === 'api' ? 'Answers use the Anthropic API with your ANTHROPIC_API_KEY' : 'Answers use Claude Code on this machine');
+  engineEl.title = e.onboarding || (e.default === 'api' ? 'Answers use the Anthropic API with your key. Click for settings' : 'Answers use Claude Code on this machine');
   engineEl.append(h('span', { class: `sdot${ok ? ' ok' : ''}`, 'aria-hidden': 'true' }), ok ? e.label : 'No engine: add an API key');
 }
 

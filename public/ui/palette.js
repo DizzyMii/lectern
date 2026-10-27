@@ -94,6 +94,7 @@ function commands() {
     { label: 'Add a source', keys: ['A'], run: () => ctx.openAddSource(), top: 1 },
     { label: dark ? 'Light theme' : 'Night chart theme', alias: 'toggle theme dark light', keys: ['Ctrl', 'Shift', 'L'], run: () => ctx.toggleTheme(), top: 1 },
     { label: 'Shortcuts', keys: ['?'], run: () => ctx.openShortcuts(), top: 1 },
+    { label: 'Settings', alias: 'api key preferences', run: () => ctx.openSettings() },
     { label: 'Search all sources', alias: 'grep full text', keys: ['Ctrl', 'Shift', 'F'], run: () => ctx.openSearch('') },
     { label: 'Copy with citations', keys: ['C'], run: () => ctx.copyAnswer?.() },
     { label: 'Copy answer as markdown', run: () => ctx.copyPlain?.() },

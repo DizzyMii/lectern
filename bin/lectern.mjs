@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { quietGlobWarning } from '../lib/warnings.mjs';
+import { applySettings } from '../lib/settings.mjs';
 
 quietGlobWarning();
+applySettings();
 
 const HELP = `lectern: ask your docs and code, get answers with checked citations
 

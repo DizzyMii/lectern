@@ -8,7 +8,7 @@ import { initChat, renderThread, focusComposer, copyAnswer, stopStreaming } from
 import { initViewer, openFile, openSearch, openNote, openSource, closeViewer, viewerOpen, showViewer, viewerHasTabs, stepDrawerCitation } from './ui/viewer.js';
 import { initCites, openCitation, moveCursor, pinCitation, stepCitation, openCursor, pinCursor, challenge, clearCursor, cursorClaim } from './ui/cites.js';
 import { openPalette, closePalette, paletteOpen } from './ui/palette.js';
-import { openAddSource, openNewNotebook, initDrop, openShortcuts } from './ui/dialogs.js';
+import { openAddSource, openNewNotebook, initDrop, openShortcuts, openSettings } from './ui/dialogs.js';
 import { initPanes } from './ui/panes.js';
 import { initStudio, openRecipe } from './ui/studio.js';
 import { initCanvas, openArtifact, closeCanvas, canvasOpen } from './ui/canvas.js';
@@ -20,7 +20,7 @@ const app = document.getElementById('app');
 Object.assign(ctx, {
   openFile, openSearch, openNote, openSource, openCitation, showViewer,
   viewerHidden: () => viewerHasTabs() && !viewerOpen(),
-  openPalette, openAddSource, openNewNotebook, openShortcuts,
+  openPalette, openAddSource, openNewNotebook, openShortcuts, openSettings,
   openRecipe, openArtifact, closeCanvas, focusComposer, copyAnswer,
   challengeCursor: () => (cursorClaim() ? challenge() : false),
   syncHash: () => setHash(),

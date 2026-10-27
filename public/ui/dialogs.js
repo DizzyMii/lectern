@@ -1,8 +1,8 @@
-// Dialogs (DESIGN 11.15): add source, new notebook, confirm, the shortcut sheet. Also window drag and drop.
+// Dialogs (DESIGN 11.15): add source, new notebook, confirm, settings, the shortcut sheet. Also window drag and drop.
 
 import { h, clear, icon, iconBtn, toast, fmtNum } from './dom.js';
 import { api, nbPath, stream } from './api.js';
-import { state, ctx, HUES } from './state.js';
+import { state, ctx, emit, HUES } from './state.js';
 import { glyph, kbd } from './layers.js';
 
 const TABS = [
@@ -189,6 +189,56 @@ export function openNewNotebook() {
       await ctx.loadNotebooks();
       await ctx.selectNotebook(id.value.trim());
     } catch (err) { toast(err.message); }
+  });
+}
+
+// Each setting is an environment variable on the server. Only fields that changed are sent, and the
+// API key comes back as its last four characters, so an empty key field means leave it alone.
+export async function openSettings() {
+  let data;
+  try { data = await api.get('/api/settings'); } catch (e) { return toast(e.message); }
+  const cleared = new Set();
+  const inputs = new Map();
+  const rows = data.settings.map((s) => {
+    const was = s.fromEnv ? 'set in the environment' : '';
+    let input;
+    if (s.bool) input = h('input', { type: 'checkbox', checked: s.value === '1' });
+    else input = h('input', { class: 'input', type: s.secret ? 'password' : 'text', value: s.value, autocomplete: 'off', spellcheck: 'false',
+      placeholder: s.secret ? (s.set ? `saved, ending ${s.hint}` : was || 'sk-ant-...') : was });
+    input.disabled = !data.editable;
+    inputs.set(s.key, input);
+    const clear = s.secret && s.set && data.editable
+      ? h('button', { class: 'btn', type: 'button', onclick: () => { cleared.add(s.key); input.value = ''; input.placeholder = 'cleared when you save'; clear.remove(); } }, 'Remove')
+      : null;
+    if (s.bool) return h('label', { class: 'dlg-field' }, h('span', { class: 'field-label' }, input, ' ', s.label), h('span', { class: 'help' }, s.help));
+    return h('label', { class: 'dlg-field' }, h('span', { class: 'field-label' }, s.label), clear ? h('div', { class: 'row2' }, input, clear) : input, h('span', { class: 'help' }, s.help));
+  });
+  const save = h('button', { class: 'btn primary', type: 'submit', disabled: !data.editable }, 'Save');
+  const form = h('form', { method: 'dialog' },
+    h('div', { class: 'dlg-body' }, data.editable ? null : h('p', { class: 'help' }, 'Settings can only be changed on the machine Lectern runs on.'), rows),
+    h('div', { class: 'dlg-foot' }, h('button', { class: 'btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), save));
+  const dlg = dialog('Settings', {}, form);
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const patch = {};
+    for (const s of data.settings) {
+      const input = inputs.get(s.key);
+      if (s.secret) {
+        if (input.value.trim()) patch[s.key] = input.value.trim();
+        else if (cleared.has(s.key)) patch[s.key] = null;
+      } else {
+        const v = s.bool ? (input.checked ? '1' : '') : input.value.trim();
+        if (v !== s.value) patch[s.key] = v || null;
+      }
+    }
+    save.disabled = true;
+    try {
+      if (Object.keys(patch).length) await api.put('/api/settings', patch);
+      state.status = await api.get('/api/status');
+      emit('status');
+      toast('Settings saved', 'ok', 2200);
+      dlg.close();
+    } catch (err) { toast(err.message); save.disabled = false; }
   });
 }
 

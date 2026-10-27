@@ -308,8 +308,10 @@ kbd {
 .tb-run .sdot { background: var(--accent); animation: tb-run-blink 1.2s steps(2) infinite; }
 @keyframes tb-run-blink { 50% { opacity: 0.4; } }
 /* labels sit on solid ground so the contour corner never runs under text */
-.tb-index, #tb-theme { background: var(--paper-2); }
+.tb-index, #tb-theme, #tb-settings { background: var(--paper-2); }
 .tb-index { padding: 0 4px; margin: 0 -4px; }
+button.tb-engine { border: 0; cursor: pointer; }
+button.tb-engine:hover { color: var(--ink); }
 .tb-contour {
   position: absolute; z-index: 0; right: 0; top: 0; pointer-events: none; color: var(--contour);
   -webkit-mask-image: linear-gradient(to right, transparent, #000 70%); mask-image: linear-gradient(to right, transparent, #000 70%);
