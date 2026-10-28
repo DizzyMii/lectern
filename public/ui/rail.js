@@ -307,10 +307,10 @@ function drawFoot() {
   footEl.append(h('div', null, nb && srcs.length ? `${files ? files.toLocaleString() + ' files · ' : ''}${srcs.length} source${srcs.length === 1 ? '' : 's'}` : 'Nothing indexed yet'));
   const s = state.status;
   if (!s) { footEl.append(h('div', null, h('span', { class: 'sdot' }), 'Connecting')); return; }
-  const found = s.claude?.found ?? s.claudeFound ?? s.found ?? !!(s.version || s.claude?.version);
-  const ver = String(s.claude?.version || s.version || '').replace(/\s*\(.*\)\s*$/, '');
-  footEl.append(h('div', { title: found ? `Claude Code ${ver}`.trim() : 'claude is not on PATH. Only the optional Claude Code login and Connect Claude Code need it' },
-    h('span', { class: `sdot ${found ? 'ok' : ''}` }), found ? 'Claude Code ready' : 'Claude Code not found'));
+  // the engine this page would answer with, same as the top bar
+  const eng = s.engine?.default;
+  footEl.append(h('div', { title: eng ? 'Click the engine label in the top bar for settings' : 'Add an API key in Settings to ask questions' },
+    h('span', { class: `sdot ${eng ? 'ok' : ''}` }), eng === 'api' ? 'API ready' : eng ? 'Claude Code login ready' : 'No engine set up'));
 }
 
 // ---------- keys ----------
