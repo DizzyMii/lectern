@@ -321,8 +321,17 @@ async function boot() {
     fatal(e.message, () => location.reload());
     return;
   }
-  if (!state.notebooks.length) { ctx.firstRun = true; emit('firstrun'); renderThread(); setHints('setup'); return; }
+  // the desktop app opens a question from the tray or a notification, including on a first run before any notebook exists.
+  // The question that is already open is read again, otherwise its old check marks would stay on screen.
   window.addEventListener('hashchange', followHash);
+  window.lecternApp?.onGoto?.(async (hash) => {
+    if (location.hash !== hash) history.replaceState(null, '', hash);   // no hashchange, so the open below runs once
+    const { nb, conv, artifact } = readHash();
+    if (nb !== state.nbId) { await followHash(); return; }
+    if (artifact) await openArtifact(artifact);
+    else if (conv) { if (canvasOpen()) closeCanvas({ keepHash: true }); await ctx.openConversation(conv); }
+  });
+  if (!state.notebooks.length) { ctx.firstRun = true; emit('firstrun'); renderThread(); setHints('setup'); return; }
   if (!(await followHash())) {
     const last = store.get('lastNotebook', null);
     await ctx.selectNotebook(state.notebooks.some((n) => n.id === last) ? last : state.notebooks[0].id);

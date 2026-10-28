@@ -67,3 +67,14 @@ test('preferring the Claude Code login beats an API key', async () => {
   await call('PUT', { LECTERN_PREFER_CLAUDE_CODE: null });
   assert.equal(defaultEngine(), 'api');
 });
+
+test('the quit-on-close switch is a plain saved bool', async () => {
+  delete process.env.LECTERN_QUIT_ON_CLOSE;
+  const r = await call('PUT', { LECTERN_QUIT_ON_CLOSE: '1' });
+  assert.equal(r.status, 200);
+  assert.equal(process.env.LECTERN_QUIT_ON_CLOSE, '1');
+  assert.equal(byKey(r).LECTERN_QUIT_ON_CLOSE.bool, true);
+  assert.equal(byKey(await call('GET')).LECTERN_QUIT_ON_CLOSE.bool, true);
+  await call('PUT', { LECTERN_QUIT_ON_CLOSE: null });
+  assert.equal(process.env.LECTERN_QUIT_ON_CLOSE, undefined);
+});

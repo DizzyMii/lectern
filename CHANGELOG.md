@@ -15,6 +15,8 @@
 - a conversation whose last answer can't be sent back as is, or that got near the context window, drops to plain text for the next follow-up, and a resend the API rejects is asked again in plain text, so neither one gets stuck
 - after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
 - Settings has Connect Claude Code and Connect Cursor buttons in the desktop app. They register `lectern mcp` to run through the installed exe, so no Node or npm is needed. Connect Cursor shows the change first and keeps a `.bak`
+- closing the desktop window keeps Lectern in the tray now. It watches every notebook's code roots, and when a git pull or a save moves citations in saved answers or sheets it shows a notification (`Moved 3 citations in Question 047`) that opens that question. The tray menu lists the answers that drifted since you last opened them
+- new setting Quit when the window closes (`LECTERN_QUIT_ON_CLOSE`) for the old close-means-quit behaviour
 
 ## 1.0.0-rc.1 (2026-10-25)
 

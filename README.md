@@ -53,6 +53,8 @@ That leaves two files in `dist/`:
 
 Neither needs Node on the machine it runs on. Neither is code signed yet either, so SmartScreen asks the first time (More info, Run anyway).
 
+Closing the window leaves Lectern in the system tray (the Quit when the window closes switch in Settings turns that off). While it sits there it watches your code roots, and after a git pull or a save moves the citations in a saved answer you get a notification with the question number, click it to land on that answer.
+
 ### npm
 
 Needs Node 20 or newer.
@@ -274,6 +276,7 @@ The config file is handy when your home drive is full. If you ran the old spike 
 - Files over 2 MB count as missing for search, reads and citations.
 - On the API engine a follow-up sends the earlier turns back whole, files the model read included, and most of that comes from cache. If you add a source or a code root mid-conversation it has to fall back to the answers as plain text, so the model forgets what it read and that follow-up re-pays the cache.
 - The packaged desktop app can't be used as the CLI. Use `lectern` from npm or `node bin/lectern.mjs` for that. The Connect buttons in Settings are the one exception, they register `lectern mcp` with Claude Code and Cursor.
+- The tray watcher only watches code roots, pinned docs are left alone. It runs while the app is open or in the tray. A pull made with Lectern closed shows up as the drift badge when you open the answer, or in the first notification after the next change in that root, whichever comes first.
 - This is a release candidate, things will still move before 1.0.0.
 
 ## License

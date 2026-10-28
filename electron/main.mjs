@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { applySettings } from '../lib/settings.mjs';
+import { initTray } from './tray.mjs';
 
 // the window buttons sit in the page's own top bar, in its paper-2 and ink colours (tokens.css)
 const BAR = { height: 47 };
@@ -37,12 +38,24 @@ async function start() {
   win.webContents.setWindowOpenHandler(({ url: u }) => { external(u); return { action: 'deny' }; });
   win.webContents.on('will-navigate', (e, u) => { if (!u.startsWith(url)) { e.preventDefault(); external(u); } });
   win.loadURL(url);
-  app.on('second-instance', () => { if (win.isMinimized()) win.restore(); win.focus(); });
+  // closing hides the window while Lectern lives in the tray. Quit in the tray menu, or the
+  // Quit-when-the-window-closes setting, really closes it. Windows logoff must not be blocked.
+  let quitting = false;
+  const keep = () => process.env.LECTERN_QUIT_ON_CLOSE !== '1';
+  const showMain = () => { if (win.isMinimized()) win.restore(); win.show(); win.focus(); };
+  const goto = (hash) => { showMain(); win.webContents.send('goto', hash); };
+  const tray = initTray({ showMain, goto });
+  app.on('before-quit', () => { quitting = true; });
+  win.on('session-end', () => { quitting = true; });
+  win.on('close', (e) => { if (!quitting && keep()) { e.preventDefault(); win.hide(); tray.ensure(); } });
+  win.on('closed', () => app.quit());
+  if (keep()) tray.ensure();
+  app.on('second-instance', showMain);
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   applySettings();
-  app.on('window-all-closed', () => app.quit());
+  app.setAppUserModelId('dev.dizzymii.lectern');
   app.whenReady().then(start).catch((e) => { console.error(e); app.quit(); });
 }
