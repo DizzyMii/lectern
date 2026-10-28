@@ -1,5 +1,5 @@
 // Dev-only fake backend, loaded when the page URL has ?mock=1.
-// Mirrors the HTTP API and SSE events from SPEC.md with scripted data: a small orders
+// Answers the same HTTP routes and SSE events as lib/server.mjs, with scripted data: a small orders
 // service, the docs of the web framework it runs on, and that framework's source.
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
