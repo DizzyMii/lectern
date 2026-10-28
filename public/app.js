@@ -111,6 +111,17 @@ Object.assign(ctx, {
     } catch (e) { toast(`Could not open the question: ${e.message}`); }
   },
 
+  // opens a recall hit, switching notebook first when it lives in another one
+  async openRecall(hit) {
+    const same = hit.notebook === state.nbId;
+    if (hit.kind === 'answer') return same ? ctx.openConversation(hit.id) : ctx.selectNotebook(hit.notebook, { conv: hit.id });
+    if (hit.kind === 'sheet') return same ? openArtifact(hit.id) : ctx.selectNotebook(hit.notebook, { artifact: hit.id });
+    if (!same) await ctx.selectNotebook(hit.notebook);
+    if (state.nbId !== hit.notebook) return;
+    const note = state.nb?.notes.find((n) => n.slug === hit.id);
+    if (note) openNote(note);
+  },
+
   newConversation() {
     if (state.streaming) { toast('Stop the current answer first.', 'info'); return; }
     state.conv = null;

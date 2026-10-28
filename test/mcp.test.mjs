@@ -83,7 +83,7 @@ test('ping, unknown methods, parse errors and invalid requests follow JSON-RPC',
 
 test('tools/list gives every tool a strict input schema', async () => {
   const { tools } = (await srv.request('tools/list', {})).result;
-  assert.deepEqual(tools.map((t) => t.name).sort(), ['ask', 'generate', 'get_artifact', 'list_artifacts', 'list_notebooks', 'read_source', 'search', 'submit_artifact', 'verify']);
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['ask', 'generate', 'get_artifact', 'list_artifacts', 'list_notebooks', 'read_source', 'recall', 'search', 'submit_artifact', 'verify']);
   for (const t of tools) {
     assert.equal(t.inputSchema.type, 'object', t.name);
     assert.equal(t.inputSchema.additionalProperties, false, t.name);
@@ -441,4 +441,39 @@ test('submit_artifact lists data refs that did not verify', async () => {
   assert.ok(!r.isError, r.content[0].text);
   assert.deepEqual(r.structuredContent.badRefs, ['src/java/Ghost.java#L1 (missing)']);
   assert.match(r.content[0].text, /Fix every unverified or missing citation and ref/);
+});
+
+test('recall returns saved answers with citations re-checked, and a plain message when nothing is close', async () => {
+  const dir = path.join(env.nbDir, 'conversations');
+  fs.mkdirSync(dir, { recursive: true });
+  const cite = { n: 1, path: 'docs/intro.md', quote: 'Welcome.', line: 3, endLine: 3, status: 'verified' };
+  fs.writeFileSync(path.join(dir, 'recall-1.json'), JSON.stringify({ id: 'recall-1', notebook: 'test', title: 'intro', created: '2026-01-01T00:00:00Z', updated: '2026-01-01T00:00:00Z',
+    turns: [{ question: 'How does the intro greet new readers?', answer: 'It opens with a welcome line [^1].', citations: [cite] }] }));
+  const r = await srv.call('recall', { query: 'intro greet readers' });
+  assert.ok(!r.isError, r.content[0].text);
+  const hit = r.structuredContent.hits.find((h) => h.id === 'recall-1');
+  assert.equal(hit.kind, 'answer');
+  assert.equal(hit.cites.verified, 1);
+  assert.equal(hit.citations[0].status, 'verified');
+  assert.doesNotMatch(hit.text, /\[\^1\]/);
+  assert.match(r.content[0].text, /Citations \(checked just now\):/);
+  assert.match(r.content[0].text, /conversationId: recall-1/);
+  const none = await srv.call('recall', { query: 'zzqq xxyy' });
+  assert.match(none.content[0].text, /^No saved answer/);
+  assert.deepEqual(none.structuredContent.hits, []);
+});
+
+test('recall takes one notebook, a kinds filter and rejects bad arguments', async () => {
+  const ghost = await srv.call('recall', { query: 'intro greet readers', notebook: 'ghost' });
+  assert.equal(ghost.isError, true);
+  assert.match(ghost.content[0].text, /no notebook "ghost"/);
+  const one = await srv.call('recall', { query: 'intro greet readers', notebook: 'test', limit: 1 });
+  assert.equal(one.structuredContent.hits.length, 1);
+  const sheets = await srv.call('recall', { query: 'intro greet readers', kinds: ['sheet'] });
+  assert.ok(sheets.structuredContent.hits.every((h) => h.kind === 'sheet'));
+  const bogus = await srv.call('recall', { query: 'intro', kinds: ['bogus'] });
+  assert.equal(bogus.isError, true);
+  assert.match(bogus.content[0].text, /must be one of answer, note, sheet/);
+  const zero = await srv.call('recall', { query: 'intro', limit: 0 });
+  assert.match(zero.content[0].text, /must be at least 1/);
 });

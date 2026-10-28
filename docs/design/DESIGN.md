@@ -522,6 +522,7 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | `/` | focus composer (Ask) | everywhere except inputs |
 | `N` | new question (clears page, focuses composer) | page |
 | `Up` in empty composer | edit last question | composer |
+| `Tab`, `Enter` | open the earlier answer the composer offers (`Esc` dismisses it) | composer |
 | `J` / `K` | next / previous claim (claim cursor) | page |
 | `1` to `9` | open citation n (pins its hover card and scrolls its margin card into view) | page |
 | `[` / `]` | previous / next citation | page |
@@ -598,6 +599,7 @@ States:
 - Typing: Ask enabled. `@` opens source scope menu inline at caret. `#` opens a "pin a file" menu (adds a path chip).
 - Asking (streaming): textarea locked showing the question in `--ink-3`, Ask becomes secondary `Stop` with `Esc` kbd. Composer stays where it is.
 - Selection-scoped: when the user selects text in the answer or source drawer and presses `/` or clicks **Ask about this**, a quote strip appears above row 2: 3px left border in the selection's layer `mid`, quote in `quote` style, truncated to 2 lines, path:line in `mono-sm`, and an `x`.
+- Recall: one line under the textarea when an earlier answer in any notebook reads like the question being typed, shown only for 3 or more meaningful words and a close match: `Asked before: Question 044. 9 citations, all still verified.` (with ` in NeoForge 1.21.1` when it lives in another notebook). Status glyph in the status colour, an `Open` button with `Tab`, and a dismiss `x`. Words come from the fresh citation check and say no more than the receipt: verified, moved, unverified. It never blocks typing or Ask, and `Esc` dismisses it.
 - Error: a line under the frame in `ui-sm` `--accent`: `The model did not answer. Retry  R` with a secondary Retry button.
 - Disabled (no sources yet): placeholder `Add a source first`, Ask disabled, link `Add a source` in row 3.
 
@@ -725,7 +727,7 @@ Anatomy:
 - First row is always `Ask "<query>"` with `Enter` when the query is 3+ characters.
 - Footer 28px, 1px `--rule` top: `Up Down to move · Enter to open · Tab to scope · Ctrl+Enter ask in new question` in `mono-sm` `--ink-3`.
 
-Behaviour: fuzzy match over titles plus aliases (shown as `Ask (survey)` when an alias matched); default ranking before typing: recent questions, then commands by frequency, rare commands scored 0 so they appear only when matched; context boost (on an artifact, its actions rank first); up to 3,000 items without virtualisation; nested pages via a stack (a recipe opens its input form page inside the palette; Backspace on empty input or Esc pops); `loop` arrow navigation; numbers `Ctrl+1` to `Ctrl+9` pick the nth row; Tab cycles a scope filter chip (All, Files, Studio, Questions).
+Behaviour: fuzzy match over titles plus aliases (shown as `Ask (survey)` when an alias matched); default ranking before typing: recent questions, then commands by frequency, rare commands scored 0 so they appear only when matched; context boost (on an artifact, its actions rank first); up to 3,000 items without virtualisation; nested pages via a stack (a recipe opens its input form page inside the palette; Backspace on empty input or Esc pops); `loop` arrow navigation; numbers `Ctrl+1` to `Ctrl+9` pick the nth row; Tab cycles a scope filter chip (All, Files, Studio, Questions, Recall). Recall searches the past questions, answers, notes and sheets of every notebook, grouped under `ANSWERS`, `NOTES` and `SHEETS` kickers (Recall scope only); a row in another notebook switches to it first.
 States: empty query (recent questions and top commands); typing; no results (`No match. Enter asks "<query>" across all sources.`); file index still warming (`Indexing files · 412 of 1,588` row at the top of FILES with a segment bar); recipe page (form fields, Generate `Ctrl+Enter`).
 
 ### 11.15 Dialogs
@@ -1023,6 +1025,7 @@ Body: `background: var(--paper); color: var(--ink); font: 450 13px/20px var(--fo
 - Per citation: `n`, `path`, `line`, `foundLine`, `status` (`pending` | `verified` | `moved` | `unverified`), `quote`, `span` (character offsets of the claim in the answer), `layer`, `diff` (moved with changes).
 - Per answer: `number` (047), trail steps with `tool`, `args`, `result`, `ms`, and an `uncited` sentence count.
 - Per artifact: `sheet` number (stable, per notebook, assigned at creation), group, plus the existing artifact fields.
+- Per recall hit (`GET /api/recall`): `kind` (`answer` | `note` | `sheet`), `notebook`, `notebookTitle`, `id`, `turn` (answers), `num` (the question number, answers), `title`, `at`, `score`, and `cites` (`total`, `verified`, `moved`, `unverified`, `missing`, checked again when asked; `null` for notes).
 
 ### 17.3 Files
 - `public/styles.css`: tokens, base, components 11.x.

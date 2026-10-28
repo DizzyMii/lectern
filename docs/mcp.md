@@ -39,6 +39,7 @@ Free ones, no model call, they come back in well under a second:
 - `search {notebook, query, regex?}` the same full-text search as the app's search box, over pinned docs and every text file under the roots. Up to 100 hits as `path:line: text`.
 - `read_source {notebook, path, start?, end?}` numbered lines from a pinned doc or a root file. 400 lines by default, 2000 max per call. Absolute paths, `..` escapes and files outside the shelf and roots (notebook.json, conversations) are refused.
 - `verify {notebook, citations: [...]}` re-checks citation strings against the files as they are now. Takes `[[path#L12]]`, `[[path#L12-L20]]`, `[[path|"quote"]]` and `[[path#L12|"quote"]]`, brackets optional. Each one comes back verified, moved (with the new line), unverified, missing or unparsed.
+- `recall {query, notebook?, kinds?, limit?}` looks through what the user already has: saved questions and answers, notes and Studio sheets in every notebook (or the one you name) that share words with the query. Each hit says where it lives (notebook, conversation id, note slug or artifact id) and gives the saved text and its citations, checked again against the files as they are now. Local word matching over the saved files, no model call, nothing written. At most 8 hits, 3 by default. Example: `{"query": "where do payload handlers go", "kinds": ["answer"]}`. Try it before `ask`.
 - `list_artifacts {notebook}` and `get_artifact {notebook, id}` Studio artifacts, markdown or JSON data plus citations. get_artifact re-checks every citation and data ref first, so a doc that drifted since the artifact was made shows it.
 - `check_notebook {notebook, files?}` re-checks every saved conversation, Studio sheet and note in the notebook against the files as they are now, plus the footnotes in any pinned markdown files you name in `files`. It returns what got worse, grouped by the cited file.
 - `submit_artifact {notebook, recipe, draft, inputs?, replaces?}` checks a Studio sheet you wrote yourself and saves it. See Recipes as slash commands below.
@@ -82,7 +83,7 @@ What it costs, measured on the NeoForge notebook (~350K tokens of pinned shelf):
 
 Heads up on generate: the bigger recipes went through a lot of tool calls before the cap existed (code-map 25 and 59, claude-md 21 and 36, glossary 28, prd 23 to 26). Tool calls in parallel share a round, so that's fewer rounds than calls, but those are the ones most likely to hit 4 in fast mode, and possibly 12. Run them in deep, or from the CLI with a bigger `--max-turns`.
 
-So: search and read_source for lookups (free), fast for "where is X / what does Y take", deep when fast came back thin or capped.
+So: recall first, to see whether the question was already answered and saved (free), then search and read_source for lookups (free), then fast for "where is X / what does Y take", deep when fast came back thin or capped.
 
 ## CLI
 
@@ -95,4 +96,4 @@ lectern ask neoforge-1.21.1 "How do attachments sync to the client?" --max-turns
 
 ## Tests
 
-`node --test test/mcp.test.mjs` spawns the server with `LECTERN_FAKE_ENGINE=1` on a throwaway notebook and talks to it over stdio: initialize and version negotiation, JSON-RPC errors, tools/list schemas, search, read_source with escaping paths, verify, ask with a saved conversation, artifacts, the round-cap error, prompts/list, prompts/get and submit_artifact. No model calls, about a second.
+`node --test test/mcp.test.mjs` spawns the server with `LECTERN_FAKE_ENGINE=1` on a throwaway notebook and talks to it over stdio: initialize and version negotiation, JSON-RPC errors, tools/list schemas, search, read_source with escaping paths, verify, recall, ask with a saved conversation, artifacts, the round-cap error, prompts/list, prompts/get and submit_artifact. No model calls, about a second.

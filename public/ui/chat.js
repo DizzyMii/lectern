@@ -9,8 +9,9 @@ import { isDoc } from './viewer.js';
 import { decorate, receipt, counts, miniReceipt, scheduleLayout } from './cites.js';
 import { sourcesOf, swatch, qnum, nextQnum, kbd, glyph, relPath, shortPath, inScope, scopeForAsk } from './layers.js';
 import { renderOnboarding, onboardingActive, endOnboarding } from './onboard.js';
+import { recallParts } from './recall.js';
 
-let center, scroller, inner, textarea, askBtn, modelBtn, numEl, chipsEl, quoteEl, errEl, belowBtn, sr, composerEl, menuEl = null;
+let center, scroller, inner, textarea, askBtn, modelBtn, numEl, chipsEl, quoteEl, recallEl, errEl, belowBtn, sr, composerEl, menuEl = null;
 let quote = null; // { text, path, line, endLine } from "Ask about this"
 
 // follow the stream only while the reader is near the bottom
@@ -50,7 +51,7 @@ export function initChat(el) {
     const code = b.closest('.codeblock')?.querySelector('code');
     if (code) copyInline(b, code.innerText, 'Copied');
   });
-  on('notebook', () => { quote = null; drawQuote(); if (!ctx.creatingNotebook) endOnboarding(); renderThread(); });
+  on('notebook', () => { quote = null; drawQuote(); hideRecall(); recallOff = null; if (!ctx.creatingNotebook) endOnboarding(); renderThread(); });
   on('refresh', () => { if (!state.streaming && !state.conv?.turns.length) renderThread(); drawComposer(); });
   on('scope', () => drawComposer());
   on('status', () => drawModel());
@@ -61,6 +62,7 @@ export function initChat(el) {
 
 export function renderThread() {
   clear(inner);
+  if (recallEl) { hideRecall(); recallOff = null; }
   setReceipt(null);
   drawComposer();
   const setup = onboardingActive();
@@ -519,6 +521,7 @@ async function run(path, body, turn, after) {
   } finally {
     state.streaming = null;
     textarea.value = '';
+    hideRecall(); recallOff = null;
     autosize();
     drawComposer();
     drawBelow();
@@ -531,6 +534,7 @@ async function run(path, body, turn, after) {
 ctx.ask = async (question) => {
   question = String(question || '').trim();
   if (!question || !state.nbId) return;
+  hideRecall(); recallOff = null;
   const asked = question;
   if (quote) {
     question = `About this passage from ${quote.path}${quote.line ? ':' + quote.line + (quote.endLine && quote.endLine !== quote.line ? '-' + quote.endLine : '') : ''}:\n\n> ${quote.text.split('\n').join('\n> ')}\n\n${question}`;
@@ -625,6 +629,64 @@ function drawQuote() {
   if (src) quoteEl.dataset.layer = src.layer; else delete quoteEl.dataset.layer;
 }
 
+// ---------- asked before (DESIGN 11.3): one earlier answer that reads like the question being typed ----------
+
+let recallTimer, recallCtl, recallSeq = 0, recallShown = null, recallOff = null;
+const recallKey = (hit) => `${hit.notebook}/${hit.id}`;
+
+function queueRecall() {
+  clearTimeout(recallTimer);
+  recallCtl?.abort();
+  recallSeq++;
+  const q = textarea.value.trim();
+  if (!q) recallOff = null;
+  if (state.streaming || !state.nbId || q.split(/\s+/).filter(Boolean).length < 3) return hideRecall();
+  recallTimer = setTimeout(() => askRecall(q), 350);
+}
+
+async function askRecall(q) {
+  recallCtl = new AbortController();
+  const seq = ++recallSeq;
+  let hit;
+  try {
+    const r = await api.get(`/api/recall?mode=hint&kinds=answer&limit=1&q=${encodeURIComponent(q.slice(0, 500))}&nb=${encodeURIComponent(state.nbId)}${state.convId ? `&skip=${encodeURIComponent(state.convId)}` : ''}`, recallCtl.signal);
+    hit = r?.hits?.[0];
+  } catch { return; } // no hint is the right answer when the server is away or mocked
+  if (seq !== recallSeq) return;
+  if (!hit || recallKey(hit) === recallOff) return hideRecall();
+  showRecall(hit);
+}
+
+function showRecall(hit) {
+  const { status, text } = recallParts(hit, state.nbId);
+  const key = recallKey(hit);
+  const st = status ? h('span', { class: `rc-st st-${status}` }, glyph(status, 'glyph sm')) : null, tx = h('span', { class: 'rc-text' }, text);
+  if (key === recallShown && !recallEl.hidden) { // same answer again: leave the buttons, so a focused Open keeps its focus
+    recallEl.querySelector('.rc-st')?.remove();
+    recallEl.querySelector('.rc-text').replaceWith(tx);
+    if (st) recallEl.prepend(st);
+  } else recallEl.replaceChildren(st ?? '', tx,
+    h('button', { class: 'btn link', type: 'button', onclick: () => { recallOff = recallKey(hit); hideRecall(); ctx.openRecall(hit); } }, 'Open', kbd('Tab')),
+    h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Dismiss', onclick: dismissRecall }, icon('x', 14)));
+  recallEl.hidden = false;
+  if (key !== recallShown) say(text, true);
+  recallShown = key;
+}
+
+function hideRecall() {
+  clearTimeout(recallTimer);
+  recallCtl?.abort();
+  recallSeq++;
+  recallShown = null;
+  if (recallEl) { recallEl.hidden = true; clear(recallEl); }
+}
+
+function dismissRecall() {
+  recallOff = recallShown;
+  hideRecall();
+  textarea.focus();
+}
+
 ctx.askAbout = (q) => askAbout(q);
 export function askAbout(q) {
   quote = q;
@@ -668,16 +730,18 @@ function composer() {
   numEl = h('span', { class: 't-mono-sm' });
   chipsEl = h('div', { class: 'c-scope' });
   quoteEl = h('div', { class: 'c-quote', hidden: true });
+  recallEl = h('div', { class: 'c-recall', role: 'group', 'aria-label': 'Asked before', hidden: true });
+  recallEl.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); dismissRecall(); } });
   errEl = h('div', { class: 'c-error', role: 'alert', hidden: true });
   composerEl = h('form', { class: 'composer', 'aria-label': 'Ask',
     onsubmit: (e) => { e.preventDefault(); state.streaming ? stopStreaming() : ctx.ask(textarea.value); } },
   h('div', { class: 'c-row1' }, h('label', { class: 't-kicker accent', for: 'ask-input' }, 'Ask'), h('span', { class: 'grow' }), numEl),
-  quoteEl, textarea,
+  quoteEl, textarea, recallEl,
   h('div', { class: 'c-row3' }, chipsEl, h('span', { class: 'grow' }), modelBtn, askBtn));
   textarea.id = 'ask-input';
   composerEl.addEventListener('pointerdown', (e) => { if (!e.target.closest('button, textarea')) { e.preventDefault(); textarea.focus(); } });
   belowBtn = h('button', { class: 'new-below', hidden: true, onclick: toBottom }, 'New text below', kbd('End'));
-  textarea.addEventListener('input', () => { autosize(); drawComposer(); });
+  textarea.addEventListener('input', () => { autosize(); drawComposer(); queueRecall(); });
   textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -686,6 +750,7 @@ function composer() {
     }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (!state.streaming) ctx.ask(textarea.value); return; }
     if (e.key === 'Escape' && state.streaming) { e.preventDefault(); e.stopPropagation(); stopStreaming(); return; }
+    if (e.key === 'Escape' && recallShown) { e.preventDefault(); e.stopPropagation(); dismissRecall(); return; }
     if (e.key === 'Escape' && !textarea.value) { e.preventDefault(); textarea.blur(); return; }
     // "/" in an empty composer starts a new question
     if (e.key === '/' && !textarea.value && state.convId) { e.preventDefault(); ctx.newConversation(); return; }

@@ -6,10 +6,12 @@ import { api, nbPath } from './api.js';
 import { state, ctx, on, emit, GENERATORS, GROUPS, MODELS } from './state.js';
 import { loadDir, when } from './rail.js';
 import { sourcesOf, sourceFor, swatch, qnum, kbd, shortPath } from './layers.js';
+import { recallSub } from './recall.js';
 
 let el = null, input, listEl, items = [], sel = 0, crawling = null, prevFocus = null, scope = 'all';
 let fileItems = null, fileItemsFor = null;
-const SCOPES = [['all', 'All'], ['files', 'Files'], ['studio', 'Studio'], ['questions', 'Questions']];
+let recallRows = null, recallPending = false, recallTimer, recallCtl; // recallRows = { q, hits } for the Recall scope
+const SCOPES = [['all', 'All'], ['files', 'Files'], ['studio', 'Studio'], ['questions', 'Questions'], ['recall', 'Recall']];
 
 on('notebook', () => {
   const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1500));
@@ -98,6 +100,7 @@ function commands() {
     { label: 'Search all sources', alias: 'grep full text', keys: ['Ctrl', 'Shift', 'F'], run: () => ctx.openSearch('') },
     { label: 'Copy with citations', keys: ['C'], run: () => ctx.copyAnswer?.() },
     { label: 'Copy answer as markdown', run: () => ctx.copyPlain?.() },
+    { label: 'Recall past answers', alias: 'asked before search history notes sheets', run: () => ctx.openPalette('', 'recall') },
     { label: 'Claim bands on or off', alias: 'underline only', keys: ['Shift', 'H'], run: () => ctx.toggleBands?.() },
     { label: 'New notebook', run: () => ctx.openNewNotebook() },
     ...(ctx.viewerHidden?.() ? [{ label: 'Show the source drawer', run: () => ctx.showViewer() }] : []),
@@ -115,6 +118,7 @@ function build(raw) {
   const convs = (nb?.conversations || []).map((c) => ({ label: c.title, num: qnum(c.id), sub: '', date: when(c.updated || c.created), run: () => ctx.openConversation(c.id) }));
   const cmds = commands();
   const showIn = (g) => scope === 'all' || scope === g;
+  if (scope === 'recall') return recallGroups(q);
 
   if (!q) {
     if (showIn('questions')) push('questions', 'Questions', convs.slice(0, scope === 'questions' ? 50 : 3));
@@ -154,6 +158,36 @@ function build(raw) {
   return groups;
 }
 
+// past answers, notes and sheets of every notebook, found on the server (lib/recall.mjs); rows show up once the reply for this text is in
+function recallGroups(q) {
+  const out = [];
+  if (recallRows?.q !== q) return out;
+  for (const [kind, label] of [['answer', 'Answers'], ['note', 'Notes'], ['sheet', 'Sheets']]) {
+    const rows = recallRows.hits.filter((x) => x.kind === kind).map((x) => ({ label: x.title, num: x.num ?? undefined, sub: recallSub(x, state.nbId), date: x.at ? when(x.at) : '', run: () => ctx.openRecall(x) }));
+    if (rows.length) out.push({ id: kind, label, rows });
+  }
+  return out;
+}
+
+function queueRecallSearch(now = false) {
+  clearTimeout(recallTimer);
+  recallCtl?.abort();
+  const q = input.value.trim();
+  if (scope !== 'recall' || !q) { recallRows = null; recallPending = false; return; }
+  recallPending = true;
+  const ctl = recallCtl = new AbortController();
+  recallTimer = setTimeout(async () => {
+    try {
+      recallRows = { q, hits: (await api.get(`/api/recall?mode=search&limit=30&q=${encodeURIComponent(q.slice(0, 500))}`, ctl.signal)).hits || [] };
+    } catch (e) {
+      if (e.name === 'AbortError') return;
+      recallRows = { q, hits: [] };
+    }
+    recallPending = false;
+    if (el) { sel = 0; draw(); }
+  }, now ? 0 : 150);
+}
+
 function recipeRow(r) {
   return { label: r.title, alias: r.id, num: numOf(r), sub: `${GROUPS.find((g) => g.id === r.group)?.label.toLowerCase() || ''} · ${r.kind || ''}`.replace(/^ · | · $/g, ''), run: () => ctx.openRecipe(r.id) };
 }
@@ -179,7 +213,9 @@ function draw() {
   clear(listEl);
   if (!items.length) {
     const q = input.value.trim();
-    listEl.append(h('div', { class: 'p-none' }, q ? `No match. Enter asks "${q}" across all sources.` : 'Nothing here yet.'));
+    const none = scope === 'recall' ? (!q ? 'Type to search past answers, notes and sheets in every notebook.' : recallPending ? 'Looking through saved answers.' : `Nothing saved matches. Enter asks "${q}" across all sources.`)
+      : q ? `No match. Enter asks "${q}" across all sources.` : 'Nothing here yet.';
+    listEl.append(h('div', { class: 'p-none' }, none));
     input.removeAttribute('aria-activedescendant');
     return;
   }
@@ -219,11 +255,12 @@ function choose(i) {
 }
 
 function drawScopes(box) {
-  box.replaceChildren(...SCOPES.map(([id, label]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(scope === id), tabindex: -1, onclick: () => { scope = id; sel = 0; drawScopes(box); draw(); input.focus(); } }, label)));
+  box.replaceChildren(...SCOPES.map(([id, label]) => h('button', { type: 'button', role: 'radio', 'aria-checked': String(scope === id), tabindex: -1, onclick: () => { scope = id; sel = 0; queueRecallSearch(true); drawScopes(box); draw(); input.focus(); } }, label)));
 }
 
 export function closePalette(restore = true) {
   el?.remove(); el = null;
+  clearTimeout(recallTimer); recallCtl?.abort(); recallRows = null; recallPending = false;
   emit('pane', 'page');
   if (restore) prevFocus?.focus?.();
 }
@@ -243,7 +280,7 @@ export function openPalette(prefill = '', startScope = 'all', { mouse = false } 
       listEl,
       h('div', { class: 'palette-foot' }, kbd('Up'), kbd('Down'), ' to move · ', kbd('Enter'), ' to open · ', kbd('Tab'), ' to scope · ', kbd('Ctrl'), kbd('Enter'), ' ask in new question')));
   sel = 0;
-  input.addEventListener('input', () => { sel = 0; draw(); });
+  input.addEventListener('input', () => { sel = 0; queueRecallSearch(); draw(); });
   input.addEventListener('keydown', (e) => {
     const q = input.value.trim();
     if (e.key === 'ArrowDown') { e.preventDefault(); sel = items.length ? (sel + 1) % items.length : 0; mark(); }
@@ -256,11 +293,12 @@ export function openPalette(prefill = '', startScope = 'all', { mouse = false } 
       e.preventDefault();
       const i = SCOPES.findIndex(([id]) => id === scope);
       scope = SCOPES[(i + (e.shiftKey ? -1 : 1) + SCOPES.length) % SCOPES.length][0];
-      sel = 0; drawScopes(scopes); draw();
+      sel = 0; queueRecallSearch(true); drawScopes(scopes); draw();
     } else if ((e.ctrlKey || e.metaKey) && /^[1-9]$/.test(e.key)) { e.preventDefault(); choose(Number(e.key) - 1); }
   });
   document.body.append(el);
   emit('pane', 'palette');
+  queueRecallSearch(true);
   draw();
   input.focus();
   crawl();
