@@ -4,6 +4,7 @@
 
 - Lectern is under the Apache License 2.0 now, with a NOTICE file
 - there's a desktop app now. `npm run build:exe` makes an installer and a portable exe (Electron, Windows), and `npm run app` runs it from a clone
+- the exe has its own icon, the benchmark mark in paper on a vermilion square
 - the window has no title bar of its own, the top bar drags it and the minimize, maximize and close buttons sit at its right end in the theme's colours
 - Settings page behind the cog in the top bar: API key, workspace id, Claude Code path, projects folder, clone cap, private URLs and port. They save to `settings.json` in the home folder, apply straight away and win over env vars
 - the API key only ever comes back to the page as its last four characters
@@ -15,6 +16,7 @@
 - a conversation whose last answer can't be sent back as is, or that got near the context window, drops to plain text for the next follow-up, and a resend the API rejects is asked again in plain text, so neither one gets stuck
 - after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
 - code citations keep a copy of the lines they cite and every re-check compares the file against it: same lines in place are verified, the same lines found elsewhere in the file come back moved with the new line, anything else is unverified (a code citation used to fail only when the file got shorter than its range). The hover card shows the saved lines over today's with the changed words marked and says whether the trail actually read them, and the receipt stops saying every quote was found when only line ranges were checked
+- a line citation one past the end of a file that ends in a newline came back verified (the empty string after the last newline counted as a line). It's unverified now, so the Stop hook blocks it, and the model's read tool stops numbering that line
 - each answer and sheet records the git commit of every code root it read, and its citations carry it. A moved or unverified citation gets two buttons in the drawer: Show as it was (E) opens the file at that commit beside today's with the cited lines lined up, and What changed it (D) lists the commits since that touched those lines. A file with uncommitted edits, a root outside git or an older answer compares the saved lines instead. Both lookups run git on the machine Lectern runs on, so they refuse over Tailscale
 - V on an answer opens the cited files in the margin, with a ribbon from each claim to its lines. A citation that moved gets a second, dashed ribbon to the line it was cited at
 - `lectern check <notebook> [files...]` and the `check_notebook` MCP tool re-check every saved conversation, sheet and note, plus the footnotes in named markdown files, and list what got worse. `--fail-on moved|unverified` makes it exit 1 for CI or a pre-commit hook. It never writes
