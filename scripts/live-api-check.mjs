@@ -1,6 +1,6 @@
 // Live check of the API engine against the real Anthropic API. Run it yourself with ANTHROPIC_API_KEY set:
 //   node scripts/live-api-check.mjs [notebook] [--with-opus]
-// It never prints the key. Results go to stdout and to live-api-check.json in your Lectern home (LECTERN_HOME, else ~/.lectern).
+// It never prints the key. Results go to stdout and to live-api-check.json in your Lectern home (the folder lib/home.mjs picks, same as the app).
 // It asks questions about the NeoForge notebook, so make that first: node bin/lectern.mjs example neoforge
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';

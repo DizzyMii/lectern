@@ -51,7 +51,7 @@ To check the API engine for real (costs well under a dollar on Haiku, add `--wit
 node scripts/live-api-check.mjs
 ```
 
-It writes `live-api-check.json` into the home folder and never prints the key.
+It asks about the NeoForge docs, so run `lectern example neoforge` once before it. It writes `live-api-check.json` into the home folder and never prints the key.
 
 **Claude Code login (optional, personal).** If you use Claude Code yourself you can also have Lectern answer through it on this machine. Install Claude Code, run `claude` once and sign in, make sure `claude` is on your PATH, then switch on Use my Claude Code login in Settings. It's off until you do, it uses your own account under your plan's terms, and it only answers questions asked on this machine. Questions from a phone or another device use the API key. `lectern ask --engine claude-code` uses it for one question without the switch.
 
