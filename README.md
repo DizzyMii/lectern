@@ -135,6 +135,11 @@ flowchart LR
 
 Each answer also records the git commit of every code root it read. When a code citation drifts, <kbd>E</kbd> in the drawer shows the file as it was beside today's version, and <kbd>D</kbd> lists the commits since then that touched those lines. Answers saved before Lectern kept these copies get one the first time they're re-checked, and the card says so.
 
+<p align="center">
+  <img src="docs/media/as-it-was.png" alt="The source drawer on service/src/plugins/db.ts for citation 2, unverified, with Show as it was open: AS IT WAS (BA9F175, Oct 28) on the left and TODAY on the right, the cited line 12 banded on both sides, app.decorate('db', store) then and app.decorate('orders', store) today, line 9 changed too, and a banner on the answer saying 2 of 5 citations got worse" width="780"><br>
+  <sub>Question 006 (what the db plugin decorates) after two lines of <code>db.ts</code> were edited, the store now takes options and the decorator is called <code>orders</code>. Citation 2 cited line 12 and is now unverified ("lines rewritten since the answer"). <kbd>E</kbd> puts the file as it was at commit <code>ba9f175</code> beside today's, with the cited line banded on both sides.</sub>
+</p>
+
 ## Demos
 
 Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), with the Fastify 5.12.7 source and an 11-file orders service as code roots. Each caption links the MP4 if the GIF is too soft.
@@ -147,13 +152,29 @@ Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), wi
 
 <kbd>J</kbd> / <kbd>K</kbd> move the claim cursor and the matching margin card lights up. Hover a citation for the excerpt, <kbd>O</kbd> opens the drawer at the cited lines (here `service/src/app.ts` 14 to 16), <kbd>]</kbd> steps to the next one. [Full quality (MP4)](docs/media/citations.mp4)
 
+### Proof ribbons
+
+<p align="center">
+  <img src="docs/media/proof.gif" alt="Screen recording: V on the app.db answer widens the margin and turns each citation card into an excerpt of its file, with ribbons running from each claim to its cited lines, J J K move the claim cursor and the ribbons for the other claims thin out, and Escape puts the margin back" width="780">
+</p>
+
+<kbd>V</kbd> on the `app.db` answer from the top of the page widens the margin and turns every citation card into an excerpt of its file, with a ribbon from each claim to its lines. <kbd>J</kbd>, <kbd>J</kbd>, <kbd>K</kbd> move the cursor and the ribbons for the other claims thin out, <kbd>Esc</kbd> puts the margin back. [Full quality (MP4)](docs/media/proof.mp4)
+
 ### When the files change under an answer
 
 <p align="center">
-  <img src="docs/media/drift.gif" alt="Screen recording of the same answer re-checked after the files changed: the receipt reads 5 verified, 4 moved, 1 unverified, a red citation says the quote was not found in db.ts, and another card says cited L9, found at L15 with the same text" width="780">
+  <img src="docs/media/drift-replay.gif" alt="Screen recording after the files changed: the app.close() answer is open with a banner saying 3 of 17 citations got worse, then the app.db answer is reopened from history, its receipt has a Written line and a Today line, changed marks stamp in, a citation to Plugins.md rolls from L9 to L13, hovering the unverified db.ts citation shows the saved lines L8 to L14 over today's L8 to L11 with the changed words marked and a history row, and a banner reads 5 of 10 citations got worse since 08:06" width="780">
 </p>
 
-Same answer as above, re-read after `db.ts` got shorter and `Plugins.md` grew six lines at the top. Citation 1's lines in `db.ts` are gone, so it goes red (unverified), and citation 4 comes back moved, cited L9, found at L15. The receipt reads 5 verified, 4 moved, 1 unverified. [Full quality (MP4)](docs/media/drift.mp4)
+`db.ts` got shorter and `Plugins.md` grew four lines at the top. The clip opens on the `app.close()` answer (its banner already says 3 of 17 citations got worse), then reopens the `app.db` answer from history. Its receipt now has a Written line (08:06, 10 verified) over a Today line (5 verified, 4 moved, 1 unverified), the changed marks stamp in, and the `Plugins.md` mark rolls from L9 to L13. Hovering citation 1 shows Saved L8-14 over Now L8-11 with the changed words marked, and the History row lists the earlier checks. The banner reads 5 of 10 citations got worse since 08:06. [Full quality (MP4)](docs/media/drift-replay.mp4)
+
+### Where a file is cited from
+
+<p align="center">
+  <img src="docs/media/gutter.png" alt="service/src/plugins/db.ts open in the source drawer with status glyphs in the gutter at lines 4, 8, 9, 10, 12 and 13 and a stem down lines 4 to 6 and 8 to 14, and the Cited in this file list open over the code with 16 entries such as Sheet 06 node DbOptions, Q001 [1] and Q004 [13], each verified with its line range" width="780">
+</p>
+
+`db.ts` in the drawer. Every line something cites is marked in the gutter, with the status glyph where a cited range starts (lines 4, 8, 9, 10, 12 and 13) and a stem down the rest of the range. Cited by 5 (16 citations) in the header opens the list: the orders-service code map, the flashcards sheet and questions 001, 004 and 006, each row with its status and lines.
 
 ### Studio
 
@@ -175,6 +196,20 @@ Same answer as above, re-read after `db.ts` got shorter and `Plugins.md` grew si
     </td>
   </tr>
 </table>
+
+<p align="center">
+  <img src="docs/media/sequence-play.gif" alt="Screen recording of the sequence sheet for POST /v1/orders: Follow code is ticked, Play starts from step 1 and a packet travels along the first arrows, then the source drawer follows each step through route.js, orders.ts and route.js again, and Escape stops it" width="780">
+</p>
+
+The same sequence sheet with Follow code ticked. Play starts at step 1, a packet runs along the first arrows, and then the drawer follows each cited step: `route.js` 561 and 573, `orders.ts` 7 and 8, `route.js` 656 and 658. <kbd>Esc</kbd> stops it. At this window width the drawer covers the right-hand lanes. [Full quality (MP4)](docs/media/sequence-play.mp4)
+
+### Asked before
+
+<p align="center">
+  <img src="docs/media/recall.gif" alt="Screen recording: a new question about app.db being undefined is typed into the composer and a hint appears under the typed text, Asked before: Question 001, 10 citations, all still verified, with an Open button that Tab moves to" width="780">
+</p>
+
+Type "Why is app.db undefined in my orders routes after I decorate it in one plugin?" into a new question and a hint shows up under the text: Asked before, Question 001, 10 citations, all still verified. <kbd>Tab</kbd> lands on its Open button (<kbd>Enter</kbd> there would open Question 001). Nothing gets submitted in the clip. [Full quality (MP4)](docs/media/recall.mp4)
 
 ### Command palette
 
@@ -412,7 +447,7 @@ The config file is handy when your home drive is full. If you ran the old spike 
 
 - Every number above comes from one NeoForge notebook. I haven't measured anything else yet.
 - I've only run it on Windows. macOS and Linux should work for the npm route, nobody has checked, and the desktop build is Windows only for now.
-- The text file list leans toward what I use (Java, Kotlin, Gradle, JSON, JS, TS, Python, shaders, markdown). No Go, Rust or C yet, files with those extensions get skipped.
+- Files are picked by extension. The list leans toward what I use (Java, Kotlin, Gradle, JSON, JS, TS, Python, shaders, markdown) and also covers Go, Rust, C and C++, C#, Ruby, PHP, Swift, Lua, SQL, Vue and Svelte. Anything else gets skipped.
 - Files over 2 MB count as missing for search, reads and citations.
 - On the API engine a follow-up sends the earlier turns back whole, files the model read included, and most of that comes from cache. If you add a source or a code root mid-conversation it has to fall back to the answers as plain text, so the model forgets what it read and that follow-up re-pays the cache.
 - The packaged desktop app can't be used as the CLI. Use `lectern` from npm or `node bin/lectern.mjs` for that. The Connect buttons in Settings are the one exception, they register `lectern mcp` with Claude Code and Cursor.
