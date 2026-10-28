@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0-rc.2 (2026-10-28)
 
 - Lectern is under the Apache License 2.0 now, with a NOTICE file
 - there's a desktop app now. `npm run build:exe` makes an installer and a portable exe (Electron, Windows), and `npm run app` runs it from a clone
@@ -9,7 +9,6 @@
 - the API key only ever comes back to the page as its last four characters
 - over Tailscale you can look at settings but only the machine Lectern runs on can change them
 - the no-engine message points at Settings now instead of telling you to restart with an env var
-- CI skips the Electron download, the tests never start it
 - API engine caching is one-hour now (shelf, the earlier turns and the growing end), so a follow-up asked 20 minutes later still reads the shelf from cache instead of paying for it again
 - follow-ups on the API engine send the earlier turns back whole, tool rounds and thinking included, so the model remembers the files it already read. When the docs, roots or system prompt changed in between it falls back to plain text, since the API refuses old thinking blocks against a changed prefix
 - one-hour cache writes are priced at 2x in the spend meter and budgets
@@ -36,7 +35,7 @@
 
 ## 1.0.0-rc.1 (2026-10-25)
 
-First public build, moved out of the spike folder it grew up in.
+First release candidate.
 
 - `npx @dizzymii/lectern serve` runs it, `lectern` is the one command for everything (serve, ask, mcp, list, show, new, add, migrate)
 - state moved out of the app folder into a home folder: `LECTERN_HOME`, else `"home"` in `~/.lectern.json`, else `~/.lectern`

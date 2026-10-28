@@ -1,6 +1,6 @@
 {
   "name": "@dizzymii/lectern",
-  "version": "1.0.0-rc.1",
+  "version": "1.0.0-rc.2",
   "description": "A local notebook for developers: ask your pinned docs and code roots, get answers with citations checked against the files.",
   "license": "Apache-2.0",
   "author": "Kade Heglin",
