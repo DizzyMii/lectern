@@ -31,7 +31,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.png">
-    <img src="docs/media/hero-light.png" alt="Lectern answering why app.db is undefined in a Fastify orders service: an answer with numbered citations, a receipt reading 10 verified, 0 moved, 0 unverified, and margin cards showing the cited source lines" width="880">
+    <img src="docs/media/hero-light.png" alt="Lectern answering how to send a custom 400 when body validation fails: an answer with numbered citations, a receipt reading 11 verified, 0 moved, 1 unverified with a note that one quote was not found and is marked in red, and margin cards showing the cited source lines" width="880">
   </picture>
 </p>
 
@@ -158,7 +158,7 @@ Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), wi
   <img src="docs/media/proof.gif" alt="Screen recording: V on the app.db answer widens the margin and turns each citation card into an excerpt of its file, with ribbons running from each claim to its cited lines, J J K move the claim cursor and the ribbons for the other claims thin out, and Escape puts the margin back" width="780">
 </p>
 
-<kbd>V</kbd> on the `app.db` answer from the top of the page widens the margin and turns every citation card into an excerpt of its file, with a ribbon from each claim to its lines. <kbd>J</kbd>, <kbd>J</kbd>, <kbd>K</kbd> move the cursor and the ribbons for the other claims thin out, <kbd>Esc</kbd> puts the margin back. [Full quality (MP4)](docs/media/proof.mp4)
+<kbd>V</kbd> on the `app.db` answer widens the margin and turns every citation card into an excerpt of its file, with a ribbon from each claim to its lines. <kbd>J</kbd>, <kbd>J</kbd>, <kbd>K</kbd> move the cursor and the ribbons for the other claims thin out, <kbd>Esc</kbd> puts the margin back. [Full quality (MP4)](docs/media/proof.mp4)
 
 ### When the files change under an answer
 
