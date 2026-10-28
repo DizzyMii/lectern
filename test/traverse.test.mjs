@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { toolRead, readRanges, trailSummary, buildTraverse, stationTitle, traverseSvg } from '../public/ui/traverse.js';
-import { fileKey } from '../public/ui/layers.js';
+import { fileKey, sourceFor } from '../public/ui/layers.js';
 
 const nb = { title: 'T', labels: {}, dir: 'D:/nb', conversations: [],
   shelf: [{ title: 'docs', files: ['docs/a.md', 'docs/b.md'] }],
@@ -28,6 +28,20 @@ test('fileKey: both spellings of an in-notebook root file match', () => {
   assert.equal(fileKey('docs/a.md', nb), 'docs/a.md');
   assert.equal(fileKey('nowhere/x.md', nb), 'nowhere/x.md');
   assert.equal(fileKey('src\\java\\net\\X.java', nb), 'code/net/X.java');
+});
+
+test('a pinned docs folder and a code root on the same prefix: pinned files stay docs, the rest is the root', () => {
+  const both = { title: 'Fastify', labels: {}, dir: 'D:/nb', conversations: [],
+    shelf: [{ title: 'docs', files: ['corpus/fastify/docs/Reference/Plugins.md'] }],
+    roots: [{ name: 'fastify', path: 'corpus/fastify' }] };
+  assert.equal(sourceFor('corpus/fastify/docs/Reference/Plugins.md', both).kind, 'docs');
+  assert.equal(sourceFor('corpus/fastify/lib/route.js', both).name, 'fastify');
+  assert.equal(sourceFor('fastify/lib/route.js', both).name, 'fastify');
+  // the trail map puts the cited file in the band its read was drawn in
+  const m = buildTraverse([{ name: 'Read', summary: 'Read corpus/fastify/lib/route.js', input: { file_path: 'D:/nb/corpus/fastify/lib/route.js' } }],
+    [{ n: 1, path: 'corpus/fastify/lib/route.js', status: 'verified' }], both, () => false);
+  assert.equal(m.bands.length, 1);
+  assert.equal(m.bands[0].name, 'fastify');
 });
 
 test('toolRead: claude-code shape', () => {

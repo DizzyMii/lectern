@@ -59,7 +59,7 @@ export function sourcesOf(nb = state.nb) {
   const saved = (s) => s.name === 'Saved pages';
   const all = [...docs.filter((s) => s.kind === 'docs' && !saved(s)), ...docs.filter((s) => s.kind === 'primer'), ...docs.filter(saved), ...roots.filter((s) => s.kind === 'root'), ...roots.filter((s) => s.kind === 'repo')];
   for (const s of all) Object.assign(s, take(s.kind));
-  for (const s of docs) s.count = s.files.length;
+  for (const s of docs) { s.count = s.files.length; s.fileSet = new Set(s.files); }
   cache.set(nb, all);
   return all;
 }
@@ -85,13 +85,16 @@ export function scopeForAsk() {
   return on.length === all.length ? undefined : on.map((s) => (s.root ? s.name : s.prefix));
 }
 
-// A citation or file path to the source it lives in (longest prefix wins).
+// A citation or file path to the source it lives in (longest prefix wins). When a pinned folder and a code root
+// share a prefix, like corpus/fastify/ holding the docs and the source, a pinned file stays with its docs and
+// every other file is the root's.
 export function sourceFor(path, nb = state.nb) {
   if (!path) return null;
   let best = null;
   for (const s of sourcesOf(nb)) {
     const prefixes = s.root ? [s.prefix, s.root.name + '/'] : [s.prefix];
-    for (const p of prefixes) if (path.startsWith(p) && (!best || p.length > best.len)) best = { s, len: p.length };
+    const rank = s.root ? 2 : s.fileSet?.has(path) ? 3 : 1;
+    for (const p of prefixes) if (path.startsWith(p) && (!best || p.length > best.len || (p.length === best.len && rank > best.rank))) best = { s, len: p.length, rank };
   }
   return best?.s || null;
 }
