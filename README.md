@@ -470,7 +470,7 @@ The colours, type, spacing and the benchmark mark are written down in [docs/desi
 
 ## License
 
-[Apache 2.0](LICENSE). Use it, change it, ship it, and keep the [NOTICE](NOTICE) file with it. The full text in LICENSE is what counts.
+[Apache 2.0](LICENSE), so you can build on it at work or in a product of your own. Hand out LICENSE and [NOTICE](NOTICE) with any copy you ship. The full text in LICENSE is what counts.
 
 Copyright 2026 Kade Heglin.
 
