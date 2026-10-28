@@ -250,7 +250,9 @@ test('a real save in a code root reaches onDrift', async () => {
 
 test('startWatch lets go of a code root that was deleted and watches it again once it is back', async () => {
   const opened = [];
-  const spy = (...a) => { const wt = fs.watch(...a); wt.closed = false; wt.on('close', () => { wt.closed = true; }); opened.push(wt); return wt; };
+  // record the close() call itself, the 'close' event only comes a tick later and macOS on Node 20 sends no event
+  // for the deleted root, so there the close happens inside sync()
+  const spy = (...a) => { const wt = fs.watch(...a); const close = wt.close.bind(wt); wt.closed = false; wt.close = () => { wt.closed = true; close(); }; opened.push(wt); return wt; };
   let passes = 0;
   const h = watch.startWatch({ onDrift() {}, watch: spy, recheck: async () => { passes++; return []; }, wait: 30, maxWait: 100, every: 1e9 });
   assert.equal(opened.length, 1);
