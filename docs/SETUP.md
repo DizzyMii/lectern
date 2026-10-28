@@ -22,7 +22,7 @@ If you'd rather not link, every `lectern ...` below works as `node bin/lectern.m
 Notebooks, conversations and the registry go in the Lectern home folder (default `~/.lectern`). If your home drive is tight, point it somewhere else once with `~/.lectern.json`:
 
 ```json
-{ "home": "D:/lectern-home" }
+{ "home": "C:/lectern-home" }
 ```
 
 `LECTERN_HOME` as an env var does the same thing and wins over the file.
@@ -89,7 +89,7 @@ Quick ask is a global hotkey, so it starts off. Switch on Quick ask hotkey in Se
 claude mcp add lectern --scope user -- lectern mcp
 ```
 
-Not linked? Use the full path: `claude mcp add lectern --scope user -- node D:/projects/lectern/bin/lectern.mjs mcp`. `search`, `read_source` and `verify` are free, `ask` and `generate` cost tokens. More in [mcp.md](mcp.md).
+Not linked? Use the full path: `claude mcp add lectern --scope user -- node C:/lectern/bin/lectern.mjs mcp`. `search`, `read_source` and `verify` are free, `ask` and `generate` cost tokens. More in [mcp.md](mcp.md).
 
 ## 7. Phone and away from home (Tailscale)
 
@@ -115,27 +115,27 @@ The PC has to be on and awake for this to work (set sleep to Never while plugged
 
 ## 8. Start it at logon (Windows)
 
-Make a launcher, for example `D:\lectern-home\start-lectern.cmd`:
+Make a launcher, for example `C:\lectern-home\start-lectern.cmd`:
 
 ```bat
 @echo off
-set LECTERN_HOME=D:\lectern-home
+set LECTERN_HOME=C:\lectern-home
 set LECTERN_PUBLIC_ORIGINS=https://<machine>.<tailnet>.ts.net
 set LECTERN_ALLOW_USERS=you@example.com
-cd /d D:\projects\lectern
-node bin\lectern.mjs serve --port 4317 >> D:\lectern-home\server.log 2>&1
+cd /d C:\lectern
+node bin\lectern.mjs serve --port 4317 >> C:\lectern-home\server.log 2>&1
 ```
 
 a hidden wrapper next to it, `start-lectern-hidden.vbs`:
 
 ```vb
-CreateObject("WScript.Shell").Run """D:\lectern-home\start-lectern.cmd""", 0, False
+CreateObject("WScript.Shell").Run """C:\lectern-home\start-lectern.cmd""", 0, False
 ```
 
 and register it once in PowerShell:
 
 ```powershell
-schtasks /Create /TN "Lectern" /SC ONLOGON /TR "wscript.exe \"D:\lectern-home\start-lectern-hidden.vbs\"" /RL LIMITED /F
+schtasks /Create /TN "Lectern" /SC ONLOGON /TR "wscript.exe \"C:\lectern-home\start-lectern-hidden.vbs\"" /RL LIMITED /F
 ```
 
 `schtasks /Run /TN Lectern` starts it right now, `schtasks /Delete /TN Lectern /F` removes it. Logs go to `server.log` in the home folder. Don't put the API key in the launcher, it's a script you might copy around. Save the key in Settings instead (that's plain text on disk too, in `settings.json`, so keep the home folder private). Anything asked from the phone needs that key, the Claude Code login never answers there.

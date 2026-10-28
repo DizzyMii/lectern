@@ -726,7 +726,7 @@ Copy feedback is inline: the button label becomes `Copied with 3 citations` with
 
 ### 11.12 Toasts
 Bottom-left, 16px above the key strip, width 340, stack max 3 with later ones scaled 0.96 and offset 6px. `--paper` ground, 1px `--rule-strong`, radius 6, `--float`. Content: optional status glyph, one line `ui` `--ink`, optional action as quiet button. Auto-dismiss 4s, paused on hover and while the tab is hidden. Esc dismisses the newest when focus is on a toast.
-Used only for things that happen away from where the user is: `Sheet 06 printed. Code map · 48 nodes.  Open`, `Wrote CLAUDE.md to D:/projects/wtg/CLAUDE.md.  Show`, `Reindexed neoforge · 956 files`, `MCP client connected: claude-code`. Errors that block nothing use a toast with `--accent` glyph; errors that block use an inline banner.
+Used only for things that happen away from where the user is: `Sheet 06 printed. Code map · 48 nodes.  Open`, `Wrote CLAUDE.md to C:/projects/my-app/CLAUDE.md.  Show`, `Reindexed neoforge · 956 files`, `MCP client connected: claude-code`. Errors that block nothing use a toast with `--accent` glyph; errors that block use an inline banner.
 
 ### 11.13 Menus
 Ground `--paper`, 1px `--rule-strong`, radius 6, `--float`, padding 4. Items 28px, `ui`, padding 0 8, radius 4; trailing shortcut in `kbd`; leading swatch for source items only. Hover and keyboard highlight ground `--paper-3`. Destructive item text `--accent` with trash icon, separated by a 1px `--rule`. Submenus open on hover with a prediction cone and on `Right`. Type-to-filter when the menu has more than 7 items (a filter input appears at the top). Opens on mousedown. Esc closes and returns focus to the trigger.
@@ -896,8 +896,8 @@ Citations inside artifacts render with the same chip, hover card, status and dra
 ### 12.6 File (CLAUDE.md, AGENTS.md, SKILL.md)
 - Header meta shows target filename and language.
 - Body: tabs `Preview` (markdown rendered in `read`, or highlighted code) and `Edit` (textarea in `code` on `--well`, line numbers, soft wrap off).
-- Write bar pinned at the bottom (56px, `--paper-2`, 1px `--rule` top): path field `D:/projects/wtg/CLAUDE.md` (default `<root>/<filename>`), primary `Write to file`, secondary `Copy`, `Download`.
-- Write states: file does not exist (primary says `Write`); exists (primary says `Overwrite...` and opens a large dialog with a unified diff in `code` on `--well`, removed lines `--unverified-wash`, added `--verified-wash`, buttons `Cancel` and destructive `Overwrite`); written (inline `Written 14:22 · D:/projects/wtg/CLAUDE.md` with verified glyph, and a toast if the user moved away); refused (path outside a notebook root: error banner `Lectern only writes inside a notebook root. D:/temp is not one.`).
+- Write bar pinned at the bottom (56px, `--paper-2`, 1px `--rule` top): path field `C:/projects/my-app/CLAUDE.md` (default `<root>/<filename>`), primary `Write to file`, secondary `Copy`, `Download`.
+- Write states: file does not exist (primary says `Write`); exists (primary says `Overwrite...` and opens a large dialog with a unified diff in `code` on `--well`, removed lines `--unverified-wash`, added `--verified-wash`, buttons `Cancel` and destructive `Overwrite`); written (inline `Written 14:22 · C:/projects/my-app/CLAUDE.md` with verified glyph, and a toast if the user moved away); refused (path outside a notebook root: error banner `Lectern only writes inside a notebook root. C:/temp is not one.`).
 - SKILL.md shows a frontmatter validity line: verified glyph `Frontmatter valid` or `--accent` query `Missing description`.
 
 ---

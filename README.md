@@ -447,7 +447,7 @@ artifacts/        Studio output
 Per-user state goes in the Lectern home folder: the notebook list (`registry.json`), cached base sessions (`bases.json`), `settings.json`, and the desktop app's window profile. It's picked in this order:
 
 1. the `LECTERN_HOME` environment variable
-2. `"home"` in `~/.lectern.json`, like `{"home": "D:/lectern-home"}`
+2. `"home"` in `~/.lectern.json`, like `{"home": "C:/lectern-home"}`
 3. `~/.lectern`
 
 The config file is handy when your home drive is full. If you ran the old spike app, `lectern migrate <old app folder>` copies its registry and base sessions over.
