@@ -544,6 +544,18 @@ export function pinCitation(n) {
   return true;
 }
 
+// jump to citation n of the turn at index `turn`: scroll its chip to the middle, set the claim cursor, pin its card
+export function revealCite(turn, n) {
+  const t = document.querySelector(`#chat .turn[data-index='${turn}']`);
+  const chip = t?.querySelector(`.answer .chip[data-n='${n}']`);
+  if (!chip) return false;
+  chip.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const cl = claimOf(chip);
+  if (cl) setCursor(cl);
+  showCard(chip, { pinned: true });
+  return true;
+}
+
 export function stepCitation(dir) {
   const t = activeTurn();
   if (!t) return;

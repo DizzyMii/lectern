@@ -860,6 +860,25 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 @keyframes flash-line { from { background: var(--l-mid, var(--rule-strong)); } }
 .code .l.cited { outline: 1px dashed var(--moved-line); outline-offset: -1px; }
 .code .lmark { position: absolute; left: 8px; top: 5px; color: var(--verified); }
+/* what depends on a line: a flag and stem in the right lane of the number column, x 41-53 */
+.code .l.dep .n::after { content: ''; position: absolute; right: 7px; top: 0; bottom: 0; width: 2px; background: var(--st); opacity: 0.5; }
+.code .dmark { position: absolute; right: 2px; top: 5px; width: 12px; height: 12px; padding: 0; border: 0; background: none; color: var(--st); cursor: pointer; }
+.code .dmark::before { content: ''; position: absolute; inset: -6px; }
+.drawer .blk.dep { position: relative; }
+.blk.dep .dmark { position: absolute; left: -24px; top: 4px; width: 12px; height: 12px; padding: 0; border: 0; background: none; color: var(--st); cursor: pointer; }
+.blk.dep .dmark::before { content: ''; position: absolute; inset: -6px; }
+.hovercard.depcard { width: 340px; }
+@media (max-width: 767px) {
+  .blk.dep .dmark { left: -14px; }
+  .code .l .n { width: 52px; padding-right: 22px; }
+}
+.dc-list { max-height: 260px; overflow: auto; padding: 4px 0; }
+.dc-row { display: grid; font: var(--type-ui); font-stretch: var(--wdth-ui); grid-template-columns: 12px minmax(0, 1fr) auto; gap: 8px; width: 100%; padding: 6px 12px; border: 0; background: none; text-align: left; color: var(--ink); cursor: pointer; }
+.dc-row:hover, .dc-row:focus-visible { background: var(--paper-3); }
+.dc-main { min-width: 0; }
+.dc-sub { font: var(--type-ui-sm); font-stretch: var(--wdth-ui); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dc-st { font: var(--type-mono-sm); color: var(--st); text-align: right; }
+.dc-st .t-mono-sm { color: var(--ink-3); }
 .code .ltag { position: sticky; right: 8px; margin-left: auto; padding: 0 8px; font: var(--type-mono-sm); color: var(--moved); align-self: center; }
 .code .eof { padding: 12px 0 0 72px; font: var(--type-mono-sm); color: var(--ink-3); }
 

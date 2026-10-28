@@ -15,6 +15,7 @@
 - a conversation whose last answer can't be sent back as is, or that got near the context window, drops to plain text for the next follow-up, and a resend the API rejects is asked again in plain text, so neither one gets stuck
 - after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
 - `lectern check <notebook> [files...]` and the `check_notebook` MCP tool re-check every saved conversation, sheet and note, plus the footnotes in named markdown files, and list what got worse. `--fail-on moved|unverified` makes it exit 1 for CI or a pre-commit hook. It never writes
+- lines in the file drawer that a saved answer, sheet or note cites get a status mark in the gutter, with a stem down a cited range. Page mode marks the block. Hover or click a mark to see what cites it and jump there, and a `Cited by n` button in the drawer header lists the whole file. Statuses are re-checked when the file opens and nothing is written
 
 ## 1.0.0-rc.1 (2026-10-25)
 
