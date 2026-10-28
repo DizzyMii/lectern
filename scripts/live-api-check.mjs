@@ -1,19 +1,31 @@
 // Live check of the API engine against the real Anthropic API. Run it yourself with ANTHROPIC_API_KEY set:
 //   node scripts/live-api-check.mjs [notebook] [--with-opus]
-// It never prints the key. Results go to stdout and to <LECTERN_HOME or D:/lectern-home>/live-api-check.json.
+// It never prints the key. Results go to stdout and to live-api-check.json in your Lectern home (LECTERN_HOME, else ~/.lectern).
+// It asks questions about the NeoForge notebook, so make that first: node bin/lectern.mjs example neoforge
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { lecternHome } from '../lib/home.mjs';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const bin = path.join(repo, 'bin', 'lectern.mjs');
 const args = process.argv.slice(2);
 const nb = args.find((a) => !a.startsWith('--')) ?? 'neoforge-1.21.1';
 const withOpus = args.includes('--with-opus');
-const home = process.env.LECTERN_HOME ?? 'D:/lectern-home';
+const home = lecternHome();
 const key = process.env.ANTHROPIC_API_KEY ?? '';
 if (!key) { console.error('Set ANTHROPIC_API_KEY first.'); process.exit(2); }
+let registered = {};
+try { registered = JSON.parse(fs.readFileSync(path.join(home, 'registry.json'), 'utf8')).notebooks ?? {}; } catch {}
+if (!registered[nb]) {
+  console.error(`No notebook named "${nb}" in ${home}.
+This check asks questions about the NeoForge docs. Create that notebook with:
+  node bin/lectern.mjs example neoforge
+or pass the name of a notebook you already have: node scripts/live-api-check.mjs <notebook>
+(The questions are about NeoForge payloads and attachments, so another notebook will fail the citation checks.)`);
+  process.exit(2);
+}
 const scrub = (s) => String(s ?? '').split(key).join('[key]');
 
 function cli(argv) {
