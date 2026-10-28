@@ -2,32 +2,31 @@
 
 This is the whole design system for Lectern. It is meant to be enough to build every screen without asking a question. Where it gives a number, use the number. Where it says never, it means never. The screen list with exact content is in `SCREENS.md` next to this file.
 
-App facts it assumes: vanilla JS front end in `app/public/` (`ui/*.js`, `studio/*.js`, `styles.css`), self-hosted fonts through `@fontsource-variable`, renderers for six artifact kinds (`doc`, `graph`, `sequence`, `plan`, `quiz`, `file`), and 24 Studio recipes in `app/studio/recipes.mjs`.
+App facts it assumes: vanilla JS front end in `public/` (`ui/*.js`, `studio/*.js`, `styles.css`), self-hosted fonts through `@fontsource-variable`, renderers for six artifact kinds (`doc`, `graph`, `sequence`, `plan`, `quiz`, `file`), and 24 Studio recipes in `lib/studio/recipes.mjs`.
 
 ---
 
-## 0. The decision
+## 0. My design decisions
 
-**Direction: Survey.** Lectern looks and behaves like an ordnance survey of your sources. Every claim is a benchmark checked against the ground, sources are map layers with pastel tints and hatches, and Studio outputs are numbered sheets in a series.
+**Direction: Survey.** I wanted Lectern to look like nothing else a developer has open in a day, so it looks and behaves like an ordnance survey of your sources. Every claim is a benchmark checked against the ground, sources are map layers with pastel tints and hatches, and Studio outputs are numbered sheets in a series. "Ground truth" is the product's promise in the field's own words, and one mark (the benchmark) is the logo, the verification glyph and the receipt.
 
-The three judges split one vote each (Survey, Rubric, Instrument). I picked Survey as the identity and rebuilt it with the best parts of the other two:
+Three things come from other directions I sketched and dropped as identities:
 
-- **Survey gives the identity.** It is the only direction with one owned idea no developer tool uses, and "ground truth" is the product's promise in the field's own words. It scored highest on character and fit, and character is the thing Kade asked for three times. One mark (the benchmark) is the logo, the verification glyph and the receipt.
-- **Rubric gives the reading surface.** The left gutter of proof marks, the big-numeral receipt, the 66ch Newsreader column, light code on paper with a provenance caption, the italic second sentence in the question headline, and the scrutiny link. It was the most beautiful board and the best place to read for hours.
-- **Instrument gives the working grammar.** The J/K claim cursor, the key strip along the bottom edge, live version and branch state on code sources with real scope toggles, the UNCITED count, and a lit, non-blocking running recipe with segment progress.
-- **Press survives only on Studio sheet covers, exports and the one print moment.** That is where riso overprint and the loud display voice belong.
+- **The reading surface.** The left gutter of proof marks, the big-numeral receipt, the 66ch Newsreader column, light code on paper with a provenance caption, the italic second sentence in the question headline, and the scrutiny link. I want a page I can read for hours.
+- **The working grammar.** The J/K claim cursor, the key strip along the bottom edge, live version and branch state on code sources with real scope toggles, the UNCITED count, and a lit, non-blocking running recipe with segment progress.
+- **The loud display voice** lives only on Studio sheet covers, exports and the one print moment. That is where riso overprint belongs.
 
-Where I overrule the panel or the boards, and why:
+The rules I settled on, and why:
 
 1. **No vermilion Ask button.** The primary button is solid ink with paper text. Vermilion means "look here" and is reserved for the mark, kickers, sheet numbers and unverified. A bright CTA would be the loudest thing on a reading screen.
-2. **Plain words first.** Buttons and headers say Ask, Sources, History, Citations, Trail. Survey words (benchmark, layer, sheet) appear as the visual language and in onboarding, not as labels you must translate. "survey" is a palette alias for Ask.
-3. **Three panes, not four.** Rail, page (answer plus its margin) and drawers. Studio is a full view (`P`), not a permanent fourth column, so the answer keeps 660px at 1440 wide.
-4. **The Studio sheet index stays a map, but labels sit on solid fills.** Contour lines run only in the gutters between cells and on sheet covers, never under text. This fixes the murky relief on the Survey board.
-5. **24 recipes, not 23.** `recipes.mjs` has 24 ids (5 plan, 5 visual, 4 agent, 6 learn, 4 code). The SPEC text and the brief say 23 but list 24. Every count in the UI is computed from the recipe table, never typed.
+2. **Plain words first.** Buttons and headers say Ask, Sources, History, Citations, Trail. Survey words (benchmark, layer, sheet) show up in the visual language and in onboarding. "survey" is a palette alias for Ask.
+3. **Three panes.** Rail, page (answer plus its margin) and drawers. Studio is a full view (`P`) and never a permanent fourth column, so the answer keeps 660px at 1440 wide.
+4. **The Studio sheet index is a map, and its labels sit on solid fills.** Contour lines run only in the gutters between cells and on sheet covers, never under text.
+5. **24 recipes.** `lib/studio/recipes.mjs` has 24 ids (5 plan, 5 visual, 4 agent, 6 learn, 4 code). Every count in the UI is computed from the recipe table and never typed.
 6. **No Bodoni.** Its hairlines fail at 1x on Windows. Newsreader at display optical size does the headline and receipt numerals and holds up at every size.
-7. **JetBrains Mono, not Martian or Plex.** It is already installed, it is dense, and it has tabular figures and a distinct zero.
-8. **Fraunces and Inter go.** Fraunces SOFT/WONK is the cute-AI-app look. Inter alone reads as generic.
-9. **The pastel glass "Cotton/Dusk" theme in SPEC-studio.md is replaced.** No backdrop blur, no mesh blobs, no soft layered shadows. Paper, hairlines, tints and hatches instead. Group hues from the spec are kept, rebuilt in OKLCH.
+7. **JetBrains Mono for code.** It is already installed, it is dense, and it has tabular figures and a distinct zero.
+8. **No Fraunces, no Inter.** Fraunces SOFT/WONK is the cute-AI-app look, and Inter on its own reads as generic.
+9. **No pastel glass.** No backdrop blur, no mesh blobs, no soft layered shadows. Paper, hairlines, tints and hatches instead. The group hues are in OKLCH.
 
 ---
 
@@ -829,7 +828,7 @@ Inline, full width of the column, radius 4, 12px padding, glyph left. Info: grou
 
 Every artifact opens in the page as a full canvas (`P` back to Studio, `Esc` back to where it was opened from). Shared header for all kinds:
 
-**Sheet header** (the cover strip, 168px, the one place Press's voice lives in the daily app):
+**Sheet header** (the cover strip, 168px, the one place the loud display voice lives in the daily app):
 - Ground: group `band`. Contour relief SVG (6 to 9 closed contour paths in `--contour` plus 2 in group `mid`) filling the right 45%, `pointer-events:none`, never under text (text column is the left 55%).
 - Double rule at top (`--ink`).
 - Kicker row: `SHEET 06 · VISUAL · CODE MAP` in `kicker` `--accent`.
@@ -943,7 +942,7 @@ These are the things that make it unmistakable. Build them with the most care.
 5. **The claim cursor.** J and K walk claims; the clause lifts to band-strong, the caret bar sits in the gutter, the margin card rings, `O` opens the file at the line. Auditing an answer is a keyboard rhythm.
 6. **The sheet index.** Studio's 24 recipes as a numbered map-sheet grid, rows by group, contour lines running between the cells. Type to filter, two digits to jump, Enter to print.
 7. **The print.** When a sheet finishes, its cell's neatline closes, the cover title settles out of a two-ink riso offset, and the printed sheet drops into the list. Once per generation.
-8. **Sheet covers and exports.** Wide 56px map caps, contour relief, group tint, sheet number in vermilion, the colophon line on every export. This is where the Press zine energy lives now.
+8. **Sheet covers and exports.** Wide 56px map caps, contour relief, group tint, sheet number in vermilion, the colophon line on every export. This is where the zine energy lives.
 9. **The question as a headline.** Newsreader 34px, the first sentence upright and anything after it in italic: `How do I register a client-to-server packet? *I only know SimpleChannel.*`
 10. **Numbered questions.** Every answer is `Question 047`, the same number in History, the breadcrumb, the CLI (`lectern show 047`) and MCP, so agents and people refer to the same thing.
 

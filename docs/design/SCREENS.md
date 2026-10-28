@@ -1,6 +1,6 @@
 # Lectern screens to build
 
-Every screen follows `DESIGN.md` (tokens, type, components by section number). All screens are drawn at 1440 x 900 unless noted, light theme unless noted. Content below is exact: use these strings. Code shown in the sample is illustrative mock content for the boards; the real app reads the files.
+Every screen follows `DESIGN.md` (tokens, type, components by section number). All screens are drawn at 1440 x 900 unless noted, light theme unless noted. Content below is exact: use these strings. Code shown in the sample is illustrative mock content; the real app reads the files.
 
 Shared sample notebook (all screens):
 - Notebook: **NeoForge 1.21.1 modding**
