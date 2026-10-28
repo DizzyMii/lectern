@@ -93,7 +93,7 @@ export function openAddSource(tabId = 'url', presetFiles = null) {
       bodyEl.append(input, zone);
       if (files.length) bodyEl.append(h('div', { class: 'file-list' }, files.map((f) => h('div', null, h('span', null, f.name), h('span', null, fmtNum(f.size) + 'B')))));
     } else if (tab === 'folder') {
-      bodyEl.append(field('Folder path on this machine', { name: 'path', placeholder: 'D:/projects/my-app/src', required: true, autofocus: true }),
+      bodyEl.append(field('Folder path on this machine', { name: 'path', placeholder: 'C:/projects/my-app/src', required: true, autofocus: true }),
         field('Root name', { name: 'name', placeholder: 'my-app', required: true, pattern: '([A-Za-z0-9._]|-)+' }, 'Short id used in citations and searches.'));
     } else {
       bodyEl.append(field('Repository URL', { name: 'url', placeholder: 'https://github.com/owner/repo', required: true, autofocus: true }),
