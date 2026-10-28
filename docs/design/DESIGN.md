@@ -10,23 +10,24 @@ App facts it assumes: vanilla JS front end in `public/` (`ui/*.js`, `studio/*.js
 
 **Direction: Survey.** I wanted Lectern to look like nothing else a developer has open in a day, so it looks and behaves like an ordnance survey of your sources. Every claim is a benchmark checked against the ground, sources are map layers with pastel tints and hatches, and Studio outputs are numbered sheets in a series. "Ground truth" is the product's promise in the field's own words, and one mark (the benchmark) is the logo, the verification glyph and the receipt.
 
-Three things come from other directions I sketched and dropped as identities:
+Two other directions I sketched gave it most of the daily screen:
 
 - **The reading surface.** The left gutter of proof marks, the big-numeral receipt, the 66ch Newsreader column, light code on paper with a provenance caption, the italic second sentence in the question headline, and the scrutiny link. I want a page I can read for hours.
 - **The working grammar.** The J/K claim cursor, the key strip along the bottom edge, live version and branch state on code sources with real scope toggles, the UNCITED count, and a lit, non-blocking running recipe with segment progress.
-- **The loud display voice** lives only on Studio sheet covers, exports and the one print moment. That is where riso overprint belongs.
+
+A third had a loud display voice with riso overprint. It lives only on Studio sheet covers, exports and the one print moment.
 
 The rules I settled on, and why:
 
 1. **No vermilion Ask button.** The primary button is solid ink with paper text. Vermilion means "look here" and is reserved for the mark, kickers, sheet numbers and unverified. A bright CTA would be the loudest thing on a reading screen.
-2. **Plain words first.** Buttons and headers say Ask, Sources, History, Citations, Trail. Survey words (benchmark, layer, sheet) show up in the visual language and in onboarding. "survey" is a palette alias for Ask.
+2. **Plain words first.** Buttons and headers say Ask, Sources, History, Citations, Trail. Survey words (benchmark, layer, sheet) show up in the visual language and in onboarding, never as a label you have to translate. "survey" is a palette alias for Ask.
 3. **Three panes.** Rail, page (answer plus its margin) and drawers. Studio is a full view (`P`) and never a permanent fourth column, so the answer keeps 660px at 1440 wide.
 4. **The Studio sheet index is a map, and its labels sit on solid fills.** Contour lines run only in the gutters between cells and on sheet covers, never under text.
 5. **24 recipes.** `lib/studio/recipes.mjs` has 24 ids (5 plan, 5 visual, 4 agent, 6 learn, 4 code). Every count in the UI is computed from the recipe table and never typed.
 6. **No Bodoni.** Its hairlines fail at 1x on Windows. Newsreader at display optical size does the headline and receipt numerals and holds up at every size.
 7. **JetBrains Mono for code.** It is already installed, it is dense, and it has tabular figures and a distinct zero.
 8. **No Fraunces, no Inter.** Fraunces SOFT/WONK is the cute-AI-app look, and Inter on its own reads as generic.
-9. **No pastel glass.** No backdrop blur, no mesh blobs, no soft layered shadows. Paper, hairlines, tints and hatches instead. The group hues are in OKLCH.
+9. **No pastel glass.** No backdrop blur, mesh blobs or soft layered shadows anywhere. Surfaces are paper with hairlines, tints and hatches, and the group hues are in OKLCH.
 
 ---
 
