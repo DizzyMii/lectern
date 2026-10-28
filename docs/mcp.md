@@ -6,6 +6,8 @@ Asks use the same engine as the app and the CLI (see Engines in the README).
 
 ## Register it
 
+In the desktop app installed with Lectern Setup.exe, Settings has Connect buttons for Claude Code and Cursor that do the below for you and point at the installed exe.
+
 Claude Code:
 
 ```sh

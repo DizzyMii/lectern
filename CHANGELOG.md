@@ -14,6 +14,7 @@
 - one-hour cache writes are priced at 2x in the spend meter and budgets
 - a conversation whose last answer can't be sent back as is, or that got near the context window, drops to plain text for the next follow-up, and a resend the API rejects is asked again in plain text, so neither one gets stuck
 - after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
+- Settings has Connect Claude Code and Connect Cursor buttons in the desktop app. They register `lectern mcp` to run through the installed exe, so no Node or npm is needed. Connect Cursor shows the change first and keeps a `.bak`
 
 ## 1.0.0-rc.1 (2026-10-25)
 

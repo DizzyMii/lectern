@@ -127,6 +127,8 @@ With both set up the API key wins. `--engine api` or `--engine claude-code` on t
 
 Install globally first so `lectern` is on your PATH.
 
+If you installed the desktop app with Lectern Setup.exe, Settings has a Connect Claude Code and a Connect Cursor button that register `lectern mcp` to run through the installed exe, so you don't need Node or npm. Connect Cursor shows what it will add to `mcp.json` before writing it and keeps the old file as `mcp.json.bak`. The portable Lectern.exe can't do this because it unpacks to a new temp folder on every start, so Settings shows the npm commands to copy instead.
+
 **Claude Code:**
 
 ```sh
@@ -271,7 +273,7 @@ The config file is handy when your home drive is full. If you ran the old spike 
 - The text file list leans toward what I use (Java, Kotlin, Gradle, JSON, JS, TS, Python, shaders, markdown). No Go, Rust or C yet, files with those extensions get skipped.
 - Files over 2 MB count as missing for search, reads and citations.
 - On the API engine a follow-up sends the earlier turns back whole, files the model read included, and most of that comes from cache. If you add a source or a code root mid-conversation it has to fall back to the answers as plain text, so the model forgets what it read and that follow-up re-pays the cache.
-- The packaged desktop app can't be used as the CLI. Use `lectern` from npm or `node bin/lectern.mjs` for that.
+- The packaged desktop app can't be used as the CLI. Use `lectern` from npm or `node bin/lectern.mjs` for that. The Connect buttons in Settings are the one exception, they register `lectern mcp` with Claude Code and Cursor.
 - This is a release candidate, things will still move before 1.0.0.
 
 ## License
