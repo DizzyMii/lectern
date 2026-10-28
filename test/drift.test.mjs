@@ -107,7 +107,10 @@ test('a sheet records generatedAt and the first re-check measures from it', asyn
     const done = Promise.resolve({ answer, rawAnswer: answer, citations: [], toolCalls: [], usage: {}, costUsd: 0, sessionId: 's', seconds: 1 });
     return { done, cancel() {} };
   };
-  const job = await studio.generate(nb, 'prd', { idea: 'A thing' }, { model: 'haiku', askImpl: impl, onEvent() {} });
+  // the scripted ask stands in for an engine, so this must not depend on a key in the shell running the tests
+  process.env.LECTERN_FAKE_ENGINE = '1';
+  let job;
+  try { job = await studio.generate(nb, 'prd', { idea: 'A thing' }, { model: 'haiku', askImpl: impl, onEvent() {} }); } finally { delete process.env.LECTERN_FAKE_ENGINE; }
   const { id, generatedAt } = await job.done;
   assert.equal(new Date(generatedAt).toISOString(), generatedAt);
   await new Promise((r) => setTimeout(r, 5));
