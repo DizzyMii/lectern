@@ -83,6 +83,7 @@ Shared sample notebook (all screens):
 - D. Underline-only mode (`H`): no bands, underlines and marks stay.
 - E. One unverified variant: chip 2 unverified, its gutter shows the dashed query ring, card 2 reads `UNVERIFIED` + `Quote not found in RegisterPayloadHandlersEvent.java. Searched 1 file, 0 matches.` + `Search all sources`; receipt `1 1 1 1` with caption `1 quote was not found. It is marked in red.`
 - F. Width 1180: margin folded, one-line receipt under the trail, hover card is the only citation surface.
+- G. Proof ribbons (`V`): the margin widens into the cited files, each verified or moved card shows its lines, and a ribbon runs from the claim to them. A moved card has a second, dashed ribbon to the line it was cited at. `J`/`K` fills one claim's ribbon and thins the rest.
 
 ---
 

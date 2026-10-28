@@ -170,6 +170,10 @@ test('ask with the fake engine returns the answer, checked citations and a saved
   assert.equal(s.answer, 'Handlers go in the event [1]. Foo is the class [2]. Ghosts too [3].');
   assert.deepEqual(s.citations.map((c) => [c.n, c.status, c.path, c.line]), [[1, 'verified', 'docs/guide/a.md', 6], [2, 'verified', 'src/java/net/x/Foo.java', 3], [3, 'missing', 'docs/ghost.md', 1]]);
   assert.equal(s.model, 'haiku'); // fast is the default mode
+  // the saved lines are file text and stay out of what the model gets back
+  assert.ok(!s.citations.some((c) => 'saw' in c));
+  assert.ok(!JSON.stringify(r.structuredContent).includes('public class Foo'));
+  assert.ok(!r.content.map((x) => x.text).join(' ').includes('public class Foo'));
   assert.equal(s.costUsd, 0.0123);
   assert.equal(typeof s.seconds, 'number');
   const t = r.content[0].text;

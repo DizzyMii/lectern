@@ -99,6 +99,7 @@ function commands() {
     { label: 'Copy with citations', keys: ['C'], run: () => ctx.copyAnswer?.() },
     { label: 'Copy answer as markdown', run: () => ctx.copyPlain?.() },
     { label: 'Claim bands on or off', alias: 'underline only', keys: ['Shift', 'H'], run: () => ctx.toggleBands?.() },
+    { label: 'Proof ribbons', alias: 'cited files margin lines', keys: ['V'], run: () => ctx.toggleProof?.() },
     { label: 'New notebook', run: () => ctx.openNewNotebook() },
     ...(ctx.viewerHidden?.() ? [{ label: 'Show the source drawer', run: () => ctx.showViewer() }] : []),
     ...state.notebooks.filter((n) => n.id !== state.nbId).map((n) => ({ label: `Switch to ${n.title}`, run: () => ctx.selectNotebook(n.id) })),
