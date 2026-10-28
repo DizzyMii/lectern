@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  A local notebook for developers. Pin the docs you trust, point it at your source folders, ask questions,<br>
-  and every citation in the answer gets checked against the actual file before you see it.
+  A notebook for developers. Pin the docs you trust, point it at your source folders, ask questions, and every citation gets checked against the actual file before you see it.<br>
+  Reopen the answer a month later and they get checked again. A Claude Code Stop hook and <code>lectern check</code> in CI run the same checker.
 </p>
 
 <p align="center">
@@ -98,14 +98,15 @@ npm run app      # the same thing in the desktop window
 3. **Add sources.** Press <kbd>A</kbd>. A page URL gets pinned as markdown, a folder or git repo becomes a code root the model can search.
 4. **Ask.** Press <kbd>/</kbd>, type, <kbd>Enter</kbd>. Click any `[n]` to open the file at that line.
 
-## What it does that NotebookLM doesn't
+## What it does
 
+- **Checked citations.** Every `[n]` points at a file with a quote, a line range or both, and Lectern opens the file and looks. Code citations save the lines they cite and compare them again on every re-check. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified (the quote is gone, or the saved code lines were rewritten) or missing, and they get re-checked whenever you open an old conversation, so if the docs or the code changed under you, it shows. Each answer also records the git commit of every code root it read, so you can open the file as it was.
+- **Checks in Claude Code and CI.** `lectern hook stop` is a Claude Code Stop hook. When a citation in the agent's final message is broken it blocks the finish and sends the agent back to fix it ([details](#check-claude-codes-citations)). `lectern check --fail-on unverified` re-checks a whole notebook and exits 1 when a citation went unverified or missing, so CI goes red when a CLAUDE.md written from the notebook cites lines that have since changed ([CLI](#cli)). Neither calls a model.
 - **Code roots.** A notebook holds pinned docs (the shelf) plus code roots, which are folders or git repos on your disk. The model can search and read any text file under a root while it answers, so it quotes the real source of the library you're using.
-- **Checked citations.** Every `[n]` points at a file and a line range, and Lectern checks the quote is really there. Code citations save the lines they cite and compare them again on every re-check. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified (the quote is gone, or the saved code lines were rewritten) or missing, and they get re-checked whenever you open an old conversation, so if the docs or the code changed under you, it shows.
 - **Studio.** 24 recipes that turn a notebook into a saved artifact (specs, code maps, a CLAUDE.md, flashcards, a diff review...) with the same citation checks.
 - **MCP.** `lectern mcp` lets Claude Code or Cursor search your notebook for free and ask it questions while they work.
 
-It all runs on your machine. The server only listens on 127.0.0.1.
+Search, file reads, citation checks and the free MCP tools run on your machine, and the server only listens on 127.0.0.1. Your questions, the pinned docs and the files the model reads while it answers go to Anthropic (the full list is under What leaves your machine, further down).
 
 ## How a citation gets checked
 
@@ -133,7 +134,9 @@ flowchart LR
 | **unverified** | The quote isn't in the file, or the saved lines were rewritten. The hover card shows the saved lines over today's with the changed words marked. |
 | **missing** | No such file inside the notebook or its code roots, or it's over 2 MB. |
 
-Each answer also records the git commit of every code root it read. When a code citation drifts, <kbd>E</kbd> in the drawer shows the file as it was beside today's version, and <kbd>D</kbd> lists the commits since then that touched those lines. Answers saved before Lectern kept these copies get one the first time they're re-checked, and the card says so.
+Verified means the cited text is still in that file at those lines. The sentence it backs can still be wrong: on the 5 graded questions under [How well it works](#how-well-it-works), all 53 citations verified and the answers got 17.5 of 21 key facts.
+
+When a code citation drifts, <kbd>E</kbd> in the drawer shows the file as it was at the answer's commit beside today's version, and <kbd>D</kbd> lists the commits since then that touched those lines. Answers saved before Lectern kept these copies get one the first time they're re-checked, and the card says so.
 
 <p align="center">
   <img src="docs/media/as-it-was.png" alt="The source drawer on service/src/plugins/db.ts for citation 2, unverified, with Show as it was open: AS IT WAS (BA9F175, Oct 28) on the left and TODAY on the right, the cited line 12 banded on both sides, app.decorate('db', store) then and app.decorate('orders', store) today, line 9 changed too, and a banner on the answer saying 2 of 5 citations got worse" width="780"><br>
@@ -166,7 +169,7 @@ Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), wi
   <img src="docs/media/drift-replay.gif" alt="Screen recording after the files changed: the app.close() answer is open with a banner saying 3 of 17 citations got worse, then the app.db answer is reopened from history, its receipt has a Written line and a Today line, changed marks stamp in, a citation to Plugins.md rolls from L9 to L13, hovering the unverified db.ts citation shows the saved lines L8 to L14 over today's L8 to L11 with the changed words marked and a history row, and a banner reads 5 of 10 citations got worse since 08:06" width="780">
 </p>
 
-`db.ts` got shorter and `Plugins.md` grew four lines at the top. The clip opens on the `app.close()` answer (its banner already says 3 of 17 citations got worse), then reopens the `app.db` answer from history. Its receipt now has a Written line (08:06, 10 verified) over a Today line (5 verified, 4 moved, 1 unverified), the changed marks stamp in, and the `Plugins.md` mark rolls from L9 to L13. Hovering citation 1 shows Saved L8-14 over Now L8-11 with the changed words marked, and the History row lists the earlier checks. The banner reads 5 of 10 citations got worse since 08:06. [Full quality (MP4)](docs/media/drift-replay.mp4)
+`db.ts` got shorter and `Plugins.md` grew four lines at the top. The clip opens on the `app.close()` answer (its banner already says 3 of 17 citations got worse), then reopens the `app.db` answer from history. Its receipt has a Written line (08:06, 10 verified) over a Today line (5 verified, 4 moved, 1 unverified), the changed marks stamp in, and the `Plugins.md` mark rolls from L9 to L13. Hovering citation 1 shows Saved L8-14 over Now L8-11 with the changed words marked, above a History row of earlier checks. The banner reads 5 of 10 citations got worse since 08:06. [Full quality (MP4)](docs/media/drift-replay.mp4)
 
 ### Where a file is cited from
 
@@ -174,7 +177,7 @@ Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), wi
   <img src="docs/media/gutter.png" alt="service/src/plugins/db.ts open in the source drawer with status glyphs in the gutter at lines 4, 8, 9, 10, 12 and 13 and a stem down lines 4 to 6 and 8 to 14, and the Cited in this file list open over the code with 16 entries such as Sheet 06 node DbOptions, Q001 [1] and Q004 [13], each verified with its line range" width="780">
 </p>
 
-`db.ts` in the drawer. Every line something cites is marked in the gutter, with the status glyph where a cited range starts (lines 4, 8, 9, 10, 12 and 13) and a stem down the rest of the range. Cited by 5 (16 citations) in the header opens the list: the orders-service code map, the flashcards sheet and questions 001, 004 and 006, each row with its status and lines.
+`db.ts` in the drawer. Every cited line is marked in the gutter: a status glyph where a range starts (lines 4, 8, 9, 10, 12 and 13) and a stem down the rest. Cited by 5 (16 citations) in the header opens the list: the orders-service code map, the flashcards sheet and questions 001, 004 and 006, each row with its status and lines.
 
 ### What the trail read
 
@@ -182,7 +185,7 @@ Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), wi
   <img src="docs/media/trail-map.png" alt="The opened trail map under the question Where does Fastify actually run onRequest hooks in its source. The Fastify row has two marks with citations 9 and 10 under them. The fastify row has a square for the fastify/lib folder it searched, then a mark for route.js with citations 1, 2, 3, 4 and 8 under it and a mark for hooks.js with 5, 6 and 7, joined by one line" width="780">
 </p>
 
-<kbd>L</kbd> opens the trail on the `onRequest` answer with the map on top, one row per source. On the fastify row (the code root) the square is `fastify/lib`, grepped twice, first for `onRequest` and then for `hookIterator` and `runPreParsing`, and the line runs on to `route.js` (read at lines 490 to 619) and `hooks.js` (read at lines 225 to 284). Citations 1, 2, 3, 4 and 8 are in `route.js` and 5, 6 and 7 in `hooks.js` (7 and 8 sit further down than the reads went, the second grep found them). The two marks on the Fastify row (the pinned docs) are `Lifecycle.md` and `Hooks.md`, cited as 9 and 10.
+<kbd>L</kbd> opens the trail on the `onRequest` answer, map on top, one row per source. On the fastify row (the code root) the square is `fastify/lib`, grepped twice (first for `onRequest`, then for `hookIterator` and `runPreParsing`), and the line runs on to `route.js` (read at lines 490 to 619) and `hooks.js` (read at lines 225 to 284). Citations 1, 2, 3, 4 and 8 are in `route.js` and 5, 6 and 7 in `hooks.js` (7 and 8 sit past where the reads ended, the second grep found them). The two marks on the Fastify row (the pinned docs) are `Lifecycle.md` and `Hooks.md`, cited as 9 and 10.
 
 ### Studio
 
@@ -209,7 +212,7 @@ Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), wi
   <img src="docs/media/sequence-play.gif" alt="Screen recording of the sequence sheet for POST /v1/orders: Follow code is ticked, Play starts from step 1 and a packet travels along the first arrows, then the source drawer follows each step through route.js, orders.ts and route.js again, and Escape stops it" width="780">
 </p>
 
-The same sequence sheet with Follow code ticked. Play starts at step 1, a packet runs along the first arrows, and then the drawer follows each cited step: `route.js` 561 and 573, `orders.ts` 7 and 8, `route.js` 656 and 658. <kbd>Esc</kbd> stops it. At this window width the drawer covers the right-hand lanes. [Full quality (MP4)](docs/media/sequence-play.mp4)
+Same sheet with Follow code ticked. Play starts at step 1, a packet runs along the first arrows, then the drawer follows each cited step (`route.js` 561 and 573, `orders.ts` 7 and 8, `route.js` 656 and 658). <kbd>Esc</kbd> stops it. The drawer covers the right-hand lanes at this window width. [Full quality (MP4)](docs/media/sequence-play.mp4)
 
 ### Asked before
 
