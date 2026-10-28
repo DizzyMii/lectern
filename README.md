@@ -23,7 +23,7 @@
 
 <p align="center">
   <a href="https://github.com/DizzyMii/lectern/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/DizzyMii/lectern/actions/workflows/ci.yml/badge.svg"></a>
-  <img alt="License: PolyForm Shield 1.0.0" src="https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-c0392b">
+  <img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-c0392b">
   <img alt="Node 20 or newer" src="https://img.shields.io/badge/node-%E2%89%A520-3c873a">
   <img alt="Version 1.0.0-rc.1" src="https://img.shields.io/badge/version-1.0.0--rc.1-555">
 </p>
@@ -467,6 +467,6 @@ The config file is handy when your home drive is full. If you ran the old spike 
 
 ## License
 
-[PolyForm Shield 1.0.0](LICENSE). In plain words: use it, change it, run it at work, share it. You can't use it to build or sell a product that competes with Lectern. The full text in LICENSE is what actually counts.
+[Apache 2.0](LICENSE). Use it, change it, ship it, and keep the [NOTICE](NOTICE) file with it. The full text in LICENSE is what counts.
 
 Copyright 2026 Kade Heglin.

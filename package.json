@@ -2,7 +2,7 @@
   "name": "@dizzymii/lectern",
   "version": "1.0.0-rc.1",
   "description": "A local notebook for developers: ask your pinned docs and code roots, get answers with citations checked against the files.",
-  "license": "PolyForm-Shield-1.0.0",
+  "license": "Apache-2.0",
   "author": "Kade Heglin",
   "repository": {
     "type": "git",
@@ -26,6 +26,7 @@
     "CHANGELOG.md",
     "SECURITY.md",
     "LICENSE",
+    "NOTICE",
     "!public/dev-mock.js",
     "!public/ui/mock-studio.js",
     "!public/studio/harness.html",

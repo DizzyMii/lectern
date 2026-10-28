@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Lectern is under the Apache License 2.0 now, with a NOTICE file
 - there's a desktop app now. `npm run build:exe` makes an installer and a portable exe (Electron, Windows), and `npm run app` runs it from a clone
 - the window has no title bar of its own, the top bar drags it and the minimize, maximize and close buttons sit at its right end in the theme's colours
 - Settings page behind the cog in the top bar: API key, workspace id, Claude Code path, projects folder, clone cap, private URLs and port. They save to `settings.json` in the home folder, apply straight away and win over env vars
@@ -46,7 +47,6 @@ First public build, moved out of the spike folder it grew up in.
 - every ask has a round cap now (4 on fast, 12 otherwise), hitting it gives an error with the cap in it
 - citations get re-checked against the files every time you open a conversation or artifact, so drift shows up as it happens
 - 24 Studio recipes, all with checked citations
-- licensed under PolyForm Shield 1.0.0
 - the page sends a CSP that blocks loads from other hosts, and the sanitizer drops media tags, srcset, poster and background, so an answer can't leak notebook text through an image
 - file reads, tree listings, the model's tools and Studio write-to check real paths, so a symlink or junction in a root can't reach outside it
 - git never runs a repo's own fsmonitor, hooks, textconv or filters, and roots whose config sets them are refused for diff and log inputs
