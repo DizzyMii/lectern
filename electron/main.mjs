@@ -1,9 +1,10 @@
 // The desktop app: runs the Lectern server inside Electron and shows it in a window.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, nativeTheme, shell } from 'electron';
 import { applySettings } from '../lib/settings.mjs';
 import { initTray } from './tray.mjs';
+import { initQuick } from './quick.mjs';
 
 // the window buttons sit in the page's own top bar, in its paper-2 and ink colours (tokens.css)
 const BAR = { height: 47 };
@@ -19,10 +20,11 @@ async function start() {
   const srv = await startServer({ port });
   const url = `http://127.0.0.1:${srv?.address().port ?? port}`;
 
+  const preload = path.join(path.dirname(fileURLToPath(import.meta.url)), 'preload.cjs');
   const win = new BrowserWindow({
     width: 1400, height: 900, title: 'Lectern', show: false,
     titleBarStyle: 'hidden', titleBarOverlay: LIGHT,
-    webPreferences: { preload: path.join(path.dirname(fileURLToPath(import.meta.url)), 'preload.cjs') },
+    webPreferences: { preload },
   });
   ipcMain.on('theme', (e, dark) => { if (e.sender === win.webContents) win.setTitleBarOverlay(dark ? DARK : LIGHT); });
   // Settings > Agents: register lectern mcp with Claude Code or Cursor, running through this exe
@@ -33,10 +35,13 @@ async function start() {
   ipcMain.handle('agents:preview', (e, id) => (mine(e) ? agents.preview(String(id), target()) : null));
   ipcMain.handle('agents:connect', (e, id) => (mine(e) ? agents.connect(String(id), target()) : null));
   win.once('ready-to-show', () => win.show());
-  // links in answers and fetched pages go to the real browser, never into the app window
+  // links in answers and fetched pages go to the real browser, never into a Lectern window
   const external = (u) => { if (/^https?:\/\//i.test(u) && !u.startsWith(url)) shell.openExternal(u); };
-  win.webContents.setWindowOpenHandler(({ url: u }) => { external(u); return { action: 'deny' }; });
-  win.webContents.on('will-navigate', (e, u) => { if (!u.startsWith(url)) { e.preventDefault(); external(u); } });
+  const lock = (w) => {
+    w.webContents.setWindowOpenHandler(({ url: u }) => { external(u); return { action: 'deny' }; });
+    w.webContents.on('will-navigate', (e, u) => { if (!u.startsWith(url)) { e.preventDefault(); external(u); } });
+  };
+  lock(win);
   win.loadURL(url);
   // closing hides the window while Lectern lives in the tray. Quit in the tray menu, or the
   // Quit-when-the-window-closes setting, really closes it. Windows logoff must not be blocked.
@@ -51,6 +56,7 @@ async function start() {
   win.on('closed', () => app.quit());
   if (keep()) tray.ensure();
   app.on('second-instance', showMain);
+  initQuick({ url, preload, lock, goto, background: () => (nativeTheme.shouldUseDarkColors ? DARK.color : LIGHT.color) });
 }
 
 if (!app.requestSingleInstanceLock()) app.quit();

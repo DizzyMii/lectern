@@ -35,7 +35,7 @@ test('preload never returns ipcRenderer to the page', () => {
 });
 
 test('electron entry files keep the lessons learned', () => {
-  for (const f of ['main.mjs', 'tray.mjs']) {
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.mjs'))) {
     for (const line of read(f).split('\n')) assert.doesNotMatch(line, /^await app\.whenReady/, `${f}: nothing at the top level may await ready`);
   }
   for (const f of fs.readdirSync(dir)) assert.doesNotMatch(read(f), /ELECTRON_RUN_AS_NODE/, f);
@@ -46,4 +46,34 @@ test('closing the window hides it instead of quitting, and nothing quits on the 
   assert.doesNotMatch(src, /window-all-closed/);
   assert.match(src, /LECTERN_QUIT_ON_CLOSE/);
   assert.match(src, /e\.preventDefault\(\); win\.hide\(\)/);
+});
+
+test('every quick ask IPC handler checks the sender first', () => {
+  const src = read('quick.mjs');
+  for (const name of ['ready', 'hide', 'open']) {
+    const at = src.indexOf(`ipcMain.on('quick:${name}'`);
+    assert.ok(at >= 0, name);
+    const rest = src.slice(at);
+    assert.ok(rest.slice(0, rest.indexOf(';')).includes('mine(e)'), name);
+  }
+  assert.doesNotMatch(src, /ipcMain\.handle\(/);
+});
+
+test('quick ask passes only a checked hash on to the main window', () => {
+  const src = read('quick.mjs');
+  assert.match(src, /HASH_RE\.test\(hash\)/);
+  assert.ok(src.indexOf('HASH_RE.test(hash)') < src.indexOf('goto(hash)'));
+});
+
+test('quick ask is off until the setting says so, and the key is released on quit', () => {
+  const src = read('quick.mjs');
+  assert.match(src, /LECTERN_QUICK_ASK !== '1'\) return/);
+  assert.match(src, /will-quit/);
+  assert.match(src, /unregisterAll/);
+});
+
+test('preload exposes the quick channels without handing over ipcRenderer', () => {
+  const src = read('preload.cjs');
+  for (const c of ['quick:ready', 'quick:hide', 'quick:open']) assert.ok(src.includes(`'${c}'`), c);
+  assert.match(src, /ready: \(fn\) => \{ ipcRenderer\.on\('quick'/);
 });

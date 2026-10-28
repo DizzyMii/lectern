@@ -55,6 +55,8 @@ Neither needs Node on the machine it runs on. Neither is code signed yet either,
 
 Closing the window leaves Lectern in the system tray (the Quit when the window closes switch in Settings turns that off). While it sits there it watches your code roots, and after a git pull or a save moves the citations in a saved answer you get a notification with the question number, click it to land on that answer.
 
+Quick ask is off until you switch it on in Settings. With it on, Ctrl+Alt+Space in any app opens a small Lectern window with your clipboard text already in the palette. Enter asks your last-used notebook on the fast preset (Haiku, low effort), and Alt+Enter opens that question in the main window. Clipboard text is cut at 8,000 characters.
+
 ### npm
 
 Needs Node 20 or newer.
@@ -233,6 +235,7 @@ Inside Studio artifacts, flashcards flip with `Space` and rate with the arrow ke
 - **Your question, the pinned docs and whatever files the model reads** go to Anthropic, through the API or through Claude Code. The first ask in a conversation sends the whole shelf, follow-ups send the conversation so far, and tool calls send back the file contents the model asked for.
 - **Adding a URL** fetches that page (user-agent `lectern/1.0`) and saves it as markdown. Loopback, private and link-local addresses are refused, redirects included, unless you turn on Allow private URLs.
 - **Adding a git URL** runs `git clone --depth 1` (sparse when you give a subfolder). https:// or git@ only, symlinks come out as plain files, hooks and LFS downloads are off, and a checkout over the size cap gets deleted again.
+- **Quick ask** reads your clipboard when you press its hotkey and shows it in its own window. Nothing is sent until you press Enter, and then it goes out as an ordinary question.
 - **`lectern example`** downloads that example's sources from GitHub.
 - On the Claude Code engine, Claude Code's own telemetry settings apply to that process. Lectern leaves them alone.
 

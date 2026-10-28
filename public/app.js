@@ -1,6 +1,6 @@
 // Boot, cross-module actions, the keyboard model (DESIGN 10) and the key strip hints.
 
-import { h, clear, icon, toast, store } from './ui/dom.js';
+import { h, clear, icon, toast, store, quickMode } from './ui/dom.js';
 import { api, nbPath, initApi, mockMode } from './ui/api.js';
 import { state, ctx, on, emit, normNotebookSummary, normNotebook, normConversation, MODELS } from './ui/state.js';
 import { initRail, focusHistory } from './ui/rail.js';
@@ -14,6 +14,7 @@ import { initStudio, openRecipe } from './ui/studio.js';
 import { initCanvas, openArtifact, closeCanvas, canvasOpen } from './ui/canvas.js';
 import { initChrome, effectiveTheme, syncTheme } from './ui/chrome.js';
 import { kbd, glyph } from './ui/layers.js';
+import { initQuick } from './ui/quick.js';
 
 const app = document.getElementById('app');
 
@@ -277,7 +278,11 @@ async function followHash() {
   if (nb !== state.nbId) await ctx.selectNotebook(nb, { conv, artifact });
   else if (artifact && artifact !== state.artifactId) await openArtifact(artifact);
   else if (!artifact && canvasOpen()) closeCanvas({ keepHash: true });
-  if (nb === state.nbId && conv && conv !== state.convId) await ctx.openConversation(conv);
+  if (nb === state.nbId && conv && conv !== state.convId) {
+    // a Question made in the quick-ask popup is not in this window's history yet
+    if (!state.nb.conversations.some((c) => c.id === conv)) await ctx.refreshNotebook();
+    await ctx.openConversation(conv);
+  }
   return true;
 }
 
@@ -291,6 +296,8 @@ function fatal(msg, retry) {
 
 async function boot() {
   await initApi();
+  // the quick-ask popup: always the fast preset, and initChat below has to see this to draw Haiku
+  if (quickMode) { document.documentElement.classList.add('quick'); state.fast = true; state.model = 'haiku'; }
   initPanes(app);
   initChrome();
   initRail(document.getElementById('rail'));
@@ -329,15 +336,20 @@ async function boot() {
     const { nb, conv, artifact } = readHash();
     if (nb !== state.nbId) { await followHash(); return; }
     if (artifact) await openArtifact(artifact);
-    else if (conv) { if (canvasOpen()) closeCanvas({ keepHash: true }); await ctx.openConversation(conv); }
+    else if (conv) {
+      if (canvasOpen()) closeCanvas({ keepHash: true });
+      if (!state.nb.conversations.some((c) => c.id === conv)) await ctx.refreshNotebook();
+      await ctx.openConversation(conv);
+    }
   });
-  if (!state.notebooks.length) { ctx.firstRun = true; emit('firstrun'); renderThread(); setHints('setup'); return; }
+  if (!state.notebooks.length) { ctx.firstRun = true; emit('firstrun'); renderThread(); setHints('setup'); if (quickMode) initQuick(); return; }
   if (!(await followHash())) {
     const last = store.get('lastNotebook', null);
-    await ctx.selectNotebook(state.notebooks.some((n) => n.id === last) ? last : state.notebooks[0].id);
+    await ctx.selectNotebook(state.notebooks.some((n) => n.id === last) ? last : state.notebooks[0].id, quickMode ? { conv: null } : undefined);
   }
   // reading an answer starts on the page (J and K work); a blank question starts in Ask
   if (state.convId) document.getElementById('page-scroll')?.focus({ preventScroll: true }); else focusComposer();
+  if (quickMode) initQuick();
 }
 
 boot();

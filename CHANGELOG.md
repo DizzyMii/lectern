@@ -17,6 +17,8 @@
 - Settings has Connect Claude Code and Connect Cursor buttons in the desktop app. They register `lectern mcp` to run through the installed exe, so no Node or npm is needed. Connect Cursor shows the change first and keeps a `.bak`
 - closing the desktop window keeps Lectern in the tray now. It watches every notebook's code roots, and when a git pull or a save moves citations in saved answers or sheets it shows a notification (`Moved 3 citations in Question 047`) that opens that question. The tray menu lists the answers that drifted since you last opened them
 - new setting Quit when the window closes (`LECTERN_QUIT_ON_CLOSE`) for the old close-means-quit behaviour
+- quick ask in the desktop app. Switch on Quick ask hotkey in Settings and Ctrl+Alt+Space in any app opens a small window with your clipboard in the palette. Enter asks your last notebook on the fast preset, Alt+Enter opens the question in the main window. Off by default, and if another app owns the key you get one notification and nothing else changes
+- `POST /api/notebooks/:nb/ask` takes `fast: true` for the fast preset (Haiku, low effort, 4 rounds). A model you name still wins
 
 ## 1.0.0-rc.1 (2026-10-25)
 

@@ -13,4 +13,10 @@ contextBridge.exposeInMainWorld('lecternApp', {
   },
   // braces on purpose: an arrow that returned ipcRenderer.on(...) would hand the page the ipcRenderer object
   onGoto: (fn) => { ipcRenderer.on('goto', (_e, hash) => { if (typeof hash === 'string' && HASH_RE.test(hash)) fn(hash); }); },
+  quick: {
+    // listens first, then tells main the page is ready, so no text can arrive before there is a listener
+    ready: (fn) => { ipcRenderer.on('quick', (_e, text) => fn(String(text))); ipcRenderer.send('quick:ready'); },
+    hide: () => ipcRenderer.send('quick:hide'),
+    open: (hash) => ipcRenderer.send('quick:open', String(hash)),
+  },
 });

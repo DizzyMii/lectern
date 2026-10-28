@@ -78,3 +78,24 @@ test('the quit-on-close switch is a plain saved bool', async () => {
   await call('PUT', { LECTERN_QUIT_ON_CLOSE: null });
   assert.equal(process.env.LECTERN_QUIT_ON_CLOSE, undefined);
 });
+
+test('the quick ask switch saves like any bool and announces the change', async () => {
+  const { settingsChanged } = await import('../lib/settings.mjs');
+  const heard = [];
+  const listen = (keys) => heard.push(keys);
+  settingsChanged.on('change', listen);
+  try {
+    delete process.env.LECTERN_QUICK_ASK;
+    const r = await call('PUT', { LECTERN_QUICK_ASK: '1' });
+    assert.equal(r.status, 200);
+    assert.equal(process.env.LECTERN_QUICK_ASK, '1');
+    assert.equal(byKey(r).LECTERN_QUICK_ASK.bool, true);
+    assert.deepEqual(heard, [['LECTERN_QUICK_ASK']]);
+    await call('PUT', { LECTERN_QUICK_ASK: null });
+    assert.equal(process.env.LECTERN_QUICK_ASK, undefined);
+    assert.deepEqual(heard, [['LECTERN_QUICK_ASK'], ['LECTERN_QUICK_ASK']]);
+    assert.equal((await call('PUT', { LECTERN_QUICK_ASK: '1', NOT_A_SETTING: 'x' })).status, 400);
+    assert.equal(heard.length, 2);
+    assert.equal(process.env.LECTERN_QUICK_ASK, undefined);
+  } finally { settingsChanged.off('change', listen); }
+});

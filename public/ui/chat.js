@@ -571,7 +571,7 @@ ctx.generate = async (kind) => {
   });
 };
 
-const modelBody = () => (state.model === 'api' ? { model: 'opus', engine: 'api' } : { model: state.model });
+const modelBody = () => (state.model === 'api' ? { engine: 'api', ...(state.fast ? { fast: true } : { model: 'opus' }) } : { model: state.model, ...(state.fast ? { fast: true } : {}) });
 
 export function stopStreaming() { state.streaming?.controller.abort(); }
 export const isStreaming = () => !!state.streaming;

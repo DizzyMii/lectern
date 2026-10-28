@@ -286,6 +286,8 @@ const KEYS = [
   ['Moving', [['Ctrl K', 'command palette'], ['H', 'history'], ['A', 'add a source'], ['P', 'Studio'], ['Ctrl 1 2 3', 'rail, page, margin'], ['Ctrl B', 'toggle rail'], ['Ctrl Shift F', 'search all sources'], ['Ctrl Shift L', 'theme'], ['Esc', 'close the top layer'], ['?', 'this sheet']]],
 ];
 
+if (window.lecternApp) KEYS[1][1].push(['Ctrl Alt Space', 'quick ask from any app, when switched on in Settings']);
+
 export function openShortcuts() {
   if (document.querySelector('dialog.shortcuts[open]')) return;
   const dlg = dialog('Shortcuts', { large: true },
