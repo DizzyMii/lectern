@@ -269,6 +269,26 @@ t('history routes work for localhost and are refused for the tailnet host', asyn
   assert.equal((await get(`/api/notebooks/test/history/other?path=a&sha=${sha}`)).status, 404);
 });
 
+t('a cancel that lands while the commits are being read saves nothing', async () => {
+  repoInNotebook();
+  const text = 'It is a class [[src/java/net/x/Foo.java#L3]].';
+  const lines = [
+    { type: 'system', subtype: 'init', session_id: 'sess-c', model: 'claude-haiku-5-5' },
+    { type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text }] } },
+    { type: 'result', subtype: 'success', is_error: false, result: text, session_id: 'sess-c', total_cost_usd: 0.01, usage: { input_tokens: 5, output_tokens: 7 } },
+  ];
+  const fx = path.join(env.root, 'cancel.jsonl');
+  fs.writeFileSync(fx, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  process.env.LECTERN_FAKE_ENGINE = '1';
+  process.env.LECTERN_FAKE_FIXTURE = fx;
+  const nb = store.getNotebook('test');
+  const before = store.listConversations(nb).length;
+  // the answer text arrives, then git is asked for HEAD and the diff: two spawns, well over the 5 ms before the cancel
+  const job = ask({ notebook: 'test', question: 'cancel me', engine: 'claude-code', onEvent: (e) => { if (e.type === 'delta') setTimeout(() => job.cancel(), 5); } });
+  await assert.rejects(job.done, /cancelled/);
+  assert.equal(store.listConversations(nb).length, before);
+});
+
 t('ask records commits on the saved turn and stamps its citations', async () => {
   const sha = repoInNotebook();
   const lines = [
