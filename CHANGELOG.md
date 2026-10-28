@@ -26,6 +26,11 @@
 - the 24 Studio recipes are MCP prompts, so Claude Code lists them as slash commands (`/mcp__lectern__diff-review`). The agent writes the sheet from `search` and `read_source`, and the new free `submit_artifact` tool checks it against the recipe's output contract and the files, saves it in the notebook and lists the citations that didn't verify. Studio shows those sheets as `via claude-code`
 - the composer says `Asked before: Question 044. 9 citations, all still verified.` when you type a question an earlier answer in any notebook already covers. Tab goes to its Open button and Esc dismisses it. Ctrl+K has a Recall scope over every notebook's past questions, answers, notes and sheets, and the new free `recall` MCP tool lets Claude Code look there before it spends money on `ask`. It is local word matching and the citations are checked again as it goes
 - sequence sheets have a Play button (or Space): a dot travels each arrow in turn while the bars and the step panel follow, and Follow code opens each step's source in the drawer as it lands
+- Settings has Connect Claude Code and Connect Cursor buttons in the desktop app. They register `lectern mcp` to run through the installed exe, so no Node or npm is needed. Connect Cursor shows the change first and keeps a `.bak`
+- closing the desktop window keeps Lectern in the tray now. It watches every notebook's code roots, and when a git pull or a save moves citations in saved answers or sheets it shows a notification (`Moved 3 citations in Question 047`) that opens that question. The tray menu lists the answers that drifted since you last opened them
+- new setting Quit when the window closes (`LECTERN_QUIT_ON_CLOSE`) for the old close-means-quit behaviour
+- quick ask in the desktop app. Switch on Quick ask hotkey in Settings and Ctrl+Alt+Space in any app opens a small window with your clipboard in the palette. Enter asks your last notebook on the fast preset, Alt+Enter opens the question in the main window. Off by default, and if another app owns the key you get one notification and nothing else changes
+- `POST /api/notebooks/:nb/ask` takes `fast: true` for the fast preset (Haiku, low effort, 4 rounds). A model you name still wins
 
 ## 1.0.0-rc.1 (2026-10-25)
 

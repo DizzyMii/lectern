@@ -1,6 +1,6 @@
 // Dialogs (DESIGN 11.15): add source, new notebook, confirm, settings, the shortcut sheet. Also window drag and drop.
 
-import { h, clear, icon, iconBtn, toast, fmtNum } from './dom.js';
+import { h, clear, icon, iconBtn, toast, fmtNum, copyText } from './dom.js';
 import { api, nbPath, stream } from './api.js';
 import { state, ctx, emit, HUES } from './state.js';
 import { glyph, kbd } from './layers.js';
@@ -192,6 +192,43 @@ export function openNewNotebook() {
   });
 }
 
+// Desktop app: Connect registers lectern mcp with an agent, through the installed exe. In a browser or from the
+// portable exe there is a command to copy instead.
+const MCP_CMD = 'npm install -g @dizzymii/lectern\nclaude mcp add lectern --scope user -- lectern mcp';
+
+async function agentsSection() {
+  const app = window.lecternApp?.agents;
+  let st = null;
+  try { st = app ? await app.status() : null; } catch {}
+  const sec = h('div', { class: 'dlg-field' }, h('span', { class: 'field-label' }, 'Agents'));
+  if (!st || st.reason) {
+    sec.append(
+      h('span', { class: 'help' }, st?.reason || 'To let Claude Code search your notebooks for free, run this in a terminal. Cursor is in the README.'),
+      h('pre', { class: 'progress-log' }, MCP_CMD),
+      h('div', null, h('button', { class: 'btn', type: 'button', onclick: () => copyText(MCP_CMD, 'Command copied') }, 'Copy')));
+    return sec;
+  }
+  const line = h('span', { class: 'help', 'aria-live': 'polite' }, st.claude ? '' : 'Claude Code was not found. Install it, or set Claude Code binary above and open Settings again.');
+  const button = (label, off, go) => h('button', { class: 'btn', type: 'button', disabled: off, onclick: async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true; line.textContent = '';
+    try { const r = await go(); if (r) { line.textContent = r.ok ? r.message : r.error; if (r.ok) toast(`Connected ${label}`, 'ok', 2200); } }
+    catch (err) { line.textContent = err.message; }
+    b.disabled = off;
+  } }, `Connect ${label}`);
+  const cursor = async () => {
+    const p = await app.preview('cursor');
+    if (!p.ok) return p;
+    const body = h('div', { class: 'dlg-field' },
+      h('p', { class: 't-read-sm' }, `This adds a lectern server under mcpServers in ${p.file}. ${p.others ? `The other ${p.others} server${p.others === 1 ? '' : 's'} in it stay as they are. ` : ''}${p.replaces ? `It replaces your current lectern entry (${p.replaces.command}). ` : ''}A copy of the old file is kept next to it as mcp.json.bak.`),
+      h('pre', { class: 'progress-log' }, JSON.stringify({ mcpServers: { lectern: p.entry } }, null, 2)));
+    return (await confirmDialog({ title: 'Add Lectern to Cursor', body, confirm: 'Write the file', destructive: false })) ? app.connect('cursor') : null;
+  };
+  sec.append(h('span', { class: 'help' }, 'Lets Claude Code or Cursor search your notebooks without spending anything. Both run Lectern through this app, so nothing else needs installing.'),
+    h('div', { class: 'row2' }, button('Claude Code', !st.claude, () => app.connect('claude-code')), button('Cursor', false, cursor)), line);
+  return sec;
+}
+
 // Each setting is an environment variable on the server. Only fields that changed are sent, and the
 // API key comes back as its last four characters, so an empty key field means leave it alone.
 export async function openSettings() {
@@ -213,9 +250,10 @@ export async function openSettings() {
     if (s.bool) return h('label', { class: 'dlg-field' }, h('span', { class: 'field-label' }, input, ' ', s.label), h('span', { class: 'help' }, s.help));
     return h('label', { class: 'dlg-field' }, h('span', { class: 'field-label' }, s.label), clear ? h('div', { class: 'row2' }, input, clear) : input, h('span', { class: 'help' }, s.help));
   });
+  const agents = data.editable ? await agentsSection() : null;
   const save = h('button', { class: 'btn primary', type: 'submit', disabled: !data.editable }, 'Save');
   const form = h('form', { method: 'dialog' },
-    h('div', { class: 'dlg-body' }, data.editable ? null : h('p', { class: 'help' }, 'Settings can only be changed on the machine Lectern runs on.'), rows),
+    h('div', { class: 'dlg-body' }, data.editable ? null : h('p', { class: 'help' }, 'Settings can only be changed on the machine Lectern runs on.'), rows, agents),
     h('div', { class: 'dlg-foot' }, h('button', { class: 'btn', type: 'button', onclick: () => dlg.close() }, 'Cancel'), save));
   const dlg = dialog('Settings', {}, form);
   form.addEventListener('submit', async (e) => {
@@ -247,6 +285,8 @@ const KEYS = [
   ['Asking', [['/', 'focus Ask'], ['N', 'new question'], ['Up', 'edit last question'], ['M', 'model, in an empty Ask'], ['Enter', 'ask'], ['Esc', 'stop the answer']]],
   ['Moving', [['Ctrl K', 'command palette'], ['H', 'history'], ['A', 'add a source'], ['P', 'Studio'], ['Ctrl 1 2 3', 'rail, page, margin'], ['Ctrl B', 'toggle rail'], ['Ctrl Shift F', 'search all sources'], ['Ctrl Shift L', 'theme'], ['Esc', 'close the top layer'], ['?', 'this sheet']]],
 ];
+
+if (window.lecternApp) KEYS[1][1].push(['Ctrl Alt Space', 'quick ask from any app, when switched on in Settings']);
 
 export function openShortcuts() {
   if (document.querySelector('dialog.shortcuts[open]')) return;

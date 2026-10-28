@@ -546,6 +546,8 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | `?` | shortcut sheet dialog | everywhere |
 | `Ctrl+Shift+L` | toggle theme | everywhere |
 | `Ctrl+Enter` | Generate (Studio form), Ask (composer, plain Enter also asks) | forms |
+| `Ctrl+Alt+Space` | quick-ask popup, from any app (desktop app, off until switched on in Settings) | Windows |
+| `Alt+Enter` | open this question in the main window | quick-ask popup |
 | Studio: type | filter cells | Studio |
 | Studio: two digits | jump to sheet number (`0` `9` = Sequence diagram) | Studio |
 | Studio: `Enter` | open the selected recipe's form | Studio |
@@ -556,6 +558,8 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | Flashcards: `Space` flip, `Right` got it, `Left` again, `S` shuffle | | quiz |
 | Plan: `X` on a task toggles its next acceptance item, `Shift+X` all | | plan |
 | Sequence: `Space` plays or stops, `Esc` stops it before anything else closes | | sequence |
+
+In the quick-ask popup Esc hides the window once no layer (drawer, dialog, menu, hover card) is open, and while an answer streams it stops the answer first.
 
 Shortcut hints are shown inline: in the palette next to each command, in tooltips, in the key strip, and on buttons as `kbd` caps.
 

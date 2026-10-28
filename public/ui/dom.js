@@ -116,9 +116,11 @@ export function toast(msg, kind = 'error', ms = 5200) {
   while (box.children.length > 4) box.firstChild.remove();
 }
 
+// the quick-ask popup (?quick=1) shares this origin's storage with the main window, so it reads it and never writes it
+export const quickMode = typeof location !== 'undefined' && new URLSearchParams(location.search).has('quick');
 export const store = {
   get(k, d) { try { const v = localStorage.getItem('nb.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('nb.' + k, JSON.stringify(v)); } catch {} },
+  set(k, v) { if (quickMode) return; try { localStorage.setItem('nb.' + k, JSON.stringify(v)); } catch {} },
 };
 
 export async function copyText(text, what = 'Copied') {
