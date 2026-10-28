@@ -187,6 +187,7 @@ test('claude -p runs without API keys in its env and with the read guard', async
     const e = claudeEnv();
     assert.equal(e.ANTHROPIC_API_KEY, undefined);
     assert.equal(e.ANTHROPIC_BASE_URL, undefined);
+    assert.equal(e.LECTERN_OWN_RUN, '1');
   } finally { delete process.env.ANTHROPIC_API_KEY; delete process.env.ANTHROPIC_BASE_URL; }
   const args = sandboxArgs(nb(), null);
   const settings = JSON.parse(args[args.indexOf('--settings') + 1]);

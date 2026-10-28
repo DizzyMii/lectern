@@ -123,6 +123,17 @@ Object.assign(ctx, {
     } catch (e) { toast(`Could not open the question: ${e.message}`); }
   },
 
+  // opens a recall hit, switching notebook first when it lives in another one
+  async openRecall(hit) {
+    const same = hit.notebook === state.nbId;
+    if (hit.kind === 'answer') return same ? ctx.openConversation(hit.id) : ctx.selectNotebook(hit.notebook, { conv: hit.id });
+    if (hit.kind === 'sheet') return same ? openArtifact(hit.id) : ctx.selectNotebook(hit.notebook, { artifact: hit.id });
+    if (!same) await ctx.selectNotebook(hit.notebook);
+    if (state.nbId !== hit.notebook) return;
+    const note = state.nb?.notes.find((n) => n.slug === hit.id);
+    if (note) openNote(note);
+  },
+
   newConversation() {
     if (state.streaming) { toast('Stop the current answer first.', 'info'); return; }
     state.conv = null;
@@ -163,7 +174,7 @@ const HINTS = {
   studio: ['Studio', [['a-z', 'type to filter'], ['00', 'jump'], ['Enter', 'open'], ['V', 'list view'], ['Esc', 'back']]],
   // artifact canvases, picked by renderer kind (copied from the boards)
   map: ['Map', [['F', 'find'], ['Left Right', 'walk nodes'], ['Enter', 'detail'], ['O', 'open at line'], ['+ -', 'zoom'], ['0', 'fit'], ['M', 'matrix'], ['P', 'studio'], ['Esc', 'back']]],
-  sequence: ['Sequence', [['Up Down', 'step'], ['Enter', 'open ref'], ['O', 'open at line'], ['[ ]', 'citation'], ['Ctrl B', 'sources'], ['P', 'studio'], ['Esc', 'back']]],
+  sequence: ['Sequence', [['Up Down', 'step'], ['Space', 'play'], ['Enter', 'open ref'], ['O', 'open at line'], ['[ ]', 'citation'], ['Ctrl B', 'sources'], ['P', 'studio'], ['Esc', 'back']]],
   plan: ['Plan', [['J', 'next task'], ['K', 'previous'], ['Enter', 'open detail'], ['X', 'check next item'], ['O', 'open file'], ['V', 'list view'], ['P', 'studio'], ['Esc', 'back']]],
   cards: ['Cards', [['Space', 'flip'], ['Right', 'got it'], ['Left', 'again'], ['S', 'shuffle'], ['1-9', 'citation'], ['O', 'open at line'], ['P', 'studio'], ['Esc', 'back']]],
   quiz: ['Quiz', [['Enter', 'check'], ['Right', 'next'], ['Left', 'previous'], ['P', 'studio'], ['Esc', 'back']]],

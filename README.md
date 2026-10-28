@@ -143,7 +143,29 @@ claude mcp add lectern --scope user -- lectern mcp
 }
 ```
 
-`list_notebooks`, `search`, `read_source`, `verify`, `list_artifacts` and `get_artifact` never call a model and come back in well under a second. `ask` and `generate` do and cost money. The web server doesn't need to be running. Arguments and protocol details are in [docs/mcp.md](docs/mcp.md).
+`list_notebooks`, `recall`, `search`, `read_source`, `verify`, `list_artifacts`, `get_artifact`, `check_notebook` and `submit_artifact` never call a model and come back in well under a second. `ask` and `generate` do and cost money. `recall` looks through the answers, notes and sheets you already saved, in every notebook, so Claude Code can check them before it pays for an `ask`. The 24 Studio recipes are also slash commands in Claude Code (`/mcp__lectern__diff-review`): the agent reads the notebook with the free tools and writes the sheet, and `submit_artifact` checks it and saves it, so it costs nothing. The web server doesn't need to be running. Arguments and protocol details are in [docs/mcp.md](docs/mcp.md).
+
+## Check Claude Code's citations
+
+`lectern hook stop` is a Claude Code Stop hook. When Claude Code finishes a turn it reads the final message, finds every `[[path#L12]]`, `[[path#L12-L20]]` and `[[path|"quote"]]` in it, and checks each one against the notebook whose folder or code root contains the working directory. If one fails, the finish is blocked with a reason like `[[src/Foo.java#L40]] is past the end of src/java/Foo.java (32 lines)`, and Claude fixes it before you read it. No model is called and no file text leaves your machine.
+
+```sh
+lectern hook install            # prints the settings for this repo
+lectern hook install --write    # merges them into .claude/settings.local.json
+```
+
+It goes in `settings.local.json` because the command has this machine's node and lectern paths in it. `--write` keeps everything else in the file and replaces an earlier Lectern entry, and it refuses a file it can't merge into. Claude only writes these citations when it is asked to, so add a line about them to your CLAUDE.md.
+
+- Only the final message is checked. Fenced code, inline code, wiki links like `[[Some note]]` and C++ attributes like `[[nodiscard]]` are skipped.
+- A citation fails when it comes back `unverified` or `missing`. `moved` passes, because the quote is still in the file.
+- A line-only citation fails only when the range is past the end of the file or the file isn't there. The hook can't know what a line says.
+- A block gives Claude one retry per stop. If the citations are still bad after that, you get a notice and the finish goes through.
+- Anything odd (bad input, no matching notebook, an error in Lectern) lets Claude stop. The hook never traps a session.
+- The repo has to sit inside a notebook folder or one of its code roots. Add it with `lectern add <notebook> <folder>`.
+- It needs the npm install of Lectern on this machine. The command points at `bin/lectern.mjs`, and the portable exe unpacks to a new temp folder every launch.
+- On Windows without Git Bash, Claude Code runs hooks through PowerShell and the quoted command doesn't parse. Change the entry to the exec form there: `command` is the node path and `args` is `["<path to bin/lectern.mjs>", "hook", "stop"]`.
+
+Lectern's own `claude -p` runs skip the hook.
 
 ## CLI
 
@@ -152,6 +174,7 @@ lectern serve [--port n] [--open]
 lectern ask <notebook> "<question>" [--json] [--fast | --deep] [--continue <conversationId>]
             [--model opus|sonnet|haiku] [--effort e] [--max-turns n] [--engine api|claude-code]
 lectern mcp
+lectern hook stop | install [--dir folder] [--write]
 lectern list [--json]
 lectern show <notebook> <conversationId|artifactId> [--json]
 lectern check <notebook> [files...] [--fail-on moved|unverified] [--json]

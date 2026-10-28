@@ -469,6 +469,7 @@ Springs are implemented with WAAPI keyframes generated once from the spring para
 
 | Moment | Motion |
 |---|---|
+| Sequence play | a packet dot moves along each arrow by `transform: translate`, 320ms linear, then rests 140ms (900ms after a step whose source opened in the drawer). Activation bars fade in and out by `--d-1`. Reduced motion: no packet, steps advance every 900ms |
 | Hover on row, button, chip | background and colour, `--d-1` `--ease-out` |
 | Button press | scale 0.97 on `:active`, `--d-1` |
 | Tooltip | appears after 500ms hover delay; once one tooltip has shown, the next shows with 0 delay for 800ms; fade + translateY(2px to 0), `--d-2` |
@@ -490,7 +491,7 @@ Springs are implemented with WAAPI keyframes generated once from the spring para
 | Reopen replay | only citations that changed since they were written stamp in again (gutter marks and, on sheets, chips); a moved label rolls from the cited line to the found line over `--d-3`; skipped in reduced motion |
 
 ### 8.3 What never animates
-- Keyboard navigation of any kind: J/K, arrows in lists, 1 to 9, `[` `]`, Tab, palette results, tree expand by key, Studio cell focus.
+- Keyboard navigation of any kind: J/K, arrows in lists, 1 to 9, `[` `]`, Tab, palette results, tree expand by key, Studio cell focus. Play on a sequence sheet is something the user starts on purpose, so the packet moves; J/K and the arrows on that sheet still jump with no animation.
 - Theme switch: add `<style>*{transition:none!important;animation:none!important}</style>`, flip `data-theme`, read `getComputedStyle(document.body).opacity`, remove the style.
 - Text layout: no reflow on chip resolve (chips reserve their width from the start, section 11.5).
 - Scroll: no smooth-scroll on programmatic jumps. Jumps are instant; the target line flashes (band-strong, 600ms fade out) so the eye finds it.
@@ -523,6 +524,7 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | `/` | focus composer (Ask) | everywhere except inputs |
 | `N` | new question (clears page, focuses composer) | page |
 | `Up` in empty composer | edit last question | composer |
+| `Tab`, `Enter` | open the earlier answer the composer offers (`Esc` dismisses it) | composer |
 | `J` / `K` | next / previous claim (claim cursor) | page |
 | `1` to `9` | open citation n (pins its hover card and scrolls its margin card into view) | page |
 | `[` / `]` | previous / next citation | page |
@@ -553,6 +555,7 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | Graph: `M` | matrix view toggle | graph (over 20 nodes) |
 | Flashcards: `Space` flip, `Right` got it, `Left` again, `S` shuffle | | quiz |
 | Plan: `X` on a task toggles its next acceptance item, `Shift+X` all | | plan |
+| Sequence: `Space` plays or stops, `Esc` stops it before anything else closes | | sequence |
 
 Shortcut hints are shown inline: in the palette next to each command, in tooltips, in the key strip, and on buttons as `kbd` caps.
 
@@ -602,6 +605,7 @@ States:
 - Typing: Ask enabled. `@` opens source scope menu inline at caret. `#` opens a "pin a file" menu (adds a path chip).
 - Asking (streaming): textarea locked showing the question in `--ink-3`, Ask becomes secondary `Stop` with `Esc` kbd. Composer stays where it is.
 - Selection-scoped: when the user selects text in the answer or source drawer and presses `/` or clicks **Ask about this**, a quote strip appears above row 2: 3px left border in the selection's layer `mid`, quote in `quote` style, truncated to 2 lines, path:line in `mono-sm`, and an `x`.
+- Recall: one line under the textarea when an earlier answer in any notebook reads like the question being typed, shown only for 3 or more meaningful words and a close match: `Asked before: Question 044. 9 citations, all still verified.` (with ` in NeoForge 1.21.1` when it lives in another notebook). Status glyph in the status colour, an `Open` button with `Tab`, and a dismiss `x`. Words come from the fresh citation check and say no more than the receipt: verified, moved, unverified. It never blocks typing or Ask, and `Esc` dismisses it.
 - Error: a line under the frame in `ui-sm` `--accent`: `The model did not answer. Retry  R` with a secondary Retry button.
 - Disabled (no sources yet): placeholder `Add a source first`, Ask disabled, link `Add a source` in row 3.
 
@@ -733,7 +737,7 @@ Anatomy:
 - First row is always `Ask "<query>"` with `Enter` when the query is 3+ characters.
 - Footer 28px, 1px `--rule` top: `Up Down to move · Enter to open · Tab to scope · Ctrl+Enter ask in new question` in `mono-sm` `--ink-3`.
 
-Behaviour: fuzzy match over titles plus aliases (shown as `Ask (survey)` when an alias matched); default ranking before typing: recent questions, then commands by frequency, rare commands scored 0 so they appear only when matched; context boost (on an artifact, its actions rank first); up to 3,000 items without virtualisation; nested pages via a stack (a recipe opens its input form page inside the palette; Backspace on empty input or Esc pops); `loop` arrow navigation; numbers `Ctrl+1` to `Ctrl+9` pick the nth row; Tab cycles a scope filter chip (All, Files, Studio, Questions).
+Behaviour: fuzzy match over titles plus aliases (shown as `Ask (survey)` when an alias matched); default ranking before typing: recent questions, then commands by frequency, rare commands scored 0 so they appear only when matched; context boost (on an artifact, its actions rank first); up to 3,000 items without virtualisation; nested pages via a stack (a recipe opens its input form page inside the palette; Backspace on empty input or Esc pops); `loop` arrow navigation; numbers `Ctrl+1` to `Ctrl+9` pick the nth row; Tab cycles a scope filter chip (All, Files, Studio, Questions, Recall). Recall searches the past questions, answers, notes and sheets of every notebook, grouped under `ANSWERS`, `NOTES` and `SHEETS` kickers (Recall scope only); a row in another notebook switches to it first.
 States: empty query (recent questions and top commands); typing; no results (`No match. Enter asks "<query>" across all sources.`); file index still warming (`Indexing files · 412 of 1,588` row at the top of FILES with a segment bar); recipe page (form fields, Generate `Ctrl+Enter`).
 
 ### 11.15 Dialogs
@@ -826,7 +830,7 @@ Every artifact opens in the page as a full canvas (`P` back to Studio, `Esc` bac
 - Double rule at top (`--ink`).
 - Kicker row: `SHEET 06 · VISUAL · CODE MAP` in `kicker` `--accent`.
 - Title in `cover-xl` (56px Archivo wdth 125 weight 800 upper), with riso overprint (6.3) settling once on first open after printing. Long titles step down to 40px then 28px to stay on 2 lines.
-- Meta line in `mono-sm` `--ink-2`: `neoforge · 48 nodes · Opus · $0.41 · printed 14:20`.
+- Meta line in `mono-sm` `--ink-2`: `neoforge · 48 nodes · Opus · $0.41 · printed 14:20`. A sheet an outside agent submitted over MCP shows `via claude-code` (the client's name) where the model goes, and has no cost.
 - Receipt mini (`31 verified · 1 moved · 0 unverified`).
 - Actions row (right aligned, quiet buttons): `Regenerate`, `Export`, `Copy`, `...` (Delete). Then "Next step" chips (secondary buttons with an arrow): PRD -> `Tech spec`, Tech spec -> `Build plan`, `Test plan`, any doc -> `CLAUDE.md`.
 - Tabs below: `Rendered`, `Source` (raw JSON or markdown), `Citations 32`.
@@ -867,6 +871,7 @@ Citations inside artifacts render with the same chip, hover card, status and dra
 - Activation bars: 8px wide `--paper-3` boxes on a lifeline between a request and its return.
 - Keyboard: Up/Down steps through steps (highlight row with band of the ref's layer, or `--paper-3`), Enter opens ref, `O` same.
 - Empty: `No steps.` Huge: 60 steps max by contract; over 30, a step minimap appears on the right edge.
+- Play: a `Play` button and `Space` send a 9px packet (`--ink` with a `--paper` ring) along each arrow in turn, the row, list and step panel advancing with it; bars open on the callee as the call lands and close as the reply leaves. Next to it, `Follow code` (shown when a step has a ref, remembered per viewer) opens each step's ref in the drawer as the packet lands. Play never starts on open. J/K and the arrows stay instant and stop a run. `Esc` stops a run first, a second `Esc` closes the drawer.
 - Export: SVG and Mermaid.
 
 ### 12.4 Plan
@@ -1034,6 +1039,7 @@ Body: `background: var(--paper); color: var(--ink); font: 450 13px/20px var(--fo
 - Per answer: `number` (047), trail steps with `tool`, `args`, `result`, `ms`, and an `uncited` sentence count.
 - Per citation after a re-check: `status0`, `line0`, `checkedAt0` (as written) and `drift` (dated changes), plus `citeCheck.checkedAt` and `checkedAt0` on the turn or sheet. The reopen replay (8.2, 11.7, 11.9) reads these. A sheet's written date is `generatedAt`; older sheets fall back to `updatedAt`.
 - Per artifact: `sheet` number (stable, per notebook, assigned at creation), group, plus the existing artifact fields.
+- Per recall hit (`GET /api/recall`): `kind` (`answer` | `note` | `sheet`), `notebook`, `notebookTitle`, `id`, `turn` (answers), `num` (the question number, answers), `title`, `at`, `score`, and `cites` (`total`, `verified`, `moved`, `unverified`, `missing`, checked again when asked; `null` for notes).
 
 ### 17.3 Files
 - `public/styles.css`: tokens, base, components 11.x.

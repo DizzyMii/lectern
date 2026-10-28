@@ -12,6 +12,8 @@ usage:
   lectern ask <notebook> "<question>" [--json] [--fast | --deep] [--continue <conversationId>]
               [--model opus|sonnet|haiku] [--effort e] [--max-turns n] [--engine api|claude-code]
   lectern mcp                                MCP server over stdio
+  lectern hook stop | install [--dir folder] [--write]
+              Claude Code hook: blocks a finish while a [[citation]] in its last message fails
   lectern list [--json]                      registered notebooks
   lectern show <notebook> <conversationId|artifactId> [--json]
   lectern check <notebook> [files...] [--fail-on moved|unverified] [--json]
@@ -50,6 +52,7 @@ async function main(argv) {
     await import('../lib/mcp.mjs');
     return null;
   }
+  if (cmd === 'hook') return (await import('../lib/hook.mjs')).hookCmd(argv.slice(1));
 
   const cli = await import('../lib/cli.mjs');
   const { args, opts } = cli.parse(argv.slice(1));
