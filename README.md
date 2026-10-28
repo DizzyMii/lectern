@@ -340,7 +340,6 @@ lectern check <notebook> [files...] [--fail-on moved|unverified] [--json]
 lectern new <id> [--title t] [--dir folder]
 lectern add <notebook> <url|path|git-url> [--name n] [--branch b] [--subdir d]
 lectern example [name] [--dir folder] [--code]
-lectern migrate <old app folder>
 lectern --version | --help
 ```
 
@@ -450,14 +449,14 @@ Per-user state goes in the Lectern home folder: the notebook list (`registry.jso
 2. `"home"` in `~/.lectern.json`, like `{"home": "C:/lectern-home"}`
 3. `~/.lectern`
 
-The config file is handy when your home drive is full. If you ran the old spike app, `lectern migrate <old app folder>` copies its registry and base sessions over.
+The config file is handy when your home drive is full.
 
 </details>
 
 ## Limits and rough edges
 
 - Every number above comes from one NeoForge notebook. I haven't measured anything else yet.
-- I've only run it on Windows. macOS and Linux should work for the npm route, nobody has checked, and the desktop build is Windows only for now.
+- I use it daily on Windows. CI runs the tests on Ubuntu, macOS and Windows (Node 20 and 22), and the desktop build is Windows only for now.
 - Files are picked by extension. The list leans toward what I use (Java, Kotlin, Gradle, JSON, JS, TS, Python, shaders, markdown) and also covers Go, Rust, C and C++, C#, Ruby, PHP, Swift, Lua, SQL, Vue and Svelte. Anything else gets skipped.
 - Files over 2 MB count as missing for search, reads and citations.
 - On the API engine a follow-up sends the earlier turns back whole, files the model read included, and most of that comes from cache. If you add a source or a code root mid-conversation it has to fall back to the answers as plain text, so the model forgets what it read and that follow-up re-pays the cache.
@@ -465,8 +464,14 @@ The config file is handy when your home drive is full. If you ran the old spike 
 - The tray watcher only watches code roots, pinned docs are left alone. It runs while the app is open or in the tray. A pull made with Lectern closed shows up as the drift badge when you open the answer, or in the first notification after the next change in that root, whichever comes first.
 - This is a release candidate, things will still move before 1.0.0.
 
+## Design
+
+The colours, type, spacing and the benchmark mark are written down in [docs/design/DESIGN.md](docs/design/DESIGN.md), with the screens in [SCREENS.md](docs/design/SCREENS.md).
+
 ## License
 
 [Apache 2.0](LICENSE). Use it, change it, ship it, and keep the [NOTICE](NOTICE) file with it. The full text in LICENSE is what counts.
 
 Copyright 2026 Kade Heglin.
+
+Built by Kade Heglin. I'm open to work on AI developer tooling, you can find me at [github.com/DizzyMii](https://github.com/DizzyMii).

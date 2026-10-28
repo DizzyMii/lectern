@@ -22,7 +22,6 @@ usage:
   lectern add <notebook> <url|path|git-url> [--name n] [--branch b] [--subdir d]
   lectern example [name] [--dir folder] [--code]
                                              set up a ready-made notebook (no name lists them)
-  lectern migrate <old app folder>           copy an old data/registry.json into the home folder
   lectern --version | --help
 
 --fast is haiku at low effort with at most 4 rounds; --deep is opus at high effort with at most 12.
