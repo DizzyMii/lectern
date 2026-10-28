@@ -532,6 +532,8 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | `W` | ask "What could make this wrong?" | page |
 | `H` | toggle claim bands (underline-only mode) | page |
 | `L` | toggle the trail log | page |
+| `E` | show the cited file as it was when the answer was written (or the saved lines when there is no usable commit) | drawer, on a moved or unverified citation |
+| `D` | list the commits since that touched the cited lines | drawer, on a moved or unverified citation |
 | `P` | Studio | everywhere |
 | `Ctrl+1` / `2` / `3` | focus rail / page / margin | everywhere |
 | `Ctrl+B` | toggle rail | everywhere |
@@ -744,7 +746,7 @@ Slides from the right over the margin. Width 640. Opens from: citation `O`, hove
 
 Anatomy:
 - Header 48px: hatch swatch, source name `ui-strong`, path `mono-sm` `--ink-3` with copy button, tabs `File` / `Outline`, icon buttons `Open in editor` (vscode:// link), `Close  Esc`.
-- Status strip (only when opened from a citation), 32px, ground status wash: glyph, `Citation 2 · verified · line 31` or `Citation 3 · moved · cited L92, found at L96`. An unverified code citation reads `lines rewritten since the answer`.
+- Status strip (only when opened from a citation), 32px, ground status wash: glyph, `Citation 2 · verified · line 31` or `Citation 3 · moved · cited L92, found at L96`. An unverified code citation reads `lines rewritten since the answer`. When the citation is moved or unverified the strip also holds two quiet small buttons with `kbd` caps, `Show as it was  E` (or `Compare saved lines  E` when the file had uncommitted edits, the root is outside git or the answer has no commit but has saved lines) and `What changed it  D` (only with a commit). `E` swaps the body for two columns in one scroller, the file at the commit (`As it was · 9f3c1d2 · 28 Oct`) beside `Today`, rows in the code type with the cited range banded on both sides and the shorter side padded down so the two bands line up; saved lines show only the saved range against today's lines around it. `D` puts a panel between the strip and the body, `Commits since 9f3c1d2 that touched L96-105, as of the last commit.`, one 24px row per commit (short hash, subject, `date · author`; click copies the hash), at most 20. Errors, such as a remote viewer or a commit that is gone, are one line in the panel. Both buttons are toggles with `aria-pressed`.
 - Body: code on `--well`, `code` type, line numbers in `--ink-3` 48px column, the cited range on layer `band-strong` with a 2px layer `mid` bar at the left of the line numbers; for moved, the original cited line has a dashed `--moved-line` outline and a label `cited here` while the found line has the band and `found here`. Markdown sources render as reading prose (`read`, 60ch) with the cited passage banded.
 - Selection: selecting lines shows a floating mini toolbar (`Ask about this  /`, `Copy ref`) above the selection.
 - Jump: opens scrolled so the cited line sits at 35% of the drawer height; the range flashes (band-strong fading to band over 600ms; off in reduced motion).
@@ -1020,7 +1022,8 @@ Body: `background: var(--paper); color: var(--ink); font: 450 13px/20px var(--fo
 
 ### 17.2 Data the UI needs from the server
 - Per source: `layer`, `kind` (`docs` | `primer` | `root` | `repo`), `version` (for roots), `branch` and `dirty` count (for repos), file count, index time, index progress.
-- Per citation: `n`, `path`, `line`, `foundLine`, `status` (`pending` | `verified` | `moved` | `unverified`), `quote`, `span` (character offsets of the claim in the answer), `layer`, `saw` (for code: `from`, `to`, `text` and `read`, the saved lines and which of them the trail read; the word diff is worked out in the browser from `saw.text` and the file, nothing is stored for it).
+- History, local only. Per answer and per artifact: `commits`, `{ [root]: { sha, dirty: [paths] } }` for the roots whose files it read or cited. `GET /api/notebooks/:nb/history/was?path&sha` returns the file at that commit (2 MB cap, `binary`, `truncated`), and `.../history/changes?path&sha&line&endLine` returns the commits since that touched the lines (or the path, with `by: 'path'` and a `change` letter per commit). `sha` is a full lowercase hex hash and nothing else.
+- Per citation: `n`, `path`, `line`, `foundLine`, `status` (`pending` | `verified` | `moved` | `unverified`), `quote`, `span` (character offsets of the claim in the answer), `layer`, `saw` (for code: `from`, `to`, `text` and `read`, the saved lines and which of them the trail read; the word diff is worked out in the browser from `saw.text` and the file, nothing is stored for it), `sha` (the git HEAD of its code root when the answer was written) and `dirty` (true when its file differed from that commit then).
 - Per answer: `number` (047), trail steps with `tool`, `args`, `result`, `ms`, and an `uncited` sentence count.
 - Per artifact: `sheet` number (stable, per notebook, assigned at creation), group, plus the existing artifact fields.
 

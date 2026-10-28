@@ -266,3 +266,36 @@ test('50 line citations in one 2 MB file re-check in under 250 ms', (t) => {
   assert.ok(ms < 250, `took ${ms.toFixed(1)} ms`);
   t.diagnostic(`50 line citations: ${ms.toFixed(1)} ms`);
 });
+
+// ---------- commits ----------
+
+test('re-checks keep sha and dirty on a citation', async () => {
+  w(bazFile, BAZ);
+  const sha = 'b'.repeat(40);
+  const stamped = turnOf('Handlers register here [[code/net/x/Baz.java#L4]].');
+  Object.assign(stamped.citations[0], { sha, dirty: true });
+  stamped.commits = { code: { sha, dirty: ['net/x/Baz.java'] } };
+  const c = convOf('k1', [stamped]);
+  assert.equal((await c.get()).turns[0].citations[0].sha, sha);
+  w(bazFile, `// one\n// two\n${BAZ}`);
+  const moved = (await c.get()).turns[0];
+  assert.equal(moved.citations[0].status, 'moved');
+  assert.equal(moved.citations[0].sha, sha);
+  assert.equal(moved.citations[0].dirty, true);
+  assert.deepEqual(moved.commits, { code: { sha, dirty: ['net/x/Baz.java'] } });
+  const stored = JSON.parse(c.raw()).turns[0];
+  assert.equal(stored.citations[0].sha, sha);
+  assert.equal(stored.citations[0].dirty, true);
+  w(bazFile, BAZ);
+});
+
+test('an old turn with no commits loads and has no sha anywhere', async () => {
+  w(bazFile, BAZ);
+  const c = convOf('k2', [turnOf('Handlers register here [[code/net/x/Baz.java#L4]].')]);
+  const turn = (await c.get()).turns[0];
+  assert.equal(turn.citations[0].status, 'verified');
+  assert.ok(!('commits' in turn));
+  assert.ok(!('sha' in turn.citations[0]));
+  assert.ok(!('dirty' in turn.citations[0]));
+  assert.ok(!c.raw().includes('"sha"'));
+});

@@ -5,7 +5,7 @@ import { api, nbPath, initApi, mockMode } from './ui/api.js';
 import { state, ctx, on, emit, normNotebookSummary, normNotebook, normConversation, MODELS } from './ui/state.js';
 import { initRail, focusHistory } from './ui/rail.js';
 import { initChat, renderThread, focusComposer, copyAnswer, stopStreaming } from './ui/chat.js';
-import { initViewer, openFile, openSearch, openNote, openSource, closeViewer, viewerOpen, showViewer, viewerHasTabs, stepDrawerCitation } from './ui/viewer.js';
+import { initViewer, openFile, openSearch, openNote, openSource, closeViewer, viewerOpen, showViewer, viewerHasTabs, stepDrawerCitation, drawerHistory } from './ui/viewer.js';
 import { initCites, openCitation, moveCursor, pinCitation, stepCitation, openCursor, pinCursor, challenge, clearCursor, cursorClaim } from './ui/cites.js';
 import { openPalette, closePalette, paletteOpen } from './ui/palette.js';
 import { openAddSource, openNewNotebook, initDrop, openShortcuts, openSettings } from './ui/dialogs.js';
@@ -144,7 +144,7 @@ Object.assign(ctx, {
 const HINTS = {
   page: ['Page', [['J', 'next claim'], ['K', 'previous'], ['1-9', 'citation'], ['O', 'open at line'], ['C', 'copy'], ['/', 'ask'], ['P', 'studio']]],
   composer: ['Ask', [['Enter', 'ask'], ['Shift Enter', 'new line'], ['Up', 'edit last question'], ['M', 'model'], ['/', 'new question'], ['Esc', 'back to page']]],
-  drawer: ['Drawer', [['[ ]', 'citation'], ['/', 'ask about selection'], ['Esc', 'back to answer']]],
+  drawer: ['Drawer', [['[ ]', 'citation'], ['E', 'as it was'], ['D', 'what changed it'], ['/', 'ask about selection'], ['Esc', 'back to answer']]],
   palette: ['Palette', [['Up Down', 'move'], ['Enter', 'open'], ['Ctrl 1-9', 'pick row'], ['Tab', 'scope'], ['Esc', 'close']]],
   rail: ['Rail', [['Up Down', 'move'], ['Enter', 'open'], ['H', 'history'], ['A', 'add source'], ['Ctrl 2', 'page']]],
   setup: ['Setup', [['Tab', 'next field'], ['Enter', 'add source'], ['Ctrl Enter', 'start asking'], ['Ctrl K', 'palette'], ['?', 'shortcuts']]],
@@ -249,6 +249,8 @@ function globalKeys(e) {
     case 'n': case 'N': return act(() => ctx.newConversation());
     case 'p': case 'P': return act(() => ctx.toggleStudio());
     case 'a': case 'A': return act(() => openAddSource());
+    case 'e': case 'E': if (drawerHistory('was')) e.preventDefault(); return;
+    case 'd': case 'D': if (drawerHistory('changes')) e.preventDefault(); return;
     case '[': return act(() => { if (!((inDrawer || viewerOpen()) && stepDrawerCitation(-1))) stepCitation(-1); });
     case ']': return act(() => { if (!((inDrawer || viewerOpen()) && stepDrawerCitation(1))) stepCitation(1); });
     case 'Enter': if (cursorClaim() && !e.target.closest('button, a')) return act(() => pinCursor()); break;
