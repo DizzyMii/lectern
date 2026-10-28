@@ -315,15 +315,15 @@ First row selected (paper-3), matched letters in ui-strong. Footer `Up Down to m
 - Title `cover-md`: `A BLANK SHEET.`
 - Line (`read`, ink-2): `Every good map starts as one. Add the docs you trust and the code you build against. Lectern answers from them and checks every quote it cites.`
 - Step 1 `Name the notebook`: text field with value `NeoForge 1.21.1 modding`.
-- Step 2 `Add sources`: one field `Paste a folder, a git URL, or a docs URL` with `Add  Enter`; below it, `Found on this machine` list (rows with a suggested layer swatch and kind): `C:/projects/my-app` `git repo · main` (moor, suggested Your repo, `Add`) · `C:/projects/neoforge-src` `21.1.77` (spruce, Code root, `Add`) · `C:/projects/geckolib` `4.7.1` (sand, Code root, `Add`). Then `Pin docs`: `docs.neoforged.net/docs/1.21.1` (water, `Add`).
+- Step 2 `Add sources`: one field `Paste a folder, a git URL, or a docs URL` with `Add  Enter`; below it, `Found on this machine` list (rows with a suggested layer swatch and kind): `C:/projects/wtg` `git repo · main` (moor, suggested Your repo, `Add`) · `C:/projects/neoforge-src` `21.1.77` (spruce, Code root, `Add`) · `C:/projects/geckolib` `4.7.1` (sand, Code root, `Add`). Then `Pin docs`: `docs.neoforged.net/docs/1.21.1` (water, `Add`).
 - Step 3 `What a mark means` (the one-time mark drawing, right column of the sheet): four rows with large 24px glyphs: verified mark `verified · the quote was found again at that file and line` · moved mark + `L96` `moved · the same text was found at another line, and we say which` · query ring `unverified · the quote was not found. It is marked in red.` · empty box `no mark · the sentence has no citation`.
 - Footer of the sheet: primary `Start asking` (disabled until one source is added) and quiet `Connect an agent: lectern mcp` in mono.
 
 **States to show.**
 - A. Empty (above, nothing added).
-- B. Adding: `C:/projects/my-app` and `C:/projects/neoforge-src` added; rail now shows `Well Thats Grading` (moor) with `indexing 88/212` segment bar and `neoforge` with `indexing 412/956`; sheet rows show `Added` with verified glyph; `Start asking` enabled with note `You can ask while indexing. Answers will say what they missed.`
+- B. Adding: `C:/projects/wtg` and `C:/projects/neoforge-src` added; rail now shows `Well Thats Grading` (moor) with `indexing 88/212` segment bar and `neoforge` with `indexing 412/956`; sheet rows show `Added` with verified glyph; `Start asking` enabled with note `You can ask while indexing. Answers will say what they missed.`
 - C. Ready (first-question state on Main): page kicker `QUESTION 001`, headline in ink-3 italic `Nothing asked yet.`, three suggested questions as link rows: `How do I register a client-to-server packet?` · `How do attachments survive player death?` · `How do I add a GeckoLib armor renderer?`; composer focused.
-- D. Error: a pasted path that does not exist, inline under the field `Folder not found: C:/projects/my-ap` in accent with the query glyph.
+- D. Error: a pasted path that does not exist, inline under the field `Folder not found: C:/projects/wgt` in accent with the query glyph.
 
 The mark drawing in step 3 is the only place the marks animate as a sequence (each draws in 180ms, 120ms apart, once; off with reduced motion).
 
