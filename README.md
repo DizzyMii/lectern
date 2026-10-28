@@ -154,6 +154,7 @@ lectern ask <notebook> "<question>" [--json] [--fast | --deep] [--continue <conv
 lectern mcp
 lectern list [--json]
 lectern show <notebook> <conversationId|artifactId> [--json]
+lectern check <notebook> [files...] [--fail-on moved|unverified] [--json]
 lectern new <id> [--title t] [--dir folder]
 lectern add <notebook> <url|path|git-url> [--name n] [--branch b] [--subdir d]
 lectern example [name] [--dir folder] [--code]
@@ -164,6 +165,9 @@ lectern --version | --help
 - `--fast` is Haiku at low effort with at most 4 rounds, `--deep` is Opus at high effort with at most 12. Without either it's Opus with at most 12. A round is one model request, every batch of tool calls costs another, and hitting the cap gives an error that says so.
 - `add` works out what you gave it. A git URL (or a plain github, gitlab or codeberg link) gets cloned as a code root, any other http URL is fetched as a doc, a folder becomes a code root and a file gets copied in.
 - `show` re-checks the saved citations against the files as they are now.
+- `check` does that for the whole notebook: every conversation, every Studio sheet and every note, plus the Lectern footnotes (`[^1]: path:12-14 "quote" (verified)`) in any markdown files you name. It lists what got worse since it was written, grouped by the cited file, and never calls a model or writes to disk. A citation that was already moved, unverified or missing when it was saved is counted separately and doesn't fail anything.
+
+  `--fail-on moved` exits 1 when any citation got worse, `--fail-on unverified` only when one is now unverified or missing. Without the flag it always exits 0. A bad flag value, an unknown notebook or a file that isn't there exits 2. For CI, register the committed notebook folder (`lectern new ci --dir ./notebook` leaves an existing notebook.json alone) and run `lectern check ci --fail-on unverified`. Commit notebook.json, conversations/ and artifacts/, and give code roots as relative paths in notebook.json. As a pre-commit hook it is the same one line. A Lectern-written CLAUDE.md has no footnotes in it, so check reports the sheet that wrote it, and names the file the sheet was written to. One limit: footnotes in notes and in files you name carry no copy of the cited lines, so a code line footnote only goes bad when the file shrinks past them or disappears. Quote footnotes drift properly.
 - `example` with no name lists the ready-made notebooks. `neoforge` is the big one, add `--code` to also pull the NeoForge and GeckoLib sources.
 
 The web app's HTTP API is internal and can change between versions, script against the CLI or MCP.

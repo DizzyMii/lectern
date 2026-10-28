@@ -163,6 +163,7 @@ export function normTurn(t) {
     kind: t.kind || t.generator || null,
     answer: t.answer ?? '',
     citations: t.citations || [],
+    citeCheck: t.citeCheck || null,
     toolCalls: t.toolCalls || t.tools || [],
     usage: t.usage || null,
     model: t.model || '',

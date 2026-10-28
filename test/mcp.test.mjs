@@ -83,7 +83,7 @@ test('ping, unknown methods, parse errors and invalid requests follow JSON-RPC',
 
 test('tools/list gives every tool a strict input schema', async () => {
   const { tools } = (await srv.request('tools/list', {})).result;
-  assert.deepEqual(tools.map((t) => t.name).sort(), ['ask', 'generate', 'get_artifact', 'list_artifacts', 'list_notebooks', 'read_source', 'search', 'verify']);
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['ask', 'check_notebook', 'generate', 'get_artifact', 'list_artifacts', 'list_notebooks', 'read_source', 'search', 'verify']);
   for (const t of tools) {
     assert.equal(t.inputSchema.type, 'object', t.name);
     assert.equal(t.inputSchema.additionalProperties, false, t.name);

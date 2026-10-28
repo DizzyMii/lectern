@@ -8,9 +8,9 @@ import { ctx, state, on } from './state.js';
 import { windows, ghostOf, ribbonPath, hairPath } from './ribbon.js';
 import { citeWhy, readNote, wordDiff, when } from './witness.js';
 import { sourceFor, layerAttrs, swatch, glyph, statusOf, STATUS_WORD, shortPath, midPath, kbd } from './layers.js';
+import { RANK, changedCite, compare, series, shown, dayWord } from './status.js';
 
 const BLOCKS = 'p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote, dd, dt';
-const RANK = { unverified: 4, moved: 3, pending: 2, verified: 1 };
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduce';
 
 export function citeFor(chip) {
@@ -200,7 +200,8 @@ export function receipt(turn, k, { checking = false } = {}) {
   const col = (n, st, word) => h('div', { class: `rc-col st-${st}${n ? '' : ' zero'}${checking ? ' checking' : ''}`, role: 'button', tabindex: 0, 'aria-label': `${n} ${word}`, dataset: { st } },
     h('span', { class: 'rc-num t-numeral-xl' }, checking ? '‒' : String(n), st !== 'uncited' && !checking ? glyph(st, 'glyph sm') : null),
     h('span', { class: 'rc-word' }, word));
-  const t = turn.startedAt ? new Date(new Date(turn.startedAt).getTime() + (turn.seconds || 0) * 1000) : null;
+  const t = turn.citeCheck?.checkedAt ? new Date(turn.citeCheck.checkedAt) : turn.startedAt ? new Date(new Date(turn.startedAt).getTime() + (turn.seconds || 0) * 1000) : null;
+  const d = !checking && k.total ? compare(turn.citations, { at0: turn.citeCheck?.checkedAt0 }) : null;
   let caption;
   if (checking) caption = k.total ? `Checking ${k.total} citation${k.total === 1 ? '' : 's'}...` : 'Checking citations...';
   else if (!k.total) caption = 'This answer has no citations. Treat it as a sketch.';
@@ -213,6 +214,7 @@ export function receipt(turn, k, { checking = false } = {}) {
   h('div', { class: 'double-rule' }),
   h('div', { class: 'rc-head' }, h('span', { class: 't-kicker' }, 'Checked'), fmtTime(t) && !checking ? h('span', { class: 't-mono-sm' }, 're-read ' + fmtTime(t)) : null),
   h('div', { class: `rc-cols${Math.max(k.verified, k.moved, k.unverified, k.uncited) >= 100 ? ' wide' : ''}` }, col(k.verified, 'verified', 'verified'), col(k.moved, 'moved', 'moved'), col(k.unverified, 'unverified', 'unverified'), col(k.uncited, 'uncited', 'uncited')),
+  d ? h('p', { class: 'rc-drift t-mono-sm' }, d.then, h('span', { class: 'rc-now' }, d.now)) : null,
   h('p', { class: `rc-caption${!checking && !k.total ? ' warn' : ''}` }, caption));
   return el;
 }
@@ -222,6 +224,12 @@ export function miniReceipt(k) {
   const item = (st, n) => h('span', { class: `mr st-${st}${n ? '' : ' zero'}` }, glyph(st, 'glyph sm'), String(n));
   return [h('span', { class: 'mini-receipt', role: 'img', 'aria-label': `${k.verified} verified, ${k.moved} moved, ${k.unverified} unverified, ${k.uncited} uncited` },
     item('verified', k.verified), item('moved', k.moved), item('unverified', k.unverified), h('span', { class: 'mr-unc' }, `· ${k.uncited} uncited`))];
+}
+
+// reopened sheet: chips whose citation changed since it was printed stamp in again
+export function stampChanged(host) {
+  if (reduced()) return;
+  for (const chip of host.querySelectorAll('.chip:not(.static)[data-n]')) if (changedCite(host.cites?.get(chip.dataset.n))) chip.classList.add('stamp');
 }
 
 // numerals count up once over 300ms when the last check lands
@@ -277,8 +285,13 @@ async function fillLine(item, relayout) {
 
 // ---------- decorate a finished (or streaming) turn ----------
 
+// the label on a moved mark; on a replay it rolls from the line it was cited at to the line it is at now
+const movedLabel = (c, roll) => (roll && c.line0 != null && c.line0 !== c.line
+  ? h('span', { class: 'gm-line roll' }, h('span', { class: 'gm-roll' }, h('span', null, 'L' + c.line0), h('span', null, 'L' + c.line)))
+  : h('span', { class: 'gm-line' }, 'L' + c.line));
+
 // turnEl holds .gutter, .answer and .margin .cards. Returns the counts for the receipt.
-export function decorate(turnEl, turn, { live = false } = {}) {
+export function decorate(turnEl, turn, { live = false, replay = false } = {}) {
   const answer = turnEl.querySelector('.answer');
   if (proofTurn === turnEl) proofOff();
   const claims = buildClaims(answer);
@@ -289,9 +302,10 @@ export function decorate(turnEl, turn, { live = false } = {}) {
 
   const gutter = clear(turnEl.querySelector('.gutter'));
   for (const cl of claims) {
-    const mark = h('span', { class: `gmark st-${cl.status}${live && !reduced() ? ' stamp' : ''}`, 'aria-hidden': 'true', dataset: { claim: cl.id } }, glyph(cl.status));
+    const stamp = !reduced() && (live || (replay && cl.cites.some(changedCite)));
+    const mark = h('span', { class: `gmark st-${cl.status}${stamp ? ' stamp' : ''}`, 'aria-hidden': 'true', dataset: { claim: cl.id } }, glyph(cl.status));
     const mv = cl.cites.find((c) => statusOf(c) === 'moved');
-    if (mv) mark.append(h('span', { class: 'gm-line' }, 'L' + mv.line));
+    if (mv) mark.append(movedLabel(mv, replay && !reduced() && changedCite(mv)));
     cl.mark = mark;
     gutter.append(mark);
     // narrow pages drop the gutter, so the mark also sits inline before the claim
@@ -442,6 +456,8 @@ export function showCard(chip, { pinned: pin = false } = {}) {
     witnessNotes(c),
     acts);
   if (c.quote) excerpt.append(h('blockquote', { class: 'hc-quote' }, '“', c.quote.replace(/`/g, ''), '”'));
+  const hist = historyRow(c);
+  if (hist) acts.before(hist);
   card.addEventListener('pointerenter', () => clearTimeout(hideT));
   card.addEventListener('pointerleave', () => hideCard());
   cardChip = chip;
@@ -520,6 +536,16 @@ function compareBlock(c, f) {
     side('old', `Saved ${span(saw.from, saw.to)}${date ? ` · ${when(date)}` : ''}`, diff.a, saw.from),
     gone ? h('div', { class: 'hc-cmp-side new' }, h('div', { class: 't-kicker' }, `Now ${span(saw.from, saw.to)}`), h('p', { class: 't-ui-sm' }, 'These lines are past the end of the file.'))
       : side('new', `Now ${span(saw.from, saw.from + today.length - 1)}`, diff.b, saw.from));
+}
+
+// dated glyphs, as written first, for a citation that has changed since
+function historyRow(c) {
+  const s = series(c);
+  if (!s.length) return null;
+  const word = (e) => `${dayWord(e.at)} ${STATUS_WORD[shown(e.status)]}${e.line ? ' L' + e.line : ''}`.trim();
+  return h('div', { class: 'hc-hist', role: 'img', 'aria-label': 'History: ' + s.map(word).join(', ') },
+    h('span', { class: 't-kicker' }, 'History'),
+    s.map((e) => h('span', { class: `hd st-${shown(e.status)}`, title: word(e) }, glyph(shown(e.status), 'glyph sm'), h('span', { class: 't-mono-sm' }, dayWord(e.at)))));
 }
 
 // below the chip, flipped above when there is no room
@@ -603,6 +629,18 @@ export function pinCitation(n) {
   if (cl) setCursor(cl, { scroll: true });
   showCard(chip, { pinned: true });
   t.querySelector(`.mcard[data-n="${n}"]`)?.scrollIntoView({ block: 'nearest' });
+  return true;
+}
+
+// jump to citation n of the turn at index `turn`: scroll its chip to the middle, set the claim cursor, pin its card
+export function revealCite(turn, n) {
+  const t = document.querySelector(`#chat .turn[data-index='${turn}']`);
+  const chip = t?.querySelector(`.answer .chip[data-n='${n}']`);
+  if (!chip) return false;
+  chip.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const cl = claimOf(chip);
+  if (cl) setCursor(cl);
+  showCard(chip, { pinned: true });
   return true;
 }
 

@@ -1,11 +1,13 @@
 // Source drawer (DESIGN 11.18): files at a cited line, a source's file tree, full-text search
 // and notes. Slides over the margin from the right. Open items are kept as a small tab row.
 
-import { h, clear, icon, iconBtn, toast, copyText, basename, esc, arrowNav, fmtNum } from './dom.js';
+import { h, clear, icon, iconBtn, toast, copyText, basename, esc, arrowNav, fmtNum, place } from './dom.js';
 import { api, nbPath } from './api.js';
 import { state, ctx, on, emit } from './state.js';
 import { highlightLines, renderDocBlocks, renderAnswer, splitFootnotes } from './markdown.js';
-import { sourceFor, swatch, glyph, statusOf, STATUS_WORD, kbd, shortPath, relPath } from './layers.js';
+import { readRanges } from './traverse.js';
+import { lineMap, refsIn, worst, shown as stShown } from './status.js';
+import { sourceFor, swatch, glyph, statusOf, STATUS_WORD, kbd, shortPath, qnum } from './layers.js';
 import { loadDir } from './rail.js';
 import { citeWhy } from './witness.js';
 import { align, when } from './witness.js';
@@ -18,6 +20,7 @@ let collapsed = false;   // drawer hidden but tabs kept
 const files = new Map(); // `${nb}:${path}` -> Promise<{path,text,lang,lines}>
 let wrap = window.matchMedia('(max-width: 767px)').matches; // phones start wrapped so a long line needs no panning
 let selBar = null;
+let depHost = null, depSeq = 0, depRefs = [], depTrunc = false, depMap = new Map(), depEl = null, depTimer = 0;
 
 const hlCache = new Map();
 function linesFor(key, file, lang) {
@@ -56,11 +59,22 @@ export function initViewer(el) {
   }, true);
   // Esc from a field inside the drawer still closes it
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented && e.target.closest('input, textarea')) { e.preventDefault(); closeViewer(); } });
+  // a pinned list closes on a click elsewhere, and Esc closes it before the drawer
+  document.addEventListener('click', (e) => { if (depEl?.classList.contains('pinned') && !depEl.contains(e.target) && !e.target.closest?.('.dr-cited')) hideDeps(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !depEl) return;
+    const back = depEl.opener;
+    hideDeps();
+    e.preventDefault(); e.stopPropagation();
+    if (back?.isConnected && back.matches('.dr-cited')) back.focus();
+  }, true);
+  on('refresh', () => { if (depHost) loadDeps(depHost); });
   render();
 }
 
 function setOpen(open) {
   document.documentElement.classList.toggle('drawer-open', open);
+  if (!open) hideDeps();
   root.inert = !open;
   const t = open ? tabs.find((x) => x.key === active) : null;
   emit('viewer', t?.path || t?.src?.prefix || null);
@@ -122,25 +136,19 @@ function closeTab(key) {
   render();
 }
 
-// Lines of this file the open conversation's trail read, as merged [from, to] ranges
-function trailReads(path, lineCount) {
-  const out = [];
-  for (const t of state.conv?.turns || []) for (const c of t.toolCalls || []) {
-    const p = c.name === 'Read' && (c.input?.file_path || c.input?.path);
-    if (!p || relPath(p) !== path) continue;
-    const from = Math.max(1, Number(c.input.offset) || 1);
-    const to = c.input.limit ? Math.min(lineCount, from + Number(c.input.limit) - 1) : lineCount;
-    out.push([from, to]);
-  }
-  out.sort((x, y) => x[0] - y[0]);
-  const merged = [];
-  for (const r of out) { const last = merged.at(-1); if (last && r[0] <= last[1] + 1) last[1] = Math.max(last[1], r[1]); else merged.push([...r]); }
-  return merged;
+// Lines of this file the open conversation's trail read, as merged [from, to] ranges.
+// A citation that saved what its answer read (cite.saw.read) wins over walking the turns.
+function trailReads(path, lineCount, cite) {
+  const saved = cite?.saw?.read;
+  if (Array.isArray(saved)) return saved.filter(([x]) => x <= lineCount).map(([x, y]) => [x, Math.min(y, lineCount)]);
+  return readRanges((state.conv?.turns || []).flatMap((t) => t.toolCalls || []), path, lineCount);
 }
 
 function render() {
   saveScroll();
   dropSelBar();
+  hideDeps();
+  depHost = null;
   setOpen(tabs.length > 0 && !collapsed);
   if (collapsed && tabs.length) return;
   clear(root);
@@ -216,7 +224,7 @@ async function renderFile(tab, body) {
   if (!tab.line && tab.quote) tab.line = findQuoteLine(file.text, tab.quote);
   const doc = isDoc(tab.path);
   const lineCount = file.text.split('\n').length;
-  const reads = trailReads(tab.path, lineCount);
+  const reads = trailReads(tab.path, lineCount, tab.cite);
   const wasRead = (n) => reads.some(([x, y]) => n >= x && n <= y);
   const tabBtn = (id, label) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(tab.view === id), onclick: () => { tab.view = id; tab.cmp = false; tab.scrolled = false; render(); } }, label);
   bar.append(...[h('div', { class: 'tabs-row', role: 'tablist', 'aria-label': 'View' }, tabBtn('file', 'File'), tabBtn('outline', 'Outline')),
@@ -243,7 +251,11 @@ async function renderFile(tab, body) {
     wirePage(page, tab);
     body.append(page);
     const restore = canRestore(tab);
-    requestAnimationFrame(() => { markPage(page, tab, body); if (restore) body.scrollTop = tab.scrollTop; });
+    requestAnimationFrame(() => {
+      markPage(page, tab, body);
+      if (restore) body.scrollTop = tab.scrollTop;
+      if (body.isConnected) { depHost = { tab, body, bar, page, lineCount }; loadDeps(depHost); }
+    });
   } else {
     const lines = linesFor(`${state.nbId}:${tab.path}`, file, file.lang || tab.path.split('.').pop());
     const a = tab.line || 0, b = tab.endLine || tab.line || 0;
@@ -271,6 +283,8 @@ async function renderFile(tab, body) {
       if (l && e.target.classList.contains('n')) copyText(`${tab.path}:${l.dataset.n}`, `Copied ${tab.path}:${l.dataset.n}`);
     });
     body.append(code);
+    depHost = { tab, body, bar, code, lineCount };
+    loadDeps(depHost);
     wireSelection(body, tab);
     if (canRestore(tab)) requestAnimationFrame(() => { body.scrollTop = tab.scrollTop; });
     else if (a && !tab.scrolled) {
@@ -598,6 +612,124 @@ function markPage(page, tab, body) {
     tab.scrolled = true;
     body.scrollTop = Math.max(0, first.offsetTop - body.clientHeight * 0.35);
   }
+}
+
+// ---------- what depends on a line (DESIGN 11.18) ----------
+// GET /cited lists the saved answers, sheets and notes that cite this file. Marks are an extra: any failure leaves the file as it was.
+
+async function loadDeps(host) {
+  if (!host.body.isConnected) return;
+  const my = ++depSeq;
+  let r;
+  try { r = await api.get(nbPath(state.nbId, '/cited?path=' + encodeURIComponent(host.tab.path))); } catch { return; }
+  if (my !== depSeq || depHost !== host || !host.body.isConnected) return;
+  depRefs = Array.isArray(r?.refs) ? r.refs : [];
+  depTrunc = !!r?.truncated;
+  paintDeps(host);
+}
+
+function paintDeps(host) {
+  for (const el of host.body.querySelectorAll('.dep')) el.classList.remove('dep', 'st-verified', 'st-moved', 'st-unverified', 'st-pending');
+  for (const b of host.body.querySelectorAll('.dmark')) b.remove();
+  host.bar.querySelector('.dr-cited')?.remove();
+  hideDeps();
+  if (!depRefs.length) return;
+  if (host.code) {
+    depMap = lineMap(depRefs, host.lineCount);
+    for (const [n, e] of depMap) {
+      const el = host.code.children[(n - 1) / 200 | 0]?.children[(n - 1) % 200];
+      if (!el?.classList.contains('l')) continue;
+      el.classList.add('dep', 'st-' + e.status);
+      if (e.start) el.querySelector('.n')?.prepend(dmark(e));
+    }
+  } else {
+    for (const blk of host.page.querySelectorAll('.blk')) {
+      const refs = refsIn(depRefs, +blk.dataset.l1, +blk.dataset.l2);
+      if (!refs.length) continue;
+      const st = worst(refs.map((r) => r.status));
+      blk.classList.add('dep', 'st-' + st);
+      blk.prepend(dmark({ refs, status: st }));
+    }
+  }
+  if (!host.wired) {
+    host.wired = true;
+    (host.code || host.page).addEventListener('pointerover', depOver);
+    (host.code || host.page).addEventListener('pointerout', depOut);
+    host.body.addEventListener('scroll', () => hideDeps(), { passive: true });
+  }
+  const st = worst(depRefs.map((r) => r.status));
+  const count = new Set(depRefs.map((r) => `${r.kind}:${r.id}:${r.turn ?? ''}`)).size;
+  const btn = h('button', { type: 'button', class: `btn quiet sm dr-cited st-${st}`, 'aria-haspopup': 'dialog', onclick: () => showDeps(depRefs, btn, true, true) },
+    glyph(st, 'glyph sm'), `Cited by ${count}${depTrunc ? '+' : ''}`);
+  host.bar.querySelector('.grow')?.after(btn);
+}
+
+// a mouse and touch target only: hundreds of tab stops would be worse than none, the header button is the keyboard way in
+function dmark(e) {
+  const n = e.refs.length;
+  return h('button', { type: 'button', class: 'dmark', tabindex: -1, 'aria-label': `${n} saved citation${n === 1 ? '' : 's'} here, ${STATUS_WORD[e.status]}`,
+    onclick: (ev) => { ev.stopPropagation(); if (n === 1) openDep(e.refs[0]); else showDeps(e.refs, ev.currentTarget, true); } }, glyph(e.status, 'glyph sm'));
+}
+
+let depAt = null; // the line or block the open list belongs to
+const DEP_HIT = '.l.dep .n, .blk.dep .dmark';
+const refsFor = (el) => (el.matches('.blk') ? refsIn(depRefs, +el.dataset.l1, +el.dataset.l2) : depMap.get(+el.dataset.n)?.refs || []);
+
+function depOver(e) {
+  const x = e.target.closest?.(DEP_HIT);
+  if (!x || depEl?.classList.contains('pinned')) return;
+  const el = x.closest('.l, .blk');
+  clearTimeout(depTimer);
+  if (depAt === el) return;
+  depTimer = setTimeout(() => { showDeps(refsFor(el), x, false); depAt = el; }, 120);
+}
+
+function depOut(e) {
+  const x = e.target.closest?.(DEP_HIT);
+  if (!x || x.contains(e.relatedTarget) || depEl?.classList.contains('pinned')) return;
+  clearTimeout(depTimer);
+  depTimer = setTimeout(() => hideDeps(), 160);
+}
+
+function hideDeps() {
+  clearTimeout(depTimer);
+  depEl?.remove();
+  depEl = null;
+  depAt = null;
+}
+
+function openDep(r) { hideDeps(); ctx.openDependent?.(r); }
+
+const sheetNum = (r) => { const i = state.recipes.findIndex((x) => x.id === r.recipe); return i < 0 ? null : String(i + 1).padStart(2, '0'); };
+
+function depLabel(r) {
+  const cite = r.n != null ? ` [${r.n}]` : '';
+  if (r.kind === 'answer') { const q = qnum(r.id); return (q ? `Q${q}${r.turn > 0 ? '.' + (r.turn + 1) : ''}` : r.title || 'Answer') + cite; }
+  if (r.kind === 'sheet') { const no = sheetNum(r); return `${no ? `Sheet ${no}` : r.title || 'Sheet'}${r.node != null ? (r.node ? ` node ${r.node}` : ' data ref') : cite}`; }
+  return `Note ${r.title || r.id}${cite}`;
+}
+
+function depRow(r) {
+  const st = stShown(r.status);
+  const sub = r.kind === 'answer' ? r.question : r.kind === 'sheet' ? r.title : '';
+  const at = r.line ? `L${r.line}${r.endLine && r.endLine !== r.line ? '-' + r.endLine : ''}${st === 'moved' && r.citedLine ? ` · cited L${r.citedLine}` : ''}` : '';
+  return h('button', { type: 'button', class: `dc-row st-${st}`, onclick: () => openDep(r) }, glyph(st, 'glyph sm'),
+    h('div', { class: 'dc-main' }, h('div', { class: 'dc-label' }, depLabel(r)), sub ? h('div', { class: 'dc-sub' }, sub) : null),
+    h('div', { class: 'dc-st' }, h('div', null, STATUS_WORD[st]), at ? h('div', { class: 't-mono-sm' }, at) : null));
+}
+
+function showDeps(refs, anchor, pinned, whole = false) {
+  hideDeps();
+  const list = h('div', { class: 'dc-list' }, refs.map(depRow));
+  arrowNav(list, '.dc-row');
+  depEl = h('div', { class: 'hovercard depcard' + (pinned ? ' pinned' : ''), role: 'dialog', 'aria-label': 'Cited here' },
+    h('div', { class: 'hc-head' }, h('span', { class: 't-kicker' }, whole ? 'Cited in this file' : 'Cited here'), h('span', { class: 'grow' }), h('span', { class: 't-mono-sm' }, refs.length)), list);
+  depEl.opener = anchor;
+  depEl.addEventListener('pointerenter', () => clearTimeout(depTimer));
+  depEl.addEventListener('pointerleave', () => { if (!pinned) depTimer = setTimeout(() => hideDeps(), 160); });
+  document.body.append(depEl);
+  place(depEl, anchor.getBoundingClientRect());
+  if (whole) list.querySelector('.dc-row')?.focus();
 }
 
 function findTextRange(scope, quote) {

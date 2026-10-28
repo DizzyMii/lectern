@@ -12,6 +12,7 @@ import { openAddSource, openNewNotebook, initDrop, openShortcuts, openSettings }
 import { initPanes } from './ui/panes.js';
 import { initStudio, openRecipe } from './ui/studio.js';
 import { initCanvas, openArtifact, closeCanvas, canvasOpen } from './ui/canvas.js';
+import { revealCite } from './ui/cites.js';
 import { initChrome, effectiveTheme, syncTheme } from './ui/chrome.js';
 import { kbd, glyph } from './ui/layers.js';
 
@@ -52,6 +53,16 @@ Object.assign(ctx, {
   copyPlain() {
     const t = state.conv?.turns.at(-1);
     if (t) navigator.clipboard?.writeText(t.answer.replace(/\[\^(\d+)\]/g, '')).then(() => toast('Markdown copied', 'ok', 1800));
+  },
+
+  // jump from a drawer line marker to what cites it: a note opens as a tab, a sheet on its cover, an answer at its citation
+  async openDependent(r) {
+    if (r.kind === 'note') { const note = state.nb?.notes.find((x) => x.slug === r.id); if (note) openNote(note); return; }
+    closeViewer();
+    if (r.kind === 'sheet') return openArtifact(r.id);
+    const same = state.convId === r.id && !canvasOpen() && !ctx.studioShown();
+    if (!same) await ctx.openConversation(r.id);
+    requestAnimationFrame(() => revealCite(r.turn, r.n)); // after renderThread's own scroll rAF, which was queued earlier in the same frame
   },
 
   async loadNotebooks() {

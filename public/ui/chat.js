@@ -7,7 +7,10 @@ import { state, ctx, on, emit, GENERATORS, MODELS, normTurn, apiEngineAvailable 
 import { renderAnswer } from './markdown.js';
 import { isDoc } from './viewer.js';
 import { decorate, receipt, counts, miniReceipt, scheduleLayout } from './cites.js';
-import { sourcesOf, swatch, qnum, nextQnum, kbd, glyph, relPath, shortPath, inScope, scopeForAsk } from './layers.js';
+import { sourcesOf, swatch, qnum, nextQnum, kbd, glyph, shortPath, inScope, scopeForAsk } from './layers.js';
+import { toolRead, buildTraverse, drawTraverse, trailSummary } from './traverse.js';
+export { trailSummary };
+import { compare, words } from './status.js';
 import { renderOnboarding, onboardingActive, endOnboarding } from './onboard.js';
 
 let center, scroller, inner, textarea, askBtn, modelBtn, numEl, chipsEl, quoteEl, errEl, belowBtn, sr, composerEl, menuEl = null;
@@ -102,8 +105,6 @@ const hhmm = (iso) => { const d = iso ? new Date(iso) : null; return d && !isNaN
 
 // ---------- trail ----------
 
-const STEP_GLYPH = { Read: 'read', Grep: 'search', Glob: 'search', LS: 'search' };
-
 function stepCmd(s) {
   const sum = String(s.summary || `${s.name} ${s.input ? JSON.stringify(s.input).slice(0, 100) : ''}`).trim();
   const m = sum.match(/^(\S+)\s+([\s\S]*)$/);
@@ -113,27 +114,7 @@ function stepCmd(s) {
   return { verb, rest };
 }
 
-function stepPath(s) {
-  const p = s.input?.file_path || s.input?.path;
-  return s.name === 'Read' && p ? relPath(p) : null;
-}
-
-// kept for Studio, which stores this on artifacts
-export function trailSummary(steps) {
-  const reads = new Set(), counts = { search: 0, glob: 0, other: 0 };
-  for (const s of steps) {
-    if (s.name === 'Read') reads.add(s.input?.file_path || s.input?.path || s.summary || s.id);
-    else if (s.name === 'Grep') counts.search++;
-    else if (s.name === 'Glob') counts.glob++;
-    else counts.other++;
-  }
-  const parts = [];
-  if (reads.size) parts.push(`Read ${reads.size} file${reads.size === 1 ? '' : 's'}`);
-  if (counts.search) parts.push(`${counts.search} search${counts.search === 1 ? '' : 'es'}`);
-  if (counts.glob) parts.push(`${counts.glob} file lookup${counts.glob === 1 ? '' : 's'}`);
-  if (counts.other) parts.push(`${counts.other} other step${counts.other === 1 ? '' : 's'}`);
-  return parts.join(', ') || 'No tool calls';
-}
+const stepPath = (s) => toolRead(s)?.path ?? null;
 
 function doneSummary(steps, turn) {
   const s = trailSummary(steps);
@@ -151,11 +132,13 @@ const msText = (s) => (s.ms != null ? (s.ms >= 1000 ? `${(s.ms / 1000).toFixed(1
 class Trail {
   constructor(live) {
     this.steps = [];
+    this.cites = [];
     this.text = h('span', { class: 'trail-text' });
     this.btn = h('button', { class: 'trail-sum', 'aria-expanded': 'false', onclick: () => this.toggle() },
       h('span', { class: 't-kicker' }, 'Trail'), this.text, h('span', { class: 'grow' }), h('span', { class: 'chev' }, icon('down', 12)), kbd('L'));
     this.log = h('ol', { class: 'trail-log', hidden: true });
-    this.el = h('div', { class: `trail${live ? ' live' : ''}` }, this.btn, this.log);
+    this.map = h('div', { class: 'tmap', hidden: true });
+    this.el = h('div', { class: `trail${live ? ' live' : ''}` }, this.btn, this.map, this.log);
     if (live) this.text.append(h('span', { class: 'cur' }, 'reading the question'));
   }
   toggle(force) {
@@ -163,7 +146,13 @@ class Trail {
     this.log.hidden = !open;
     this.btn.setAttribute('aria-expanded', String(open));
     this.el.classList.toggle('open', open);
+    if (open) this.drawMap(); else this.map.hidden = true;
     scheduleLayout(this.el.closest('.turn'));
+  }
+  drawMap() {
+    const m = buildTraverse(this.steps, this.cites, state.nb, isDoc);
+    this.map.replaceChildren(m.stations.length > 1 ? drawTraverse(m) : '');
+    this.map.hidden = m.stations.length < 2;
   }
   add(ev) {
     const s = { ...ev, id: ev.id || 's' + this.steps.length, done: !!ev.done };
@@ -183,13 +172,13 @@ class Trail {
   }
   row(s) {
     const { verb, rest } = stepCmd(s);
-    const path = stepPath(s);
+    const rd = toolRead(s), path = rd?.path;
     const cmd = path
-      ? h('button', { class: 'tl-cmd link', title: path, onclick: () => ctx.openFile(path, { line: s.input?.offset || null }) }, verb + ' ', h('bdi', null, rest))
+      ? h('button', { class: 'tl-cmd link', title: path, onclick: () => ctx.openFile(path, { line: rd.from > 1 ? rd.from : null }) }, verb + ' ', h('bdi', null, rest))
       : h('span', { class: 'tl-cmd' }, verb + ' ', h('bdi', null, rest));
     s.res = h('span', { class: 'tl-res' }, resText(s));
     s.msEl = h('span', { class: 'tl-ms' }, msText(s));
-    s.li = h('li', { class: `tl-row${s.ok === false ? ' err' : ''}` }, h('span', { class: 'tl-g' }, icon(STEP_GLYPH[s.name] === 'read' ? 'file' : 'search', 14)), cmd, s.res, s.msEl);
+    s.li = h('li', { class: `tl-row${s.ok === false ? ' err' : ''}` }, h('span', { class: 'tl-g' }, icon(rd ? 'file' : 'search', 14)), cmd, s.res, s.msEl);
     this.log.append(s.li);
   }
   // live: steps joined with ">", older ones fold into "n steps >"
@@ -211,6 +200,7 @@ class Trail {
     this.text.replaceChildren(...kids, h('span', { class: 'sep' }, ' > '), h('span', { class: 'cur' }, `checking ${n} citation${n === 1 ? '' : 's'}`));
   }
   finish(turn) {
+    this.cites = turn.citations || [];
     this.el.classList.remove('live');
     // the shelf warm-up is not stored with the turn, so drop it here too; the log then reads the same after a reload
     for (const s of this.steps.filter((x) => x.name === 'Shelf')) s.li?.remove();
@@ -225,6 +215,7 @@ class Trail {
         h('button', { class: 'tl-cmd link', title: p, onclick: () => ctx.openFile(p) }, 'pinned ', h('bdi', null, shortPath(p, 2))),
         h('span', { class: 'tl-res' }, 'from the pinned docs')));
     }
+    if (!this.log.hidden) this.drawMap();
   }
 }
 
@@ -271,6 +262,8 @@ class TurnView {
     } else {
       this.trail.finish(turn);
       if (!this.trail.steps.length) this.trail.el.hidden = true;
+      const d = driftBanner(turn, index);
+      if (d) this.answer.before(d);
       this.draw(false);
       this.drawActions();
     }
@@ -338,7 +331,7 @@ class TurnView {
   }
 
   decorate(live) {
-    const k = decorate(this.el, this.turn, { live });
+    const k = decorate(this.el, this.turn, { live, replay: !live && !!this.turn.citeCheck });
     this.foldRc.replaceChildren(...miniReceipt(k));
     if (this.el.isConnected || live) setReceipt(k);
     else requestAnimationFrame(() => { if (this.el === inner.lastElementChild) setReceipt(k); });
@@ -427,6 +420,21 @@ export function banner(kind, title, body, action) {
   return h('div', { class: `banner ${kind}`, role: kind === 'error' ? 'alert' : 'status' },
     glyph(kind === 'error' ? 'unverified' : kind === 'warn' ? 'moved' : 'pending'),
     h('div', { class: 'bn-body' }, h('strong', null, title), body ? h('span', null, ' ', body) : null), action || null);
+}
+
+// A reopened turn whose citations got worse: say so above the answer. Re-ask only on the first turn, a follow-up leans on the turns before it.
+function driftBanner(turn, index) {
+  const r = !turn.kind && compare(turn.citations, { at0: turn.citeCheck?.checkedAt0 });
+  if (!r?.worse) return null;
+  const ask = index === 0 && turn.question ? h('button', { class: 'btn', title: 'Ask the same question in a new conversation, against the files as they are now', onclick: () => reAsk(turn) }, 'Re-ask') : null;
+  return banner('warn', `${r.worse} of ${r.total} citation${r.total === 1 ? '' : 's'} got worse since ${r.since}.`, `${words(r.bad)}.`, ask);
+}
+
+function reAsk(turn) {
+  if (state.streaming) { toast('Stop the current answer first.', 'info'); return; }
+  quote = null; drawQuote(); // a pending 'Ask about this' chip would be prefixed to the question
+  ctx.newConversation(); // a fresh session, so the model reads the files as they are today
+  ctx.ask(turn.question);
 }
 
 async function copyInline(btn, text, done) {

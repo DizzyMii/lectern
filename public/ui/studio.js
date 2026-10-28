@@ -78,7 +78,7 @@ export function agoWord(t) {
 export function citeCounts(a) {
   if (a?.cites && typeof a.cites === 'object') return { verified: a.cites.verified || 0, moved: a.cites.moved || 0, unverified: a.cites.unverified || 0 };
   const out = { verified: 0, moved: 0, unverified: 0 };
-  if (Array.isArray(a?.citations)) for (const c of a.citations) if (out[c.status] != null) out[c.status]++;
+  if (Array.isArray(a?.citations)) for (const c of a.citations) { const s = c.status === 'missing' ? 'unverified' : c.status; if (out[s] != null) out[s]++; }
   return out;
 }
 export const citeTotal = (a) => (Array.isArray(a?.citations) ? a.citations.length : Number(a?.citations) || 0);
