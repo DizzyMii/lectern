@@ -306,6 +306,20 @@ t('ask --json carries the commit each code citation was stamped with', async () 
   assert.equal(out.citations.find((c) => c.path.endsWith('Foo.java')).sha, sha);
 });
 
+t('a submitted sheet records commits and stamps its code citations', async () => {
+  const sha = repoInNotebook();
+  const body = 'These notes are long enough to pass the length check for a document. Foo is a class [[src/java/net/x/Foo.java#L3]] and handlers go in the event [[docs/guide/a.md|"Register handlers in RegisterPayloadHandlersEvent."]].';
+  const { artifact: a } = await studio.submit(store.getNotebook('test'), { recipe: 'cheat-sheet', draft: `# Cheats
+
+${body}
+`, client: 'claude-code' });
+  assert.equal(a.status, 'ok');
+  assert.equal(a.commits.code.sha, sha);
+  assert.equal(a.citations.find((c) => c.path.endsWith('Foo.java')).sha, sha);
+  assert.ok(!('sha' in a.citations.find((c) => c.path.endsWith('a.md'))));
+  assert.equal(studio.getArtifact(store.getNotebook('test'), a.id).citations.find((c) => c.path.endsWith('Foo.java')).sha, sha);
+});
+
 t('ask records commits on the saved turn and stamps its citations', async () => {
   const sha = repoInNotebook();
   const lines = [
