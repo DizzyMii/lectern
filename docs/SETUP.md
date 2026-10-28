@@ -35,13 +35,13 @@ You need one of these, both is fine.
 
 **Claude Code login (what I use day to day).** Install Claude Code, run `claude` once and log in, make sure `claude` is on your PATH. Nothing else to set. Personal use on your own machine only.
 
-**API key.** Make a key in the Anthropic Console, then set it before starting Lectern:
+**API key.** Make a key in the Anthropic Console, then paste it into Settings (the cog in the top bar). That's it, it applies straight away and sticks in `settings.json` in the home folder. Setting it in the environment works too:
 
 ```powershell
 $env:ANTHROPIC_API_KEY = "sk-ant-..."
 ```
 
-If the key was made outside a workspace you also need the workspace id (Console, Settings, Workspaces, starts with `wrkspc_`), otherwise every request comes back 400:
+If the key was made outside a workspace you also need the workspace id (Console, Settings, Workspaces, starts with `wrkspc_`), otherwise every request comes back 400. It has its own field in Settings, or:
 
 ```powershell
 $env:ANTHROPIC_WORKSPACE_ID = "wrkspc_..."
@@ -73,7 +73,15 @@ lectern serve --open
 
 and it's on http://127.0.0.1:4317.
 
-## 5. Let Claude Code use it (MCP)
+## 5. Build the desktop app (optional)
+
+```
+npm run build:exe
+```
+
+`dist/Lectern Setup.exe` installs it for your user, `dist/Lectern.exe` is the portable one (slow to open, it unpacks every launch). `npm run app` opens the window straight from the clone without building. It uses the same home folder and settings as the CLI, and if `lectern serve` already has the port it just shows that server.
+
+## 6. Let Claude Code use it (MCP)
 
 ```
 claude mcp add lectern --scope user -- lectern mcp
@@ -81,7 +89,7 @@ claude mcp add lectern --scope user -- lectern mcp
 
 Not linked? Use the full path: `claude mcp add lectern --scope user -- node D:/projects/lectern/bin/lectern.mjs mcp`. `search`, `read_source` and `verify` are free, `ask` and `generate` cost tokens. More in [mcp.md](mcp.md).
 
-## 6. Phone and away from home (Tailscale)
+## 7. Phone and away from home (Tailscale)
 
 This keeps it private to your own tailnet, nothing is on the public internet.
 
@@ -103,7 +111,7 @@ This keeps it private to your own tailnet, nothing is on the public internet.
 
 The PC has to be on and awake for this to work (set sleep to Never while plugged in, or accept it's only reachable while it's awake).
 
-## 7. Start it at logon (Windows)
+## 8. Start it at logon (Windows)
 
 Make a launcher, for example `D:\lectern-home\start-lectern.cmd`:
 
@@ -128,12 +136,12 @@ and register it once in PowerShell:
 schtasks /Create /TN "Lectern" /SC ONLOGON /TR "wscript.exe \"D:\lectern-home\start-lectern-hidden.vbs\"" /RL LIMITED /F
 ```
 
-`schtasks /Run /TN Lectern` starts it right now, `schtasks /Delete /TN Lectern /F` removes it. Logs go to `server.log` in the home folder. Don't put the API key in the launcher (anything in that file sits on disk in plain text), use the Claude Code login for the always-on server, or set the key as a user env var.
+`schtasks /Run /TN Lectern` starts it right now, `schtasks /Delete /TN Lectern /F` removes it. Logs go to `server.log` in the home folder. Don't put the API key in the launcher, it's a script you might copy around. Use the Claude Code login for the always-on server, or save the key in Settings (that's plain text on disk too, in `settings.json`, so keep the home folder private).
 
 ## When something's off
 
 - `host not allowed` on the phone: `LECTERN_PUBLIC_ORIGINS` doesn't match the ts.net address exactly (https, no trailing slash).
 - `remote user not allowed`: your tailnet login isn't in `LECTERN_ALLOW_USERS`.
-- `This API key is not tied to a workspace`: set `ANTHROPIC_WORKSPACE_ID` (step 3).
+- `This API key is not tied to a workspace`: fill in Workspace id in Settings (step 3).
 - Port 4317 taken: Lectern is probably already running, `lectern serve` says so and exits.
 - Tests: `npm test`.

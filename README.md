@@ -1,106 +1,149 @@
-# Lectern
+<h1 align="center">Lectern</h1>
 
-A local notebook for developers. Pin the docs you trust, point it at your source folders, ask questions, and every citation in the answer gets checked against the actual file before you see it.
+<p align="center">
+  A local notebook for developers. Pin the docs you trust, point it at your source folders, ask questions,<br>
+  and every citation in the answer gets checked against the actual file before you see it.
+</p>
 
-```
-npx @dizzymii/lectern serve
-```
+<p align="center">
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#your-first-notebook">First notebook</a> ·
+  <a href="#settings">Settings</a> ·
+  <a href="#use-it-from-claude-code-or-cursor-mcp">MCP</a> ·
+  <a href="#cli">CLI</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
 
-Then open http://127.0.0.1:4317.
+<p align="center">
+  <img alt="License: PolyForm Shield 1.0.0" src="https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-c0392b">
+  <img alt="Node 20 or newer" src="https://img.shields.io/badge/node-%E2%89%A520-3c873a">
+  <img alt="Version 1.0.0-rc.1" src="https://img.shields.io/badge/version-1.0.0--rc.1-555">
+</p>
+
+![Lectern answering a question, one citation verified and one marked in red because its quote wasn't found](docs/screenshot.png)
 
 ## What it does that NotebookLM doesn't
 
-- **Code roots.** A notebook holds pinned docs (the shelf) plus code roots, which are folders or git repos on your disk. The model can search and read any text file under a root while it answers, so it can quote the real source of the library you're using.
-- **Checked citations.** Every `[n]` in an answer points at a file and a line range, and Lectern checks the quote is really there. Each one comes back verified, moved (found somewhere else in the file, with the new line), unverified or missing. They get re-checked every time you open an old conversation too, so if the docs changed under you, it shows.
-- **Studio.** 24 recipes that turn the notebook into a saved artifact (specs, code maps, a CLAUDE.md, flashcards, a diff review and so on), with the same citation checks. Full list below.
-- **MCP.** `lectern mcp` is a stdio MCP server, so Claude Code or Cursor can search your notebook for free and ask it questions while they work.
+- **Code roots.** A notebook holds pinned docs (the shelf) plus code roots, which are folders or git repos on your disk. The model can search and read any text file under a root while it answers, so it quotes the real source of the library you're using.
+- **Checked citations.** Every `[n]` points at a file and a line range, and Lectern checks the quote is really there. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified or missing, and they get re-checked whenever you open an old conversation, so if the docs changed under you, it shows.
+- **Studio.** 24 recipes that turn a notebook into a saved artifact (specs, code maps, a CLAUDE.md, flashcards, a diff review...) with the same citation checks.
+- **MCP.** `lectern mcp` lets Claude Code or Cursor search your notebook for free and ask it questions while they work.
 
-It all runs on your machine. The web server only listens on 127.0.0.1 and refuses cross-origin requests.
+It all runs on your machine. The server only listens on 127.0.0.1.
 
-## How well it works
+## Quick start
 
-Measured on one notebook (NeoForge 1.21.1: 18 docs, 68 files, 3 code roots, about 350k tokens of pinned shelf). A different notebook will give different numbers.
+Pick one.
 
-- 5 graded questions: 53 of 53 citations verified, 17.5 of 21 key facts.
-- Fast ask through MCP: about 2 cents and 8 seconds.
-- Deep ask: about 43 cents and 30 seconds.
-- A new conversation on Opus: about 30 cents once the shelf is cached.
-- Cold shelf load: about $3. The first ask per notebook and model loads the whole shelf into a cached session and pays for it, after that it stays warm as long as you use it within the hour.
-
-That $3 is the one to watch. A big shelf on Opus costs real money to load, so use fast mode (Haiku) for the "where is X" kind of lookups.
-
-## Install
-
-Needs Node 20 or newer (I've only tested on 22). Running from a clone of the repo, phone access over Tailscale and starting at logon are in [docs/SETUP.md](docs/SETUP.md).
+### Desktop app (Windows)
 
 ```
-npx @dizzymii/lectern serve
+git clone https://github.com/DizzyMii/lectern.git
+cd lectern
+npm install
+npm run build:exe
 ```
 
-or install it so `lectern` is on your PATH, which the MCP setup below wants:
+That leaves two files in `dist/`:
+
+| File | What it is |
+|---|---|
+| `Lectern Setup.exe` | Installs for your user, no admin needed. Starts in a couple of seconds. This is the one to hand to people. |
+| `Lectern.exe` | Portable, runs from anywhere. It unpacks itself on every launch so it takes about 30 seconds to open. |
+
+Neither needs Node on the machine it runs on. Neither is code signed yet either, so SmartScreen asks the first time (More info, Run anyway).
+
+### npm
+
+Needs Node 20 or newer.
 
 ```
 npm install -g @dizzymii/lectern
 lectern serve --open
 ```
 
-`--port` picks another port, `--open` opens the browser for you.
+`npx @dizzymii/lectern serve` works too if you don't want it installed. Either way it's on http://127.0.0.1:4317.
 
-### Desktop app
-
-`npm run build:exe` builds the Electron app into `dist/`: `Lectern Setup.exe` installs it for your user (no admin) and starts in a couple of seconds, `Lectern.exe` is the portable one that runs from anywhere but unpacks itself on every launch, so it takes about 30. Neither needs Node installed. The window has no title bar of its own, the top bar drags it and holds the window buttons, and closing it stops the server. If `lectern serve` is already running on the same port the app just shows that one. It isn't code signed, so SmartScreen will ask the first time. `npm run app` runs it from the clone.
-
-Paste the API key in Settings (the gear in the top bar). Settings go in `settings.json` in the home folder and win over environment variables.
-
-First thing to try if you just want to see it work:
+### From a clone
 
 ```
-lectern example node-docs
-lectern serve --open
+npm install
+npm start        # the web app on http://127.0.0.1:4317
+npm run app      # the same thing in the desktop window
 ```
 
-That fetches three pages of the Node.js 22 API docs from raw.githubusercontent.com into a new notebook (under the home folder, or `--dir` somewhere else). `lectern example` with no name lists what's there. The `neoforge` one clones a few git repos and is a lot bigger, add `--code` to also pull the NeoForge and GeckoLib sources.
+[docs/SETUP.md](docs/SETUP.md) walks through a fresh machine step by step, including phone access over Tailscale and starting it at logon.
+
+## Your first notebook
+
+1. **Add an API key.** Click the cog in the top bar, paste a key from [console.anthropic.com](https://console.anthropic.com), Save. The engine label next to it turns green. (Already use Claude Code? Lectern can use your login instead, see [Engines](#engines).)
+2. **Make a notebook.** First run walks you through it, or try the ready-made one:
+   ```
+   lectern example node-docs
+   ```
+   That pulls three pages of the Node.js 22 API docs into a new notebook.
+3. **Add sources.** Press `A`. A page URL gets pinned as markdown, a folder or git repo becomes a code root the model can search.
+4. **Ask.** Press `/`, type, Enter. Click any `[n]` to open the file at that line.
+
+## How well it works
+
+Measured on one notebook (NeoForge 1.21.1: 18 docs, 68 files, 3 code roots, about 350k tokens of pinned shelf). Yours will be different.
+
+| | Result |
+|---|---|
+| 5 graded questions | 53 of 53 citations verified, 17.5 of 21 key facts |
+| Fast ask through MCP | about 2 cents, 8 seconds |
+| Deep ask | about 43 cents, 30 seconds |
+| New conversation on Opus, shelf cached | about 30 cents |
+| Cold shelf load | about $3 |
+
+That $3 is the one to watch. The first ask per notebook and model loads the whole shelf into a cached session and pays for it, after that it stays warm as long as you use it within the hour. Use fast mode (Haiku) for the "where is X" kind of lookups.
+
+## Settings
+
+The cog in the top bar (or the engine label, or `Settings` in the `Ctrl+K` palette). Everything saves to `settings.json` in the home folder and applies straight away, except the two marked restart.
+
+| Setting | Env var | What it's for |
+|---|---|---|
+| Anthropic API key | `ANTHROPIC_API_KEY` | The default engine. Only ever shown back as its last four characters. |
+| Workspace id | `ANTHROPIC_WORKSPACE_ID` | Only for a key made outside a workspace (starts with `wrkspc_`). Without it those keys get a 400. |
+| Claude Code binary | `CLAUDE_BIN` | Path to `claude` when it isn't on PATH. Restart. |
+| Projects folder | `LECTERN_PROJECTS_DIR` | Where the first-run screen looks for projects. Your home folder when empty. |
+| Clone size cap (MB) | `LECTERN_CLONE_MAX_MB` | A git checkout over this gets deleted again. 1024 when empty. |
+| Allow private URLs | `LECTERN_ALLOW_PRIVATE_URLS` | Lets Add URL fetch intranet and localhost pages. |
+| Port | `PORT` | 4317 when empty. Restart. |
+
+Each one is also an environment variable, and a value saved in Settings wins over the environment. Clear the field and the environment's value comes back. Over Tailscale the page can show settings but only the machine Lectern runs on can change them.
 
 ## Engines
 
-**API key (default).** Set `ANTHROPIC_API_KEY` and Lectern calls the Anthropic API directly. You pay per token on your own key.
+**API key (default).** Lectern calls the Anthropic API directly and you pay per token on your own key.
 
-**Your Claude Code login.** If you already use Claude Code, Lectern can drive `claude -p` headless on whatever account `claude` is logged into. Install Claude Code, run `claude` once to log in, and make sure it's on your PATH. This one is for your own personal use on your own machine (check Anthropic's terms for your plan before you point anything shared at it). Lectern strips `ANTHROPIC_API_KEY` from that process so it really does bill the login, and a hook keeps its Read, Grep and Glob inside the notebook folder and its code roots.
+**Your Claude Code login.** If you already use Claude Code, Lectern can drive `claude -p` headless on whatever account `claude` is logged into. Install it, run `claude` once to log in, make sure it's on your PATH. This is for your own personal use on your own machine (check Anthropic's terms for your plan before pointing anything shared at it). Lectern strips the API key from that process so it really does bill the login, and a hook keeps its Read, Grep and Glob inside the notebook and its code roots.
 
-With both set up the API key wins. On the CLI, `--engine api` or `--engine claude-code` picks one, and it errors out if that engine isn't set up (it won't quietly switch to the other one). A follow-up stays on whatever engine its conversation started on.
+With both set up the API key wins. `--engine api` or `--engine claude-code` on the CLI picks one and errors out if it isn't set up. A follow-up stays on the engine its conversation started on.
 
-## What leaves your machine
+## Use it from Claude Code or Cursor (MCP)
 
-- **Your question, the pinned docs and whatever files the model reads** go to Anthropic, through the API or through Claude Code. The first ask in a conversation sends the whole shelf. Follow-ups send the conversation so far. Tool calls send back the file contents the model asked for (search hits, line ranges from your code roots).
-- **Adding a URL** fetches that page (user-agent `lectern/1.0`) and saves it as markdown in the notebook. Loopback, private and link-local addresses are refused, redirects included (set `LECTERN_ALLOW_PRIVATE_URLS=1` if you really want an intranet page).
-- **Adding a git URL** runs `git clone --depth 1` (sparse when you give a subfolder) into the notebook. https:// or git@ only, symlinks are checked out as plain files, hooks and LFS downloads are off, and a checkout over 1 GB gets deleted again (`LECTERN_CLONE_MAX_MB` changes the cap).
-- **`lectern example`** downloads that example's sources from GitHub.
-- On the Claude Code engine, Claude Code's own telemetry settings apply to that process. Lectern leaves them alone.
+Install globally first so `lectern` is on your PATH.
 
-That's the whole list. There's no telemetry and no update check, and the fonts and scripts are bundled so nothing loads from a CDN. Search, file reads, citation checks and the free MCP tools never touch the network. The page also sends a Content-Security-Policy that blocks loads from any other host, so an answer or a saved page can't smuggle an image tag that phones home.
+**Claude Code:**
 
-Everything under a code root can end up in front of the model, and from there at Anthropic. In a git repo Lectern indexes what `git ls-files` lists (so `.gitignore` applies), outside one it skips the usual build and dependency folders. Don't add a folder with secrets in it.
-
-## Where your stuff lives
-
-A notebook is a folder with a `notebook.json` in it, anywhere on disk. Inside it:
-
-```
-notebook.json     title, pinned docs, code roots
-sources/          docs you added (fetched pages, copied files)
-corpus/           git repos you added
-conversations/    every conversation, as JSON
-notes/            notes, as markdown
-artifacts/        Studio output
+```sh
+claude mcp add lectern --scope user -- lectern mcp
 ```
 
-Everything per user goes in the Lectern home folder: the list of registered notebooks (`registry.json`), cached base sessions (`bases.json`) and settings. It's picked in this order:
+**Cursor**, in `~/.cursor/mcp.json`:
 
-1. the `LECTERN_HOME` environment variable
-2. `"home"` in `~/.lectern.json`, like `{"home": "D:/lectern-home"}`
-3. `~/.lectern`
+```json
+{
+  "mcpServers": {
+    "lectern": { "command": "lectern", "args": ["mcp"] }
+  }
+}
+```
 
-It gets created on first run. The first-run screen also lists project folders it finds one level deep in your home folder (or in `LECTERN_PROJECTS_DIR` if you set it), it only reads folder names and a couple of manifest files, nothing is indexed until you add one. The config file is handy when your home drive is full and you want the state somewhere else without setting an env var in every shell. If you ran the old spike app, `lectern migrate <old app folder>` copies its registry and base sessions over.
+`list_notebooks`, `search`, `read_source`, `verify`, `list_artifacts` and `get_artifact` never call a model and come back in well under a second. `ask` and `generate` do and cost money. The web server doesn't need to be running. Arguments and protocol details are in [docs/mcp.md](docs/mcp.md).
 
 ## CLI
 
@@ -118,58 +161,38 @@ lectern migrate <old app folder>
 lectern --version | --help
 ```
 
-`--fast` is Haiku at low effort with at most 4 rounds, `--deep` is Opus at high effort with at most 12. Without either it's Opus with at most 12. A round is one model request and every batch of tool calls costs another one. If a run hits the cap you get an error that says so.
+- `--fast` is Haiku at low effort with at most 4 rounds, `--deep` is Opus at high effort with at most 12. Without either it's Opus with at most 12. A round is one model request, every batch of tool calls costs another, and hitting the cap gives an error that says so.
+- `add` works out what you gave it. A git URL (or a plain github, gitlab or codeberg link) gets cloned as a code root, any other http URL is fetched as a doc, a folder becomes a code root and a file gets copied in.
+- `show` re-checks the saved citations against the files as they are now.
+- `example` with no name lists the ready-made notebooks. `neoforge` is the big one, add `--code` to also pull the NeoForge and GeckoLib sources.
 
-`add` works out what you gave it. A git URL (or a plain github, gitlab or codeberg repo link) gets cloned as a code root, any other http URL is fetched as a doc, a folder becomes a code root and a file gets copied in.
+The web app's HTTP API is internal and can change between versions, script against the CLI or MCP.
 
-`show` re-checks the saved citations against the files as they are now.
+<details>
+<summary><b>Studio recipes</b></summary>
 
-`example` sets up a ready-made notebook, no name lists them.
-
-The web app's HTTP API is internal and can change between versions, script against the CLI or the MCP server.
-
-## MCP setup
-
-Install globally first so `lectern` is on your PATH.
-
-Claude Code:
-
-```sh
-claude mcp add lectern -- lectern mcp
-```
-
-Add `--scope user` to get it in every project. `claude mcp list` should show it connected.
-
-Cursor, in `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project):
-
-```json
-{
-  "mcpServers": {
-    "lectern": {
-      "command": "lectern",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-`list_notebooks`, `search`, `read_source`, `verify`, `list_artifacts` and `get_artifact` never call a model and come back in well under a second. `ask` and `generate` do call one and cost money. The web server doesn't have to be running, they share the same files on disk. Tool arguments and protocol details are in [docs/mcp.md](docs/mcp.md).
-
-## Studio recipes
+<br>
 
 Open Studio with `P`. Each recipe asks for a couple of inputs and saves an artifact into the notebook.
 
-- **Plan:** Product requirements, Tech spec, Implementation plan, Decision record, Test plan
-- **Visual:** Code map, Concept map, Flow diagram, Sequence diagram, Dependency graph
-- **Agent:** CLAUDE.md, AGENTS.md, Agent skill, Agent quiz
-- **Learn:** Onboarding guide, Cheat sheet, Porting guide, Gotchas, Glossary, Flashcards
-- **Code:** Gap report, Diff review, How would I build..., Release notes
+| Group | Recipes |
+|---|---|
+| Plan | Product requirements, Tech spec, Implementation plan, Decision record, Test plan |
+| Visual | Code map, Concept map, Flow diagram, Sequence diagram, Dependency graph |
+| Agent | CLAUDE.md, AGENTS.md, Agent skill, Agent quiz |
+| Learn | Onboarding guide, Cheat sheet, Porting guide, Gotchas, Glossary, Flashcards |
+| Code | Gap report, Diff review, How would I build..., Release notes |
 
-Code map, CLAUDE.md, Glossary and Product requirements make a LOT of tool calls and are the ones most likely to hit the 4-round cap in fast mode. Run those in deep.
+Code map, CLAUDE.md, Glossary and Product requirements make a LOT of tool calls and are the likeliest to hit the 4-round cap in fast mode. Run those in deep.
 
-## Keyboard shortcuts
+</details>
 
-`?` opens the full sheet in the app. The ones you'll use most:
+<details>
+<summary><b>Keyboard shortcuts</b></summary>
+
+<br>
+
+`?` opens the full sheet in the app.
 
 | Key | Does |
 |---|---|
@@ -194,20 +217,65 @@ Code map, CLAUDE.md, Glossary and Product requirements make a LOT of tool calls 
 | `Ctrl+Shift+L` | toggle theme |
 | `Esc` | close the top layer, then clear the claim cursor |
 
-Inside Studio artifacts, flashcards flip with `Space` and rate with the arrow keys, graphs zoom with `+` `-` `0`, sequence diagrams step with `J` / `K` and `Ctrl+S` saves an edited file.
+Inside Studio artifacts, flashcards flip with `Space` and rate with the arrow keys, graphs zoom with `+` `-` `0`, sequence diagrams step with `J` / `K`, and `Ctrl+S` saves an edited file.
+
+</details>
+
+<details>
+<summary><b>What leaves your machine</b></summary>
+
+<br>
+
+- **Your question, the pinned docs and whatever files the model reads** go to Anthropic, through the API or through Claude Code. The first ask in a conversation sends the whole shelf, follow-ups send the conversation so far, and tool calls send back the file contents the model asked for.
+- **Adding a URL** fetches that page (user-agent `lectern/1.0`) and saves it as markdown. Loopback, private and link-local addresses are refused, redirects included, unless you turn on Allow private URLs.
+- **Adding a git URL** runs `git clone --depth 1` (sparse when you give a subfolder). https:// or git@ only, symlinks come out as plain files, hooks and LFS downloads are off, and a checkout over the size cap gets deleted again.
+- **`lectern example`** downloads that example's sources from GitHub.
+- On the Claude Code engine, Claude Code's own telemetry settings apply to that process. Lectern leaves them alone.
+
+That's the whole list. No telemetry, no update check, and the fonts and scripts are bundled so nothing loads from a CDN. Search, file reads, citation checks and the free MCP tools never touch the network. The page sends a Content-Security-Policy that blocks loads from any other host, so an answer can't smuggle in an image tag that phones home.
+
+Everything under a code root can end up in front of the model. In a git repo Lectern indexes what `git ls-files` lists (so `.gitignore` applies), outside one it skips the usual build and dependency folders. Don't add a folder with secrets in it.
+
+</details>
+
+<details>
+<summary><b>Where your stuff lives</b></summary>
+
+<br>
+
+A notebook is a folder with a `notebook.json` in it, anywhere on disk:
+
+```
+notebook.json     title, pinned docs, code roots
+sources/          docs you added (fetched pages, copied files)
+corpus/           git repos you added
+conversations/    every conversation, as JSON
+notes/            notes, as markdown
+artifacts/        Studio output
+```
+
+Per-user state goes in the Lectern home folder: the notebook list (`registry.json`), cached base sessions (`bases.json`), `settings.json`, and the desktop app's window profile. It's picked in this order:
+
+1. the `LECTERN_HOME` environment variable
+2. `"home"` in `~/.lectern.json`, like `{"home": "D:/lectern-home"}`
+3. `~/.lectern`
+
+The config file is handy when your home drive is full. If you ran the old spike app, `lectern migrate <old app folder>` copies its registry and base sessions over.
+
+</details>
 
 ## Limits and rough edges
 
 - Every number above comes from one NeoForge notebook. I haven't measured anything else yet.
-- I've only run it on Windows. macOS and Linux should work, nobody has checked.
-- The text file list leans toward what I use (Java, Kotlin, Gradle, JSON, JS, TS, Python, shaders, markdown). No Go, Rust or C yet, files with those extensions under a root get skipped.
+- I've only run it on Windows. macOS and Linux should work for the npm route, nobody has checked, and the desktop build is Windows only for now.
+- The text file list leans toward what I use (Java, Kotlin, Gradle, JSON, JS, TS, Python, shaders, markdown). No Go, Rust or C yet, files with those extensions get skipped.
 - Files over 2 MB count as missing for search, reads and citations.
-- The first re-check of a big artifact on a freshly started server can take a second or so while files are read cold. After that it's milliseconds.
-- On the API engine, follow-up questions replay the earlier turns as plain text, so long conversations get more expensive per turn.
+- On the API engine, follow-ups replay the earlier turns as plain text, so long conversations get more expensive per turn.
+- The packaged desktop app can't be used as the CLI. Use `lectern` from npm or `node bin/lectern.mjs` for that.
 - This is a release candidate, things will still move before 1.0.0.
 
 ## License
 
-[PolyForm Shield 1.0.0](LICENSE). In plain words: use it, change it, run it at work, share it, all fine. You can't use it to build or sell a product that competes with Lectern. The full text in LICENSE is what actually counts.
+[PolyForm Shield 1.0.0](LICENSE). In plain words: use it, change it, run it at work, share it. You can't use it to build or sell a product that competes with Lectern. The full text in LICENSE is what actually counts.
 
 Copyright 2026 Kade Heglin.

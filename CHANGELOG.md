@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- there's a desktop app now. `npm run build:exe` makes an installer and a portable exe (Electron, Windows), and `npm run app` runs it from a clone
+- the window has no title bar of its own, the top bar drags it and the minimize, maximize and close buttons sit at its right end in the theme's colours
+- Settings page behind the cog in the top bar: API key, workspace id, Claude Code path, projects folder, clone cap, private URLs and port. They save to `settings.json` in the home folder, apply straight away and win over env vars
+- the API key only ever comes back to the page as its last four characters
+- over Tailscale you can look at settings but only the machine Lectern runs on can change them
+- the no-engine message points at Settings now instead of telling you to restart with an env var
+- CI skips the Electron download, the tests never start it
+
 ## 1.0.0-rc.1 (2026-10-25)
 
 First public build, moved out of the spike folder it grew up in.
