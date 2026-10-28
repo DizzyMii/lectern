@@ -31,3 +31,16 @@ test('other hosts and origins are still refused, localhost still works', async (
   assert.equal(await get({ host: `127.0.0.1:${port}`, origin: 'https://evil.example' }), 403);
   assert.equal(await get({ host: `127.0.0.1:${port}` }), 200);
 });
+
+// Tailscale Serve copies the client's Host header, so a tailnet device can send Host: 127.0.0.1:<port>
+test('a request that came through a proxy is never this machine, whatever its Host says', async () => {
+  const spoof = { host: `127.0.0.1:${port}`, 'x-forwarded-for': '100.64.0.7' };
+  assert.equal(await get(spoof), 403);
+  assert.equal(await get({ ...spoof, 'tailscale-user-login': 'someone@else.com' }), 403);
+  const put = await new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port, path: '/api/settings', method: 'PUT', headers: { ...spoof, 'content-type': 'application/json' } }, (res) => { res.resume(); resolve(res.statusCode); });
+    r.on('error', reject);
+    r.end(JSON.stringify({ PORT: '1' }));
+  });
+  assert.equal(put, 403);
+});
