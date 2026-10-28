@@ -56,3 +56,14 @@ test('a tailnet login can read settings but not change them', async () => {
   assert.equal(r.body.editable, false);
   assert.equal((await call('PUT', { PORT: '9999' }, remote)).status, 403);
 });
+
+test('preferring the Claude Code login beats an API key', async () => {
+  process.env.CLAUDE_BIN = process.execPath; // any real executable stands in for claude
+  const { defaultEngine } = await import('../lib/engine.mjs');
+  await call('PUT', { ANTHROPIC_API_KEY: 'sk-ant-test-abcd' });
+  assert.equal(defaultEngine(), 'api');
+  await call('PUT', { LECTERN_PREFER_CLAUDE_CODE: '1' });
+  assert.equal(defaultEngine(), 'claude-code');
+  await call('PUT', { LECTERN_PREFER_CLAUDE_CODE: null });
+  assert.equal(defaultEngine(), 'api');
+});
