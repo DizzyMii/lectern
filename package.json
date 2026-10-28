@@ -4,6 +4,12 @@
   "description": "A local notebook for developers: ask your pinned docs and code roots, get answers with citations checked against the files.",
   "license": "PolyForm-Shield-1.0.0",
   "author": "Kade Heglin",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DizzyMii/lectern.git"
+  },
+  "homepage": "https://github.com/DizzyMii/lectern#readme",
+  "bugs": "https://github.com/DizzyMii/lectern/issues",
   "type": "module",
   "main": "electron/main.mjs",
   "bin": {
