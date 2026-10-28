@@ -243,3 +243,49 @@ test('reverify stamps read ranges once and writes a baseline for saved citations
   assert.equal(again.dirty, false);
   assert.equal(again.citations[0].saw, c.saw);
 });
+
+// ---------- line counts ----------
+
+const { whyNot } = await import('../lib/cite.mjs');
+const lineFile = (name, text) => { fs.writeFileSync(nodePath.join(env.nbDir, 'src/java', name), text); return `src/java/${name}`; };
+const at = (p, line, endLine = line) => verify(env.nbDir, { path: p, line, endLine }, roots);
+
+test('the last line of a file ending in a newline verifies and the line after it does not', () => {
+  const p = lineFile('Three.txt', 'one\ntwo\nthree\n');
+  assert.equal(at(p, 3).status, 'verified');
+  assert.equal(at(p, 4).status, 'unverified');
+  assert.equal(at(p, 2, 4).status, 'unverified');
+  assert.equal(whyNot(env.nbDir, { path: p, line: 4 }, at(p, 4), roots), `is past the end of ${p} (3 lines)`);
+});
+
+test('a file with no final newline has the same line count', () => {
+  const p = lineFile('Bare.txt', 'one\ntwo\nthree');
+  assert.equal(at(p, 3).status, 'verified');
+  assert.equal(at(p, 4).status, 'unverified');
+});
+
+test('CRLF files count the same lines', () => {
+  const p = lineFile('Crlf.txt', 'one\r\ntwo\r\nthree\r\n');
+  assert.equal(at(p, 3).status, 'verified');
+  assert.equal(at(p, 4).status, 'unverified');
+});
+
+test('an empty file has no lines to cite', () => {
+  const p = lineFile('Empty.txt', '');
+  assert.equal(at(p, 1).status, 'unverified');
+  assert.equal(whyNot(env.nbDir, { path: p, line: 1 }, at(p, 1), roots), `is past the end of ${p} (0 lines)`);
+});
+
+test('a file of one blank line has one line', () => {
+  const p = lineFile('Blank.txt', '\n');
+  assert.equal(at(p, 1).status, 'verified');
+  assert.equal(at(p, 2).status, 'unverified');
+});
+
+test('a moved range is clamped to the last real line', () => {
+  const p = lineFile('Moved.txt', 'a\n'.repeat(5) + 'alpha beta gamma\ndelta epsilon zeta\n');
+  const saw = { from: 1, to: 2, text: 'alpha beta gamma\ndelta epsilon zeta' };
+  const v = verify(env.nbDir, { path: p, line: 1, endLine: 20, saw }, roots);
+  assert.equal(v.status, 'moved');
+  assert.equal(v.endLine, 7);
+});
