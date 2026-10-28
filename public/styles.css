@@ -969,7 +969,8 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 .dc-sub { font: var(--type-ui-sm); font-stretch: var(--wdth-ui); color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dc-st { font: var(--type-mono-sm); color: var(--st); text-align: right; }
 .dc-st .t-mono-sm { color: var(--ink-3); }
-.code .ltag { position: sticky; right: 8px; margin-left: auto; padding: 0 8px; font: var(--type-mono-sm); color: var(--moved); align-self: center; }
+.code .ltag { --lbg: var(--well); position: sticky; right: 8px; margin-left: auto; padding: 0 8px; background: var(--lbg); box-shadow: -10px 0 8px var(--lbg); font: var(--type-mono-sm); color: var(--moved); align-self: center; }
+.code .l.hit .ltag { --lbg: var(--l-band-strong, var(--paper-3)); }
 .code .eof { padding: 12px 0 0 72px; font: var(--type-mono-sm); color: var(--ink-3); }
 
 .drawer .page { padding: 24px 32px 48px; }
