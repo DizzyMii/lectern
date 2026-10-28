@@ -525,6 +525,30 @@ body { display: grid; grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--k
 .fold-receipt { display: none; align-items: center; gap: 10px; margin: -16px 0 20px; font: var(--type-mono-sm); color: var(--ink-2); }
 .fold-receipt:empty { display: none !important; }
 
+/* trail map (11.10): where the model looked, one band per source */
+.tmap { padding: 8px 0 4px; }
+.tmap-fig { margin: 0; }
+.tm-grid { display: grid; grid-template-columns: 112px minmax(0, 1fr); }
+.tm-label { display: flex; align-items: center; gap: 6px; height: 30px; min-width: 0; padding-right: 8px; font: var(--type-mono-sm); color: var(--ink-2); }
+.tm-label > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-scroll { overflow-x: auto; }
+.tm-scroll:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.tm-svg { display: block; }
+.tm-band { fill: var(--l-band, var(--paper-2)); }
+.tm-leg { stroke: var(--ink-3); stroke-width: 1.5; }
+.tm-leg.read { stroke: var(--ink-2); }
+.tm-leg.search { stroke-dasharray: 4 3; stroke-width: 1.25; }
+.tm-pt { cursor: pointer; }
+.tm-hit { fill: transparent; }
+.tm-dot { fill: var(--paper); stroke: var(--ink-3); stroke-width: 1.25; }
+.tm-pt:hover .tm-dot { stroke: var(--ink); }
+.tm-halo { fill: var(--paper); }
+.tm-pt.cited { color: var(--st); }
+.tm-n { font: var(--type-mono-sm); fill: var(--st); }
+.tm-cap { margin: 6px 0 0 112px; font: var(--type-ui-sm); font-stretch: var(--wdth-ui); color: var(--ink-3); }
+@container page (max-width: 600px) { .tm-grid { grid-template-columns: 84px minmax(0, 1fr); } .tm-cap { margin-left: 84px; } }
+@media (forced-colors: active) { .tm-band { fill: Canvas; stroke: CanvasText; } .tm-leg { stroke: CanvasText; } }
+
 /* answer prose (4.2 read) */
 .prose { font: var(--type-read); letter-spacing: 0.002em; color: var(--ink); hyphens: manual; overflow-wrap: break-word; }
 .answer { max-width: var(--measure); }

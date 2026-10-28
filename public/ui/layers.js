@@ -96,6 +96,15 @@ export function sourceFor(path, nb = state.nb) {
   return best?.s || null;
 }
 
+// One key for a file however it is spelled: "code/net/Foo.java" and "src/java/net/Foo.java" are the same file when root code lives at src/java
+export function fileKey(p, nb = state.nb) {
+  p = String(p || '').replace(/\\/g, '/');
+  const s = sourceFor(p, nb);
+  if (!s?.root) return p;
+  const pre = [s.prefix, s.root.name + '/'].filter((x) => p.startsWith(x)).sort((a, b) => b.length - a.length)[0];
+  return s.root.name + '/' + p.slice(pre.length);
+}
+
 export const layerFor = (path) => sourceFor(path)?.layer || null;
 
 // Put data-layer (and data-dense) on an element so it reads --l-* tokens.

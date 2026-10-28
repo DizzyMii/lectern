@@ -5,8 +5,9 @@ import { h, clear, icon, iconBtn, toast, copyText, basename, esc, arrowNav, fmtN
 import { api, nbPath } from './api.js';
 import { state, ctx, on, emit } from './state.js';
 import { highlightLines, renderDocBlocks, renderAnswer, splitFootnotes } from './markdown.js';
+import { readRanges } from './traverse.js';
 import { lineMap, refsIn, worst, shown as stShown } from './status.js';
-import { sourceFor, swatch, glyph, statusOf, STATUS_WORD, kbd, shortPath, relPath, qnum } from './layers.js';
+import { sourceFor, swatch, glyph, statusOf, STATUS_WORD, kbd, shortPath, qnum } from './layers.js';
 import { loadDir } from './rail.js';
 
 let root;
@@ -133,20 +134,12 @@ function closeTab(key) {
   render();
 }
 
-// Lines of this file the open conversation's trail read, as merged [from, to] ranges
-function trailReads(path, lineCount) {
-  const out = [];
-  for (const t of state.conv?.turns || []) for (const c of t.toolCalls || []) {
-    const p = c.name === 'Read' && (c.input?.file_path || c.input?.path);
-    if (!p || relPath(p) !== path) continue;
-    const from = Math.max(1, Number(c.input.offset) || 1);
-    const to = c.input.limit ? Math.min(lineCount, from + Number(c.input.limit) - 1) : lineCount;
-    out.push([from, to]);
-  }
-  out.sort((x, y) => x[0] - y[0]);
-  const merged = [];
-  for (const r of out) { const last = merged.at(-1); if (last && r[0] <= last[1] + 1) last[1] = Math.max(last[1], r[1]); else merged.push([...r]); }
-  return merged;
+// Lines of this file the open conversation's trail read, as merged [from, to] ranges.
+// A citation that saved what its answer read (cite.saw.read) wins over walking the turns.
+function trailReads(path, lineCount, cite) {
+  const saved = cite?.saw?.read;
+  if (Array.isArray(saved)) return saved.filter(([x]) => x <= lineCount).map(([x, y]) => [x, Math.min(y, lineCount)]);
+  return readRanges((state.conv?.turns || []).flatMap((t) => t.toolCalls || []), path, lineCount);
 }
 
 function render() {
@@ -226,7 +219,7 @@ async function renderFile(tab, body) {
   if (!tab.line && tab.quote) tab.line = findQuoteLine(file.text, tab.quote);
   const doc = isDoc(tab.path);
   const lineCount = file.text.split('\n').length;
-  const reads = trailReads(tab.path, lineCount);
+  const reads = trailReads(tab.path, lineCount, tab.cite);
   const wasRead = (n) => reads.some(([x, y]) => n >= x && n <= y);
   const tabBtn = (id, label) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(tab.view === id), onclick: () => { tab.view = id; tab.scrolled = false; render(); } }, label);
   bar.append(...[h('div', { class: 'tabs-row', role: 'tablist', 'aria-label': 'View' }, tabBtn('file', 'File'), tabBtn('outline', 'Outline')),
