@@ -118,6 +118,22 @@ test('recall reads every notebook and skip drops the open conversation', () => {
   assert.equal(other.id, 'other');
 });
 
+test('two notebooks with the same cited path are each checked against their own file', () => {
+  clean();
+  const dir = path.join(env.root, 'iso');
+  fs.mkdirSync(path.join(dir, 'docs'), { recursive: true });
+  fs.writeFileSync(path.join(dir, 'notebook.json'), JSON.stringify({ name: 'iso', title: 'Iso', pinned: ['docs/**/*.md'], roots: {} }));
+  fs.writeFileSync(path.join(dir, 'docs/intro.md'), '# Intro\n\nA different phrase entirely.\n');
+  store.createNotebook({ id: 'iso', title: 'Iso', dir });
+  conv('c1', [turn('Where do payload handlers go?', 'In the event [^1].', [WELCOME])]);
+  conv('c1', [turn('Where do payload handlers go?', 'In the other event [^1].', [{ ...WELCOME, quote: 'A different phrase entirely.' }])], {}, path.join(dir, 'conversations'));
+  try {
+    const hits = recall(store.listNotebooks(), 'where do payload handlers go', { mode: 'hint' });
+    const byNb = Object.fromEntries(hits.map((h) => [h.notebook, h.citations[0].status]));
+    assert.deepEqual(byNb, { test: 'verified', iso: 'verified' });
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 test('a conversation appears once, with its best turn', () => {
   clean();
   conv('c1', [turn('Where do payload handlers go?', 'A.'), turn('Where do payload handlers go in neoforge?', 'B.'), turn('Anything about recipes at all?', 'C.')]);
