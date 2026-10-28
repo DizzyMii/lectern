@@ -181,10 +181,33 @@ test('traverseSvg: a long run of citation numbers does not run into the next sta
   assert.equal(xs.length, m.stations.length);
   const a = m.stations.find((s) => s.path === 'docs/a.md');
   assert.equal(a.ns.join(','), '1,2,3,4');
-  // "1,2,3,4" is 7 characters of 7px starting 11px right of its mark: the next station sits past the end of it
-  assert.ok(xs[1] - xs[0] >= 11 + 7 * 7 + 9);
+  // "1,2,3,4" is 7 characters of 7px starting 8px left of its mark: the next station sits past the end of it
+  assert.ok(xs[1] - xs[0] >= 7 * 7 - 8 + 9);
   const w = +/<svg[^>]* width="(\d+)"/.exec(svg)[1];
   assert.ok(w >= xs.at(-1));
+});
+
+test('traverseSvg: no leg runs through a row of citation numbers', () => {
+  const cites = [1, 2, 3, 4, 8].map((n) => ({ n, path: 'docs/a.md', status: 'verified' })).concat([5, 6, 7].map((n) => ({ n, path: 'code/net/X.java', status: 'moved' })));
+  const m = build([claude.read('docs/a.md'), api.read('code', 'net/X.java'), api.grep('code'), claude.read('docs/a.md', { offset: 5, limit: 3 }), api.read('code', 'net/X.java')], cites);
+  assert.ok(m.bands.length > 1 && m.legs.some((l) => m.stations[l.from].band !== m.stations[l.to].band));
+  const svg = traverseSvg(m);
+  // each station's numbers: a box under its mark, from 8px left of it for 7px a character
+  const boxes = [...svg.matchAll(/data-i="(\d+)" transform="translate\((\d+) (\d+)\)">.*?<text class="tm-n" x="(-?\d+)" y="(\d+)">([^<]*)<\/text>/g)].map((g) => ({ x: +g[2] + +g[4], y: +g[3] + +g[5] - 9, w: 7 * g[6].length, h: 11 }));
+  assert.equal(boxes.length, m.stations.filter((s) => s.status).length);
+  const legs = [...svg.matchAll(/<path class="tm-leg [a-z]+" d="([^"]+)"/g)].map((g) => g[1]);
+  assert.equal(legs.length, m.legs.length);
+  for (const d of legs) {
+    assert.ok(/^M[\d.]+ [\d.]+(H[\d.]+(V[\d.]+H[\d.]+)?)$/.test(d), d);
+    // walk the horizontal and vertical runs of the path
+    const nums = d.match(/[MHV][\d.]+(?: [\d.]+)?/g).map((t) => t.slice(1).split(' ').map(Number));
+    let [cx, cy] = nums[0];
+    for (const [i, t] of d.match(/[HV]/g).entries()) {
+      const v = nums[i + 1][0], seg = t === 'H' ? { x0: Math.min(cx, v), x1: Math.max(cx, v), y0: cy, y1: cy } : { x0: cx, x1: cx, y0: Math.min(cy, v), y1: Math.max(cy, v) };
+      if (t === 'H') cx = v; else cy = v;
+      for (const b of boxes) assert.ok(seg.x1 < b.x || seg.x0 > b.x + b.w || seg.y1 < b.y || seg.y0 > b.y + b.h, `${d} crosses the numbers at ${b.x},${b.y}`);
+    }
+  }
 });
 
 test('stationTitle: wording', () => {

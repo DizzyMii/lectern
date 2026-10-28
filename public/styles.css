@@ -529,13 +529,13 @@ body { display: grid; grid-template-rows: var(--topbar-h) minmax(0, 1fr) var(--k
 .tmap { padding: 8px 0 4px; }
 .tmap-fig { margin: 0; }
 .tm-grid { display: grid; grid-template-columns: 112px minmax(0, 1fr); }
-.tm-label { display: flex; align-items: center; gap: 6px; height: 30px; min-width: 0; padding-right: 8px; font: var(--type-mono-sm); color: var(--ink-2); }
+.tm-label { display: flex; align-items: center; gap: 6px; height: 40px; min-width: 0; padding-right: 8px; font: var(--type-mono-sm); color: var(--ink-2); }
 .tm-label > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-scroll { overflow-x: auto; }
 .tm-scroll:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .tm-svg { display: block; }
 .tm-band { fill: var(--l-band, var(--paper-2)); }
-.tm-leg { stroke: var(--ink-3); stroke-width: 1.5; }
+.tm-leg { fill: none; stroke: var(--ink-3); stroke-width: 1.5; }
 .tm-leg.read { stroke: var(--ink-2); }
 .tm-leg.search { stroke-dasharray: 4 3; stroke-width: 1.25; }
 .tm-pt { cursor: pointer; }
