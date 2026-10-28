@@ -7,8 +7,15 @@ on:
 permissions:
   contents: read
 
+# a newer push to the same branch cancels the run still going
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    # the suite takes under a minute, so anything near this is a hang or a runner that never came
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
