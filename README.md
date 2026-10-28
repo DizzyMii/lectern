@@ -89,7 +89,7 @@ npm run app      # the same thing in the desktop window
 
 ## Your first notebook
 
-1. **Add an API key.** Click the cog in the top bar, paste a key from [console.anthropic.com](https://console.anthropic.com), Save. The engine label next to it turns green. (Already use Claude Code? Lectern can use your login instead, see [Engines](#engines).)
+1. **Add an API key.** Click the cog in the top bar, paste a key from [console.anthropic.com](https://console.anthropic.com), Save. The engine label next to it turns green.
 2. **Make a notebook.** First run walks you through it, or try the ready-made one:
    ```
    lectern example node-docs
@@ -248,14 +248,14 @@ The cog in the top bar (or the engine label, or `Settings` in the <kbd>Ctrl</kbd
 
 | Setting | Env var | What it's for |
 |---|---|---|
-| Anthropic API key | `ANTHROPIC_API_KEY` | The default engine. Only ever shown back as its last four characters. |
+| Anthropic API key | `ANTHROPIC_API_KEY` | What Lectern answers with. Only ever shown back as its last four characters. |
 | Workspace id | `ANTHROPIC_WORKSPACE_ID` | Only for a key made outside a workspace (starts with `wrkspc_`). Without it those keys get a 400. |
 | Claude Code binary | `CLAUDE_BIN` | Path to `claude` when it isn't on PATH. Restart. |
 | Projects folder | `LECTERN_PROJECTS_DIR` | Where the first-run screen looks for projects. Your home folder when empty. |
 | Clone size cap (MB) | `LECTERN_CLONE_MAX_MB` | A git checkout over this gets deleted again. 1024 when empty. |
 | Allow private URLs | `LECTERN_ALLOW_PRIVATE_URLS` | Lets Add URL fetch intranet and localhost pages. |
 | Port | `PORT` | 4317 when empty. Restart. |
-| Use my Claude Code login | `LECTERN_PREFER_CLAUDE_CODE` | Answer through the Claude Code login on this machine even with an API key set, so it bills your plan. Personal use only. |
+| Use my Claude Code login | `LECTERN_PREFER_CLAUDE_CODE` | Off by default. Answers questions asked on this machine through the `claude` you're already signed in to, on your own account. Questions from another device use the API key. |
 | Quit when the window closes | `LECTERN_QUIT_ON_CLOSE` | Desktop app. Off means closing the window leaves Lectern in the tray, watching your code roots. |
 | Quick ask hotkey | `LECTERN_QUICK_ASK` | Desktop app. <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd> from any app. Off by default because another app may already own that shortcut. |
 
@@ -263,11 +263,11 @@ Each one is also an environment variable, and a value saved in Settings wins ove
 
 ## Engines
 
-**API key (default).** Lectern calls the Anthropic API directly and you pay per token on your own key.
+**API key.** This is how you run Lectern. It calls the Anthropic API directly and you pay per token on your own key. It answers from every device that can reach it, including a phone over Tailscale.
 
-**Your Claude Code login.** If you already use Claude Code, Lectern can drive `claude -p` headless on whatever account `claude` is logged into. Install it, run `claude` once to log in, make sure it's on your PATH. This is for your own personal use on your own machine (check Anthropic's terms for your plan before pointing anything shared at it). Lectern strips the API key from that process so it really does bill the login, and a hook keeps its Read, Grep and Glob inside the notebook and its code roots.
+**Your Claude Code login (off by default).** If you use Claude Code yourself, you can switch on Use my Claude Code login in Settings (or set `LECTERN_PREFER_CLAUDE_CODE=1`) and Lectern drives your own unmodified `claude -p` headless for the questions you ask on this machine. It runs on your account under your plan's terms, so check those. Lectern starts the `claude` you already signed in to and never reads or stores Claude credentials. It only answers on this machine: a question from another device (a phone over Tailscale, say) uses the API key, and a conversation that started on the login refuses follow-ups from there with a 403. The login is never picked for you, with no API key and no switch Lectern has no engine and asks for a key. A hook keeps `claude`'s Read, Grep and Glob inside the notebook and its code roots.
 
-With both set up the API key wins, unless Use my Claude Code login is on in Settings. `--engine api` or `--engine claude-code` on the CLI picks one and errors out if it isn't set up. A follow-up stays on the engine its conversation started on.
+With the switch on, this machine uses the login and everything else uses the API key. With it off, a set key is used everywhere. `--engine api` or `--engine claude-code` on the CLI picks one and errors out if it isn't set up, and `lectern mcp` follows the switch. A follow-up stays on the engine its conversation started on.
 
 ## Use it from Claude Code or Cursor (MCP)
 

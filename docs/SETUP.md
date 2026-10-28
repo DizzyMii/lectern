@@ -31,11 +31,7 @@ Moving machines? Copy the home folder over and every notebook folder it lists (`
 
 ## 3. Pick an engine
 
-You need one of these, both is fine.
-
-**Claude Code login (what I use day to day).** Install Claude Code, run `claude` once and log in, make sure `claude` is on your PATH. Nothing else to set. Personal use on your own machine only.
-
-**API key.** Make a key in the Anthropic Console, then paste it into Settings (the cog in the top bar). That's it, it applies straight away and sticks in `settings.json` in the home folder. Setting it in the environment works too:
+**API key.** This is what Lectern runs on. Make a key in the Anthropic Console, then paste it into Settings (the cog in the top bar). That's it, it applies straight away and sticks in `settings.json` in the home folder. Setting it in the environment works too:
 
 ```powershell
 $env:ANTHROPIC_API_KEY = "sk-ant-..."
@@ -47,7 +43,7 @@ If the key was made outside a workspace you also need the workspace id (Console,
 $env:ANTHROPIC_WORKSPACE_ID = "wrkspc_..."
 ```
 
-Easier fix: make the key inside a workspace and skip that. When a key is set it beats the Claude Code login, pass `--engine claude-code` to force the other one.
+Easier fix: make the key inside a workspace and skip that.
 
 To check the API engine for real (costs well under a dollar on Haiku, add `--with-opus` for one Opus question, about $2 more):
 
@@ -56,6 +52,8 @@ node scripts/live-api-check.mjs
 ```
 
 It writes `live-api-check.json` into the home folder and never prints the key.
+
+**Claude Code login (optional, personal).** If you use Claude Code yourself you can also have Lectern answer through it on this machine. Install Claude Code, run `claude` once and sign in, make sure `claude` is on your PATH, then switch on Use my Claude Code login in Settings. It's off until you do, it uses your own account under your plan's terms, and it only answers questions asked on this machine. Questions from a phone or another device use the API key. `lectern ask --engine claude-code` uses it for one question without the switch.
 
 ## 4. Make a notebook
 
@@ -109,7 +107,7 @@ This keeps it private to your own tailnet, nothing is on the public internet.
    $env:LECTERN_ALLOW_USERS = "you@example.com"
    lectern serve --port 4317
    ```
-5. On the phone, open `https://<machine>.<tailnet>.ts.net` with Tailscale connected. Chrome menu, Add to home screen, and it opens like an app.
+5. Add the API key in Settings first, the phone answers with it. On the phone, open `https://<machine>.<tailnet>.ts.net` with Tailscale connected. Chrome menu, Add to home screen, and it opens like an app.
 
 `tailscale status` shows your machine name and tailnet.
 
@@ -140,7 +138,7 @@ and register it once in PowerShell:
 schtasks /Create /TN "Lectern" /SC ONLOGON /TR "wscript.exe \"D:\lectern-home\start-lectern-hidden.vbs\"" /RL LIMITED /F
 ```
 
-`schtasks /Run /TN Lectern` starts it right now, `schtasks /Delete /TN Lectern /F` removes it. Logs go to `server.log` in the home folder. Don't put the API key in the launcher, it's a script you might copy around. Use the Claude Code login for the always-on server, or save the key in Settings (that's plain text on disk too, in `settings.json`, so keep the home folder private).
+`schtasks /Run /TN Lectern` starts it right now, `schtasks /Delete /TN Lectern /F` removes it. Logs go to `server.log` in the home folder. Don't put the API key in the launcher, it's a script you might copy around. Save the key in Settings instead (that's plain text on disk too, in `settings.json`, so keep the home folder private). Anything asked from the phone needs that key, the Claude Code login never answers there.
 
 ## When something's off
 

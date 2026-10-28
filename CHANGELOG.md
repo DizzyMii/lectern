@@ -31,6 +31,7 @@
 - new setting Quit when the window closes (`LECTERN_QUIT_ON_CLOSE`) for the old close-means-quit behaviour
 - quick ask in the desktop app. Switch on Quick ask hotkey in Settings and Ctrl+Alt+Space in any app opens a small window with your clipboard in the palette. Enter asks your last notebook on the fast preset, Alt+Enter opens the question in the main window. Off by default, and if another app owns the key you get one notification and nothing else changes
 - `POST /api/notebooks/:nb/ask` takes `fast: true` for the fast preset (Haiku, low effort, 4 rounds). A model you name still wins
+- the Claude Code login is off until you switch it on (Use my Claude Code login in Settings, `LECTERN_PREFER_CLAUDE_CODE=1`). With no API key and no switch there is no engine and Lectern asks for a key. It only answers on this machine: a question from another device on the tailnet uses the API key, and a remote request that names claude-code or continues a conversation that started on it gets a 403. `lectern ask --engine claude-code` and `lectern mcp` still work, and the setup text and README no longer offer the login as a way to get started
 
 ## 1.0.0-rc.1 (2026-10-25)
 

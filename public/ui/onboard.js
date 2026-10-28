@@ -46,6 +46,11 @@ export function renderOnboarding() {
   const list = h('div', { class: 'ob-added' });
   const start = h('button', { class: 'btn primary', type: 'button', onclick: () => { active = false; ctx.newConversation(); } }, 'Start asking', kbd('Ctrl', 'Enter'));
   const note = h('span', { class: 't-ui-sm ob-note' });
+  // the API key is how Lectern answers, so a first run without one says so up front
+  const engine = state.status?.engine;
+  const keyNote = engine && !engine.default
+    ? h('p', { class: 't-ui-sm ob-help' }, 'Lectern answers with an Anthropic API key. ', h('button', { class: 'btn sm', type: 'button', onclick: () => ctx.openSettings() }, 'Add your API key'), ' in Settings before you ask.')
+    : null;
 
   const drawAdded = () => {
     const have = sourcesOf();
@@ -132,6 +137,7 @@ export function renderOnboarding() {
         h('div', { class: 't-kicker' }, h('span', { class: 'accent' }, 'Sheet 000'), ' · Setting out'),
         h('h1', { class: 't-cover-md' }, 'A blank sheet.'),
         h('p', { class: 'ob-lede' }, 'Every good map starts as one. Add the docs you trust and the code you build against. Lectern answers from them and checks every quote it cites.'),
+        keyNote,
         h('div', { class: 'ob-step' }, h('div', { class: 'ob-step-h' }, h('span', { class: 'num' }, '01'), h('label', { for: 'ob-name' }, 'Name the notebook')), name),
         h('div', { class: 'ob-step' }, h('div', { class: 'ob-step-h' }, h('span', { class: 'num' }, '02'), h('label', { for: 'ob-src' }, 'Add sources')), form, err, list, foundEl,
           help)),

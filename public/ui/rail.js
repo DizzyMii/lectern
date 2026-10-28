@@ -309,7 +309,7 @@ function drawFoot() {
   if (!s) { footEl.append(h('div', null, h('span', { class: 'sdot' }), 'Connecting')); return; }
   const found = s.claude?.found ?? s.claudeFound ?? s.found ?? !!(s.version || s.claude?.version);
   const ver = String(s.claude?.version || s.version || '').replace(/\s*\(.*\)\s*$/, '');
-  footEl.append(h('div', { title: found ? `Claude Code ${ver}`.trim() : 'Install Claude Code and put claude on PATH' },
+  footEl.append(h('div', { title: found ? `Claude Code ${ver}`.trim() : 'claude is not on PATH. Only the optional Claude Code login and Connect Claude Code need it' },
     h('span', { class: `sdot ${found ? 'ok' : ''}` }), found ? 'Claude Code ready' : 'Claude Code not found'));
 }
 

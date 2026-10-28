@@ -79,7 +79,7 @@ function drawEngine() {
   clear(engineEl);
   if (!e) return;
   const ok = Boolean(e.default);
-  engineEl.title = e.onboarding || (e.default === 'api' ? 'Answers use the Anthropic API with your key. Click for settings' : 'Answers use Claude Code on this machine');
+  engineEl.title = e.onboarding || (e.default === 'api' ? 'Answers use the Anthropic API with your key. Click for settings' : 'Answers use your Claude Code login, on this machine only. Click for settings');
   engineEl.append(h('span', { class: `sdot${ok ? ' ok' : ''}`, 'aria-hidden': 'true' }), ok ? e.label : 'No engine: add an API key');
 }
 

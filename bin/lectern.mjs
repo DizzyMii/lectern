@@ -27,8 +27,8 @@ usage:
 
 --fast is haiku at low effort with at most 4 rounds; --deep is opus at high effort with at most 12.
 Without either, opus with at most 12 rounds.
---engine picks who answers: api uses ANTHROPIC_API_KEY, claude-code uses your Claude Code login.
-Left out, the API key wins when it is set, and a follow-up stays on the engine it started on.
+--engine picks who answers: api uses ANTHROPIC_API_KEY, claude-code uses your own Claude Code login on this machine.
+Left out, this machine uses the Claude Code login when Use my Claude Code login is on, else the API key. A follow-up stays on the engine it started on.
 
 State (registry, base sessions, settings) lives in LECTERN_HOME, else the "home" in ~/.lectern.json,
 else ~/.lectern. Notebooks are folders anywhere, registered by absolute path.`;
