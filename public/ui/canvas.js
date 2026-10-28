@@ -180,7 +180,7 @@ function drawCover() {
   const no = sheetNo(a.recipe);
   const group = r?.group || '';
   const title = a.title || r?.title || 'Untitled';
-  const model = MODELS.find((m) => m.id === a.model)?.label || a.model;
+  const model = a.engine === 'mcp' ? `via ${a.client || 'MCP'}` : MODELS.find((m) => m.id === a.model)?.label || a.model;
   const meta = [
     sourcesOf(a).join(', ') || null,
     fromLine(a),

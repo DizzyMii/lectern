@@ -817,7 +817,7 @@ Every artifact opens in the page as a full canvas (`P` back to Studio, `Esc` bac
 - Double rule at top (`--ink`).
 - Kicker row: `SHEET 06 · VISUAL · CODE MAP` in `kicker` `--accent`.
 - Title in `cover-xl` (56px Archivo wdth 125 weight 800 upper), with riso overprint (6.3) settling once on first open after printing. Long titles step down to 40px then 28px to stay on 2 lines.
-- Meta line in `mono-sm` `--ink-2`: `neoforge · 48 nodes · Opus · $0.41 · printed 14:20`.
+- Meta line in `mono-sm` `--ink-2`: `neoforge · 48 nodes · Opus · $0.41 · printed 14:20`. A sheet an outside agent submitted over MCP shows `via claude-code` (the client's name) where the model goes, and has no cost.
 - Receipt mini (`31 verified · 1 moved · 0 unverified`).
 - Actions row (right aligned, quiet buttons): `Regenerate`, `Export`, `Copy`, `...` (Delete). Then "Next step" chips (secondary buttons with an arrow): PRD -> `Tech spec`, Tech spec -> `Build plan`, `Test plan`, any doc -> `CLAUDE.md`.
 - Tabs below: `Rendered`, `Source` (raw JSON or markdown), `Citations 32`.

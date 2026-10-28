@@ -143,7 +143,7 @@ claude mcp add lectern --scope user -- lectern mcp
 }
 ```
 
-`list_notebooks`, `search`, `read_source`, `verify`, `list_artifacts` and `get_artifact` never call a model and come back in well under a second. `ask` and `generate` do and cost money. The web server doesn't need to be running. Arguments and protocol details are in [docs/mcp.md](docs/mcp.md).
+`list_notebooks`, `search`, `read_source`, `verify`, `list_artifacts`, `get_artifact`, `check_notebook` and `submit_artifact` never call a model and come back in well under a second. `ask` and `generate` do and cost money. The 24 Studio recipes are also slash commands in Claude Code (`/mcp__lectern__diff-review`): the agent reads the notebook with the free tools and writes the sheet, and `submit_artifact` checks it and saves it, so it costs nothing. The web server doesn't need to be running. Arguments and protocol details are in [docs/mcp.md](docs/mcp.md).
 
 ## Check Claude Code's citations
 

@@ -15,6 +15,7 @@
 - a conversation whose last answer can't be sent back as is, or that got near the context window, drops to plain text for the next follow-up, and a resend the API rejects is asked again in plain text, so neither one gets stuck
 - after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
 - `lectern hook stop` is a Claude Code Stop hook that blocks a finish while a `[[path#L12]]` or `[[path|"quote"]]` in the last message fails to verify, and `lectern hook install [--write]` sets it up in `.claude/settings.local.json`
+- the 24 Studio recipes are MCP prompts, so Claude Code lists them as slash commands (`/mcp__lectern__diff-review`). The agent writes the sheet from `search` and `read_source`, and the new free `submit_artifact` tool checks it against the recipe's output contract and the files, saves it in the notebook and lists the citations that didn't verify. Studio shows those sheets as `via claude-code`
 
 ## 1.0.0-rc.1 (2026-10-25)
 
