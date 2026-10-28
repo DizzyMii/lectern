@@ -226,6 +226,7 @@ async function renderFile(tab, body) {
   const lineCount = file.text.split('\n').length;
   const reads = trailReads(tab.path, lineCount, tab.cite);
   const wasRead = (n) => reads.some(([x, y]) => n >= x && n <= y);
+  const readSpans = reads.map(([x, y]) => (x === y ? `L${x}` : `L${x}-${y}`));
   const tabBtn = (id, label) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(tab.view === id), onclick: () => { tab.view = id; tab.cmp = false; tab.scrolled = false; render(); } }, label);
   bar.append(...[h('div', { class: 'tabs-row', role: 'tablist', 'aria-label': 'View' }, tabBtn('file', 'File'), tabBtn('outline', 'Outline')),
     doc && tab.view === 'file' ? h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Show as' },
@@ -236,7 +237,8 @@ async function renderFile(tab, body) {
       body.querySelector('.code')?.classList.toggle('wrap', wrap);
     } }, 'Wrap') : null,
     h('span', { class: 'grow' }),
-    reads.length ? h('span', { class: 't-mono-sm dr-read', title: 'Lines the trail read for this answer' }, `read by trail ${reads.slice(0, 2).map(([x, y]) => (x === y ? `L${x}` : `L${x}-${y}`)).join(', ')}${reads.length > 2 ? '…' : ''}`) : null,
+    // short label so the range survives a narrow drawer, every range is in the tooltip
+    reads.length ? h('span', { class: 't-mono-sm dr-read', title: `Lines the trail read for this answer: ${readSpans.join(', ')}` }, `read ${readSpans.slice(0, 2).join(', ')}${reads.length > 2 ? '…' : ''}`) : null,
     h('span', { class: 't-mono-sm dr-lines' }, `${String(file.lang || tab.path.split('.').pop()).replace(/^./, (c) => c.toUpperCase())} · ${lineCount.toLocaleString()} lines`)].filter(Boolean));
   clear(body);
   if (file.binary) {
