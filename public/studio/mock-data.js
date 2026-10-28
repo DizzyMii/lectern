@@ -1,6 +1,6 @@
 // Mock Studio data for ?mock=1, in the exact shapes the server returns.
 // studio = GET /api/notebooks/:id/studio, artifacts = full GET /api/notebooks/:id/artifacts/:aid bodies,
-// artifactList = GET /api/notebooks/:id/artifacts. Generated from app/studio/recipes.mjs; regenerate when recipes change.
+// artifactList = GET /api/notebooks/:id/artifacts. Generated from lib/studio/recipes.mjs; regenerate when recipes change.
 
 export const studio = {
   "groups": [

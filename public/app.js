@@ -317,7 +317,7 @@ function fatal(msg, retry) {
   clear(document.querySelector('#chat .page-inner') || document.getElementById('chat')).append(h('div', { class: 'fatal' },
     h('div', { class: 'banner error', role: 'alert' }, glyph('unverified'),
       h('div', { class: 'bn-body' }, h('strong', null, 'The notebook server is not answering. '), msg, h('br'),
-        'Start it with ', h('code', null, 'node app/server.mjs'), ', or open the page with ', h('code', null, '?mock=1'), ' to try the UI on fake data.')),
+        'Start it with ', h('code', null, 'lectern serve'), ', or open the page with ', h('code', null, '?mock=1'), ' to try the UI on fake data.')),
     h('button', { class: 'btn primary', onclick: retry }, 'Try again')));
 }
 
