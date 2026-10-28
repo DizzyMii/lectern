@@ -5,6 +5,7 @@ import path from 'node:path';
 import { setupNotebook } from './helpers.mjs';
 
 const env = setupNotebook();
+process.env.LECTERN_FAKE_ENGINE = '1'; // the scripted ask() below stands in for the claude-code engine
 const { getNotebook } = await import('../lib/store.mjs');
 const studio = await import('../lib/studio/engine.mjs');
 test.after(() => env.cleanup());

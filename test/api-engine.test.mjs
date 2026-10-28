@@ -236,7 +236,7 @@ test('the claude-code engine ignores the API budget', () => {
   } finally { delete process.env.LECTERN_FAKE_ENGINE; }
 });
 
-test('engine choice: key means api, then claude, explicit requests honoured when possible', () => {
+test('engine choice: a key means api, nothing else is picked for you, explicit requests are honoured when possible', () => {
   assert.equal(defaultEngine(), 'api');
   assert.equal(pickEngine(undefined), 'api');
   assert.equal(pickEngine('api'), 'api');
@@ -244,16 +244,12 @@ test('engine choice: key means api, then claude, explicit requests honoured when
   const key = process.env.ANTHROPIC_API_KEY;
   delete process.env.ANTHROPIC_API_KEY;
   try {
-    assert.equal(pickEngine('api'), 'claude-code');
+    assert.equal(pickEngine('api'), null);
     const s = engineStatus();
     assert.equal(s.api.available, false);
-    if (engine.findClaude()) {
-      assert.equal(s.default, 'claude-code');
-      assert.equal(s.label, 'personal: uses your Claude Code login');
-    } else {
-      assert.equal(s.default, null);
-      assert.match(s.onboarding, /ANTHROPIC_API_KEY/);
-    }
+    assert.equal(s.default, null);
+    assert.equal(s.label, 'no engine');
+    assert.match(s.onboarding, /ANTHROPIC_API_KEY/);
   } finally { process.env.ANTHROPIC_API_KEY = key; }
 });
 
