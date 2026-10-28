@@ -655,6 +655,33 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 .leader { position: absolute; left: -13px; width: 1px; background: var(--rule-strong); }
 .leader::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 12px; height: 1px; background: var(--rule-strong); }
 
+/* proof ribbons (11.8): V widens the margin into the cited files, and ribbons run across the gap to them */
+.ribbons { position: absolute; top: 0; overflow: visible; pointer-events: none; user-select: none; }
+.ribbon { fill: var(--l-band-strong, var(--paper-3)); stroke: var(--l-mid, var(--rule-strong)); stroke-width: 1; }
+.ribbon.ghost { fill: none; stroke: var(--moved-line); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.turn.has-cur .ribbon:not(.cur) { opacity: 0.4; }
+.turn.has-cur .ribbon:not(.cur, .ghost) { fill: none; }
+.turn.has-cur .ribbon.cur:not(.ghost) { stroke-width: 1.5; }
+.turn .ribbons .ribbon.dim { opacity: 0.15; }
+.mc-proof { display: none; }
+.turn.proof .mc-proof { display: block; margin: 6px 0 4px; }
+.turn.proof .mcard.has-proof .mc-body { display: none; }
+.mc-proof .row .c { flex: 1; min-width: 0; }
+.mc-proof.doc .c { white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
+.mc-proof .row.ghost { outline: 1px dashed var(--moved-line); outline-offset: -1px; }
+.mc-proof .row.gap { color: var(--ink-4); }
+.mc-proof .ltag { flex: none; align-self: center; padding: 0 6px; font: var(--type-mono-sm); color: var(--moved); }
+@container page (min-width: 1100px) {
+  .turn.proof { grid-template-columns: var(--gutter-w) minmax(0, var(--column-w)) 64px clamp(300px, 34cqw, 440px); max-width: none; }
+}
+@container page (max-width: 1099px) { .ribbons { display: none; } }
+:root[data-contrast="high"] .ribbon { fill: none; stroke-width: 2px; }
+@media (prefers-contrast: more) { .ribbon { fill: none; stroke-width: 2px; } }
+@media (forced-colors: active) {
+  .ribbon { fill: none; stroke: Highlight; stroke-width: 2px; }
+  .ribbon.ghost { stroke: CanvasText; }
+}
+
 .print-panel { margin-top: 28px; }
 .pp-head { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--rule); }
 .pp-head .t-ui-sm { color: var(--ink-3); }

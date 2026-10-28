@@ -532,13 +532,14 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | `W` | ask "What could make this wrong?" | page |
 | `H` | toggle claim bands (underline-only mode) | page |
 | `L` | toggle the trail log | page |
+| `V` | proof ribbons: widen the margin into the cited files, a ribbon from each claim to its lines | page |
 | `E` | show the cited file as it was when the answer was written (or the saved lines when there is no usable commit) | drawer, on a moved or unverified citation |
 | `D` | list the commits since that touched the cited lines | drawer, on a moved or unverified citation |
 | `P` | Studio | everywhere |
 | `Ctrl+1` / `2` / `3` | focus rail / page / margin | everywhere |
 | `Ctrl+B` | toggle rail | everywhere |
 | `Space` on a source row | toggle its scope | rail |
-| `Esc` | close the top layer (hover card, menu, palette, drawer, dialog), then clear claim cursor | everywhere |
+| `Esc` | close the top layer (hover card, menu, palette, drawer, proof ribbons, dialog), then clear claim cursor | everywhere |
 | `?` | shortcut sheet dialog | everywhere |
 | `Ctrl+Shift+L` | toggle theme | everywhere |
 | `Ctrl+Enter` | Generate (Studio form), Ask (composer, plain Enter also asks) | forms |
@@ -673,6 +674,8 @@ Card anatomy (radius 6, `--paper`, 1px `--rule`, 4px left edge strip in the laye
 States: rest; hover (ring 1px `--rule-strong`, claim gets band-strong); cursor-linked (1px `--ink` ring); pinned (ground `--paper-2`); verified cards are visually the quietest; moved and unverified cards carry their status line, so the margin reads calm when everything checks out.
 
 Below the cards: **Print this as...** panel (11.19 compact form): kicker `STUDIO`, four suggested recipes as rows `09 Sequence diagram ...... diagram` (dot leaders, number in `--accent` `mono-sm`), then link `All 24 recipes  P`.
+
+**Proof mode (`V`).** The margin widens to `clamp(300px, 34cqw, 440px)` and the gap to 64px. Each verified or moved card with a claim grows an excerpt pane built from the hover card rows (cited lines banded, a few lines of context). A ribbon in the layer's `band-strong` with a `mid` edge runs from the claim's first line across the gap to those lines. A moved card adds a dashed `--moved-line` ribbon to the lines the model cited, with `cited here` and `found here` tags on the rows, the same words as the drawer. `J`/`K` keeps the cursor claim's ribbon filled and drops the others to hairlines. Unverified and missing cards get no pane and no ribbon. Nothing animates. `V` again, `Esc` or opening the drawer ends it, and below 1100px `V` toasts that the margin is folded.
 
 ### 11.9 Receipt
 The honest count. Two forms.

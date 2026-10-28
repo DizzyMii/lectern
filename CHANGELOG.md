@@ -16,6 +16,7 @@
 - after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
 - code citations keep a copy of the lines they cite and every re-check compares the file against it: same lines in place are verified, the same lines found elsewhere in the file come back moved with the new line, anything else is unverified (a code citation used to fail only when the file got shorter than its range). The hover card shows the saved lines over today's with the changed words marked and says whether the trail actually read them, and the receipt stops saying every quote was found when only line ranges were checked
 - each answer and sheet records the git commit of every code root it read, and its citations carry it. A moved or unverified citation gets two buttons in the drawer: Show as it was (E) opens the file at that commit beside today's with the cited lines lined up, and What changed it (D) lists the commits since that touched those lines. A file with uncommitted edits, a root outside git or an older answer compares the saved lines instead. Both lookups run git on the machine Lectern runs on, so they refuse over Tailscale
+- V on an answer opens the cited files in the margin, with a ribbon from each claim to its lines. A citation that moved gets a second, dashed ribbon to the line it was cited at
 
 ## 1.0.0-rc.1 (2026-10-25)
 

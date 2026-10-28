@@ -1,10 +1,11 @@
 // Citations on the page (DESIGN 11.5 to 11.9): claim spans, gutter marks, margin cards,
 // the receipt, the hover card and the J/K claim cursor.
 
-import { h, clear, icon, copyText } from './dom.js';
+import { h, clear, icon, copyText, toast } from './dom.js';
 import { highlightLines } from './markdown.js';
-import { getFile, openFile, isDoc } from './viewer.js';
-import { ctx } from './state.js';
+import { getFile, openFile, isDoc, closeViewer, viewerOpen } from './viewer.js';
+import { ctx, state, on } from './state.js';
+import { windows, ghostOf, ribbonPath, hairPath } from './ribbon.js';
 import { citeWhy, readNote, wordDiff, when } from './witness.js';
 import { sourceFor, layerAttrs, swatch, glyph, statusOf, STATUS_WORD, shortPath, midPath, kbd } from './layers.js';
 
@@ -279,6 +280,7 @@ async function fillLine(item, relayout) {
 // turnEl holds .gutter, .answer and .margin .cards. Returns the counts for the receipt.
 export function decorate(turnEl, turn, { live = false } = {}) {
   const answer = turnEl.querySelector('.answer');
+  if (proofTurn === turnEl) proofOff();
   const claims = buildClaims(answer);
   turnEl._claims = claims;
   turnEl._turn = turn;
@@ -357,6 +359,7 @@ function layout(turnEl) {
     const r = el?.getClientRects()[0];
     if (!r || !cl.mark) continue;
     cl.top = r.top - base;
+    cl.lineH = r.height;
     cl.markTop = Math.round(r.top + r.height / 2 - 8 - base);
     if (!lines.has(cl.markTop)) lines.set(cl.markTop, []);
     lines.get(cl.markTop).push(cl);
@@ -382,6 +385,7 @@ function layout(turnEl) {
     bottom = top + it.card.offsetHeight;
   }
   cardsEl.style.height = bottom + 'px';
+  if (turnEl.classList.contains('proof')) drawRibbons(turnEl, cardsEl);
 }
 
 // ---------- hover card ----------
@@ -462,15 +466,22 @@ export function showCard(chip, { pinned: pin = false } = {}) {
       if (cardChip !== chip || !card) return;
       const a = Math.max(1, c.line - 2);
       const b = Math.min(a + 6, (c.endLine || c.line) + 2);
-      const lines = highlightLines(f.text.split('\n').slice(a - 1, b).join('\n'), f.lang || c.path.split('.').pop());
-      excerpt.append(h('div', { class: 'hc-code' }, lines.map((html, i) => {
-        const n = a + i;
-        const hit = n >= c.line && n <= (c.endLine || c.line);
-        return h('div', { class: `row${hit ? ' hit' : ''}` }, h('span', { class: 'n' }, n), h('span', { class: 'c', html: html || ' ' }));
-      })));
+      excerpt.append(h('div', { class: 'hc-code' }, excerptRows(c, f, a, b)));
       place(card, chip);
     }).catch(() => {});
   }
+}
+
+// rows a..b of a file: the cited range banded; for a moved citation, g marks the lines it was cited at
+function excerptRows(c, f, a, b, g = null) {
+  const lines = highlightLines(f.text.split('\n').slice(a - 1, b).join('\n'), f.lang || c.path.split('.').pop());
+  const hi = c.endLine || c.line;
+  return lines.map((html, i) => {
+    const n = a + i, hit = n >= c.line && n <= hi, gh = !hit && g && n >= g.from && n <= g.to;
+    const tag = g && ((hit && n === c.line) ? 'found here' : (gh && n === g.from) ? 'cited here' : null);
+    return h('div', { class: `row${hit ? ' hit' : ''}${gh ? ' ghost' : ''}`, dataset: { n } },
+      h('span', { class: 'n' }, n), h('span', { class: 'c', html: html || ' ' }), tag ? h('span', { class: 'ltag' }, tag) : null);
+  });
 }
 
 // what the saved lines and the trail's reads say about a citation, as hover card notes
@@ -541,6 +552,7 @@ export function clearCursor() {
   cursor.spans.forEach((s) => s.classList.remove('cur'));
   cursor.mark?.classList.remove('cur');
   cursor.cards?.forEach((c) => c.classList.remove('cur'));
+  ribbonCursor(cursor.turnEl, null);
   cursor = null;
   return true;
 }
@@ -548,6 +560,7 @@ export function clearCursor() {
 export function setCursor(cl, { scroll = false } = {}) {
   clearCursor();
   cursor = cl;
+  ribbonCursor(cl.turnEl, cl);
   cl.spans.forEach((s) => s.classList.add('cur'));
   cl.mark?.classList.add('cur');
   cl.cards?.forEach((c) => c.classList.add('cur'));
@@ -610,6 +623,131 @@ export function pinCursor() {
   return true;
 }
 
+// ---------- proof ribbons ----------
+
+let proofTurn = null;
+
+export const proofOpen = () => !!proofTurn?.isConnected;
+
+// V: on for the active answer, off if it is already on
+export function toggleProof(turn = activeTurn()) {
+  if (proofTurn && proofTurn === turn) { proofOff(); ctx.say?.('Proof ribbons off.'); return false; }
+  return proofOn(turn);
+}
+
+function proofOn(turn) {
+  if (!turn?.offsetParent) return false;
+  if (state.streaming) { toast('Wait for the answer to finish.', 'info', 2400); return false; }
+  const items = (turn._cards || []).filter((it) => it.claim && it.c.line && ['verified', 'moved'].includes(it.st));
+  if (!items.length) { toast('No cited lines to show in this answer.', 'info', 2400); return false; }
+  if (!turn.querySelector('.margin').offsetParent) { toast('The margin is folded at this width. Widen the window for proof ribbons.', 'info', 3200); return false; }
+  proofOff();
+  if (viewerOpen()) closeViewer();
+  hideCard(true);
+  const svg = h('svg', { class: 'ribbons', 'aria-hidden': 'true' });
+  holdPlace(turn, () => { turn.classList.add('proof'); turn.append(svg); });
+  proofTurn = turn;
+  for (const it of items) {
+    const doc = isDoc(it.c.path);
+    it.pane = h('div', { class: `mc-proof hc-code${doc ? ' doc' : ''}` });
+    it.card.classList.add('has-proof');
+    it.card.querySelector('.mc-row').after(it.pane);
+    const f = turn.querySelector('.cards').dataset.filter;
+    const mk = (cls) => { const p = h('path', { class: `ribbon${cls}${f && it.st !== f ? ' dim' : ''}`, ...layerAttrs(sourceFor(it.c.path)) }); svg.append(p); return p; };
+    it.rb = mk('');
+    it.rg = ghostOf(it.c) ? mk(' ghost') : null;
+    fillProof(turn, it);
+  }
+  if (cursor?.turnEl === turn) ribbonCursor(turn, cursor);
+  const moved = items.filter((it) => it.st === 'moved').length;
+  ctx.say?.(`Proof ribbons on. ${items.length} cited file${items.length === 1 ? '' : 's'} in the margin${moved ? `, ${moved} moved` : ''}. V closes.`);
+  scheduleLayout(turn);
+  return true;
+}
+
+async function fillProof(turn, it) {
+  const { c, pane } = it;
+  try {
+    const f = await getFile(c.path);
+    if (!pane.isConnected) return;
+    const ws = f.binary ? [] : windows(c, f.text.split('\n').length, isDoc(c.path) ? 1 : 2);
+    if (!ws.length) throw new Error('no lines');
+    const g = ghostOf(c);
+    ws.forEach((w, i) => {
+      if (i) pane.append(h('div', { class: 'row gap' }, h('span', { class: 'n' }, '…'), h('span', { class: 'c' }, ` ${w.a - ws[i - 1].b - 1} lines`)));
+      pane.append(...excerptRows(c, f, w.a, w.b, g));
+    });
+  } catch { if (pane.isConnected) dropPane(it); }
+  scheduleLayout(turn);
+}
+
+function dropPane(it) {
+  it.pane?.remove(); it.rb?.remove(); it.rg?.remove();
+  it.card.classList.remove('has-proof');
+  it.pane = it.rb = it.rg = null;
+}
+
+export function proofOff() {
+  const t = proofTurn;
+  proofTurn = null;
+  if (!t?.isConnected) return !!t;
+  holdPlace(t, () => {
+    t.classList.remove('proof', 'has-cur');
+    t.querySelector('.ribbons')?.remove();
+    for (const it of t._cards || []) dropPane(it);
+  });
+  scheduleLayout(t);
+  return true;
+}
+
+// entering or leaving re-wraps the answer: keep the line the reader was on where it was
+function holdPlace(turn, change) {
+  const sc = turn.closest('.page-scroll'), top = sc.getBoundingClientRect().top;
+  const cl = (cursor?.turnEl === turn && cursor) || (turn._claims || []).find((c) => (c.spans[0] || c.anchor)?.getBoundingClientRect().bottom > top);
+  const el = cl && (cl.spans[0] || cl.anchor);
+  const y = el?.getBoundingClientRect().top;
+  change();
+  if (el) sc.scrollTop += el.getBoundingClientRect().top - y;
+}
+
+// the cursor claim's ribbons stay full, the rest collapse (CSS reads .has-cur and .cur)
+function ribbonCursor(turnEl, cl) {
+  turnEl.classList.toggle('has-cur', !!cl);
+  for (const it of turnEl._cards || []) for (const p of [it.rb, it.rg]) p?.classList.toggle('cur', !!cl && it.claim === cl);
+}
+
+function drawRibbons(turnEl, cardsEl) {
+  const svg = turnEl.querySelector('.ribbons');
+  if (!svg) return;
+  const t = turnEl.getBoundingClientRect();
+  const x0 = Math.round(turnEl.querySelector('.answer').getBoundingClientRect().right - t.left) + 8;
+  const w = Math.round(cardsEl.getBoundingClientRect().left - t.left) - 2 - x0;
+  svg.style.display = w < 24 ? 'none' : '';
+  if (w < 24) return;
+  Object.assign(svg.style, { left: x0 + 'px', width: w + 'px', height: turnEl.offsetHeight + 'px' });
+  const y = (el) => { const r = el.getBoundingClientRect(); return [r.top - t.top, r.bottom - t.top]; };
+  // claims that start on the same line split that line's box between their ribbons
+  const rows = new Map();
+  for (const cl of turnEl._claims || []) {
+    if (cl.top == null) continue;
+    for (const it of turnEl._cards || []) if (it.claim === cl && it.rb) {
+      if (!rows.has(cl.markTop)) rows.set(cl.markTop, []);
+      rows.get(cl.markTop).push(it);
+    }
+  }
+  for (const its of rows.values()) {
+    const cl = its[0].claim;
+    its.forEach((it, i) => {
+      const hit = it.pane.querySelectorAll('.row.hit'), gh = it.pane.querySelectorAll('.row.ghost');
+      if (!hit.length) { it.rb.removeAttribute('d'); it.rg?.removeAttribute('d'); return; }
+      const s = cl.lineH / its.length, a = [cl.top + i * s, cl.top + (i + 1) * s];
+      it.rb.setAttribute('d', ribbonPath(w, a, [y(hit[0])[0], y(hit[hit.length - 1])[1]]));
+      if (it.rg && gh.length) it.rg.setAttribute('d', hairPath(w, (a[0] + a[1]) / 2, (y(gh[0])[0] + y(gh[gh.length - 1])[1]) / 2));
+      else it.rg?.removeAttribute('d');
+    });
+  }
+}
+
 export function challenge(cl = cursor) {
   if (!cl) return false;
   const text = cl.spans.map((s) => s.textContent).join('').trim();
@@ -623,7 +761,10 @@ function filterState(turnEl, st) {
   const cards = turnEl.querySelector('.cards');
   const on = cards.dataset.filter === st ? '' : st;
   cards.dataset.filter = on;
-  for (const it of turnEl._cards || []) it.card.classList.toggle('dim', !!on && it.st !== on);
+  for (const it of turnEl._cards || []) {
+    it.card.classList.toggle('dim', !!on && it.st !== on);
+    for (const p of [it.rb, it.rg]) p?.classList.toggle('dim', !!on && it.st !== on);
+  }
   if (on) {
     const list = (turnEl._claims || []).filter((cl) => cl.status === on);
     const i = cursor && list.includes(cursor) ? list.indexOf(cursor) + 1 : 0;
@@ -633,6 +774,8 @@ function filterState(turnEl, st) {
 
 export function initCites() {
   document.documentElement.setAttribute('data-cite-cards', '');
+  // the drawer overlays the margin, so it replaces proof mode (proofOn closes it first, so this skips entry)
+  on('viewer', () => { if (viewerOpen()) proofOff(); });
   document.addEventListener('pointerover', (e) => {
     const chip = e.target.closest?.('.chip:not(.static)');
     if (!chip || !chip.closest('.has-cites')) return;

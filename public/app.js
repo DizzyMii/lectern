@@ -6,7 +6,7 @@ import { state, ctx, on, emit, normNotebookSummary, normNotebook, normConversati
 import { initRail, focusHistory } from './ui/rail.js';
 import { initChat, renderThread, focusComposer, copyAnswer, stopStreaming } from './ui/chat.js';
 import { initViewer, openFile, openSearch, openNote, openSource, closeViewer, viewerOpen, showViewer, viewerHasTabs, stepDrawerCitation, drawerHistory } from './ui/viewer.js';
-import { initCites, openCitation, moveCursor, pinCitation, stepCitation, openCursor, pinCursor, challenge, clearCursor, cursorClaim } from './ui/cites.js';
+import { initCites, openCitation, moveCursor, pinCitation, stepCitation, openCursor, pinCursor, challenge, clearCursor, cursorClaim, toggleProof, proofOpen, proofOff } from './ui/cites.js';
 import { openPalette, closePalette, paletteOpen } from './ui/palette.js';
 import { openAddSource, openNewNotebook, initDrop, openShortcuts, openSettings } from './ui/dialogs.js';
 import { initPanes } from './ui/panes.js';
@@ -47,6 +47,7 @@ Object.assign(ctx, {
     document.documentElement.classList.toggle('no-bands', on);
     store.set('noBands', on);
   },
+  toggleProof: () => toggleProof(),
 
   copyPlain() {
     const t = state.conv?.turns.at(-1);
@@ -142,7 +143,7 @@ Object.assign(ctx, {
 // ---------- key strip ----------
 
 const HINTS = {
-  page: ['Page', [['J', 'next claim'], ['K', 'previous'], ['1-9', 'citation'], ['O', 'open at line'], ['C', 'copy'], ['/', 'ask'], ['P', 'studio']]],
+  page: ['Page', [['J', 'next claim'], ['K', 'previous'], ['1-9', 'citation'], ['O', 'open at line'], ['V', 'proof ribbons'], ['C', 'copy'], ['/', 'ask'], ['P', 'studio']]],
   composer: ['Ask', [['Enter', 'ask'], ['Shift Enter', 'new line'], ['Up', 'edit last question'], ['M', 'model'], ['/', 'new question'], ['Esc', 'back to page']]],
   drawer: ['Drawer', [['[ ]', 'citation'], ['E', 'as it was'], ['D', 'what changed it'], ['/', 'ask about selection'], ['Esc', 'back to answer']]],
   palette: ['Palette', [['Up Down', 'move'], ['Enter', 'open'], ['Ctrl 1-9', 'pick row'], ['Tab', 'scope'], ['Esc', 'close']]],
@@ -227,6 +228,7 @@ function globalKeys(e) {
     if (viewerOpen()) closeViewer();
     else if (app.classList.contains('rail-open')) app.classList.remove('rail-open');
     else if (app.classList.contains('studio-float')) ctx.toggleStudio(false);
+    else if (proofOpen()) proofOff();
     else if (state.streaming) stopStreaming();
     else clearCursor();
     return;
@@ -240,6 +242,7 @@ function globalKeys(e) {
     case 'j': case 'J': if (!e.shiftKey) return act(() => moveCursor(1)); break;
     case 'k': case 'K': if (!e.shiftKey) return act(() => moveCursor(-1)); break;
     case 'o': case 'O': return act(() => openCursor());
+    case 'v': case 'V': if (!e.shiftKey) return act(() => ctx.toggleProof()); break;
     case 'c': case 'C': return act(() => copyAnswer());
     case 'x': case 'X': return act(() => { if (!challenge()) toast('Pick a claim with J and K first, then press X.', 'info', 2400); });
     case 'w': case 'W': return act(() => document.querySelector('.turn:last-of-type .btn.scrutiny')?.click());

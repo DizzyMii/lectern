@@ -243,7 +243,7 @@ export async function openSettings() {
 }
 
 const KEYS = [
-  ['Reading', [['J', 'next claim'], ['K', 'previous claim'], ['1-9', 'open citation n'], ['[ ]', 'previous or next citation'], ['Enter', 'pin the claim\u2019s card'], ['O', 'open at line'], ['E', 'show the code as it was'], ['D', 'what changed these lines'], ['C', 'copy with citations'], ['X', 'challenge the claim'], ['W', 'what could make this wrong'], ['L', 'trail log'], ['Shift H', 'claim bands on or off']]],
+  ['Reading', [['J', 'next claim'], ['K', 'previous claim'], ['1-9', 'open citation n'], ['[ ]', 'previous or next citation'], ['Enter', 'pin the claim\u2019s card'], ['O', 'open at line'], ['V', 'proof ribbons: cited files in the margin'], ['E', 'show the code as it was'], ['D', 'what changed these lines'], ['C', 'copy with citations'], ['X', 'challenge the claim'], ['W', 'what could make this wrong'], ['L', 'trail log'], ['Shift H', 'claim bands on or off']]],
   ['Asking', [['/', 'focus Ask'], ['N', 'new question'], ['Up', 'edit last question'], ['M', 'model, in an empty Ask'], ['Enter', 'ask'], ['Esc', 'stop the answer']]],
   ['Moving', [['Ctrl K', 'command palette'], ['H', 'history'], ['A', 'add a source'], ['P', 'Studio'], ['Ctrl 1 2 3', 'rail, page, margin'], ['Ctrl B', 'toggle rail'], ['Ctrl Shift F', 'search all sources'], ['Ctrl Shift L', 'theme'], ['Esc', 'close the top layer'], ['?', 'this sheet']]],
 ];
