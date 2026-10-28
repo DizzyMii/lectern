@@ -97,7 +97,7 @@ Measured on one notebook (NeoForge 1.21.1: 18 docs, 68 files, 3 code roots, abou
 | New conversation on Opus, shelf cached | about 30 cents |
 | Cold shelf load | about $3 |
 
-That $3 is the one to watch. The first ask per notebook and model loads the whole shelf into a cached session and pays for it, after that it stays warm as long as you use it within the hour. Use fast mode (Haiku) for the "where is X" kind of lookups.
+That $3 is the one to watch. The first ask per notebook and model loads the whole shelf into the cache and pays for it, after that it stays warm as long as you ask something within the hour (on the API engine that's a one-hour cache entry, which costs 2x input to write and a twentieth to read). Use fast mode (Haiku) for the "where is X" kind of lookups.
 
 ## Settings
 
@@ -270,7 +270,7 @@ The config file is handy when your home drive is full. If you ran the old spike 
 - I've only run it on Windows. macOS and Linux should work for the npm route, nobody has checked, and the desktop build is Windows only for now.
 - The text file list leans toward what I use (Java, Kotlin, Gradle, JSON, JS, TS, Python, shaders, markdown). No Go, Rust or C yet, files with those extensions get skipped.
 - Files over 2 MB count as missing for search, reads and citations.
-- On the API engine, follow-ups replay the earlier turns as plain text, so long conversations get more expensive per turn.
+- On the API engine a follow-up sends the earlier turns back whole, files the model read included, and most of that comes from cache. If you add a source or a code root mid-conversation it has to fall back to the answers as plain text, so the model forgets what it read and that follow-up re-pays the cache.
 - The packaged desktop app can't be used as the CLI. Use `lectern` from npm or `node bin/lectern.mjs` for that.
 - This is a release candidate, things will still move before 1.0.0.
 

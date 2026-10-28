@@ -10,7 +10,8 @@ const env = setupNotebook();
 const FIX = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), 'fixtures', 'api');
 const fixture = (name) => fs.readFileSync(path.join(FIX, name), 'utf8');
 
-// script: what the next requests get, in order. { file } streams a fixture, { hang } streams one and never ends.
+// script: what the next requests get, in order. { file } streams a fixture, { body } streams the given text,
+// { hang } streams a fixture and never ends, { status } answers with that error status.
 const script = [];
 const requests = [];
 const fake = http.createServer((req, res) => {
@@ -23,9 +24,13 @@ const fake = http.createServer((req, res) => {
     res.on('close', () => { entry.closed = true; });
     const next = script.shift();
     if (!next) { res.writeHead(500, { 'content-type': 'application/json' }); return res.end('{"type":"error","error":{"type":"api_error","message":"script ran out"}}'); }
+    if (next.status) {
+      res.writeHead(next.status, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'scripted rejection' } }));
+    }
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
     if (next.hang) { res.write(fixture(next.hang)); return; }
-    res.end(fixture(next.file));
+    res.end(next.body ?? fixture(next.file));
   });
 });
 await new Promise((r) => fake.listen(0, '127.0.0.1', r));
@@ -37,6 +42,7 @@ const engine = await import('../lib/engine.mjs');
 const spend = await import('../lib/spend.mjs');
 const { getNotebook, getConversation } = await import('../lib/store.mjs');
 const { toolDefs } = await import('../lib/shelf.mjs');
+const { invalidate } = await import('../lib/sources.mjs');
 const { ask, priceUsage, pickEngine, defaultEngine, engineStatus, inputError } = engine;
 
 const cfgFile = path.join(env.nbDir, 'notebook.json');
@@ -69,11 +75,11 @@ test('a tool round then a cited answer, with the request shaped per the API rule
   assert.deepEqual(r1.body.output_config, { effort: 'medium' });
   assert.equal(r1.body.fallbacks, 'default');
   assert.match(String(r1.headers['anthropic-beta']), /server-side-fallback-2026-07-01/);
-  assert.deepEqual(r1.body.cache_control, { type: 'ephemeral' });
+  assert.deepEqual(r1.body.cache_control, { type: 'ephemeral', ttl: '1h' });
   const docs = r1.body.messages[0].content.filter((c) => c.type === 'document');
   assert.equal(docs.length, 2);
   assert.ok(docs.every((d) => d.citations?.enabled === true));
-  assert.deepEqual(docs.map((d) => Boolean(d.cache_control)), [false, true]);
+  assert.deepEqual(docs.map((d) => d.cache_control ?? null), [null, { type: 'ephemeral', ttl: '1h' }]);
   assert.deepEqual(r1.body.tools.map((t) => t.name), ['grep', 'read', 'ls']);
   assert.ok(r1.body.tools.every((t) => t.eager_input_streaming === true));
   assert.match(r1.body.system, /\[\[path#L12\]\]/);
@@ -245,6 +251,106 @@ test('engine choice: key means api, then claude, explicit requests honoured when
       assert.match(s.onboarding, /ANTHROPIC_API_KEY/);
     }
   } finally { process.env.ANTHROPIC_API_KEY = key; }
+});
+
+const blocks = (m) => (Array.isArray(m.content) ? m.content : [{ type: 'text', text: m.content }]);
+const markers = (body) => body.messages.flatMap(blocks).filter((b) => b.cache_control).length + (body.cache_control ? 1 : 0);
+
+test('a follow-up sends the first turn whole, tool rounds and thinking included, with a read point on it', async () => {
+  script.push({ file: 'tool-round.sse' }, { file: 'cited-answer.sse' });
+  const first = await run({ question: 'How do I register payload handlers?' }).job.done;
+  script.push({ file: 'cited-answer.sse' });
+  const out = await run({ question: 'And where is that event fired?', conversationId: first.conversationId }).job.done;
+
+  const msgs = requests[2].body.messages;
+  assert.deepEqual(msgs.map((m) => m.role), ['user', 'assistant', 'user', 'assistant', 'user']);
+  assert.equal(msgs[0].content.filter((c) => c.type === 'document').length, 2, 'docs go back in on the first message');
+  assert.deepEqual(msgs[0].content.filter((c) => c.type === 'document').at(-1).cache_control, { type: 'ephemeral', ttl: '1h' });
+  assert.equal(msgs[1].content[0].signature, 'sig-fixture', 'the thinking block goes back unchanged');
+  assert.deepEqual(msgs[2].content.map((c) => c.type), ['tool_result', 'tool_result']);
+  assert.deepEqual(msgs[2].content.at(-1).cache_control, { type: 'ephemeral', ttl: '1h' }, 'read point on the last request of turn one');
+  assert.match(blocks(msgs[3]).map((b) => b.text ?? '').join(''), /Handlers are registered/);
+  assert.equal(blocks(msgs[4])[0].text, 'And where is that event fired?');
+  assert.ok(markers(requests[2].body) <= 4, 'the API allows four breakpoints');
+  // the turn-one prefix is byte-identical apart from markers, so its cache entries can be read
+  const strip = (x) => JSON.parse(JSON.stringify(x, (k, v) => (k === 'cache_control' ? undefined : v)));
+  assert.deepEqual(strip(msgs.slice(0, 3)), strip(requests[1].body.messages));
+
+  const conv = getConversation(getNotebook('test'), out.conversationId);
+  assert.equal(conv.api.turns, 2);
+  assert.equal(conv.api.messages.length, 6);
+  assert.ok(!JSON.stringify(conv.api).includes('cache_control'), 'markers are not saved');
+  assert.ok(!conv.api.messages[0].content.some((c) => c.type === 'document'), 'docs are not saved');
+});
+
+test('a follow-up after the shelf changed replays plain text, with no thinking blocks', async () => {
+  script.push({ file: 'tool-round.sse' }, { file: 'cited-answer.sse' });
+  const first = await run({ question: 'How do I register payload handlers?' }).job.done;
+  const doc = path.join(env.nbDir, 'docs', 'guide', 'b.md');
+  const was = fs.readFileSync(doc, 'utf8');
+  fs.writeFileSync(doc, was + '\nA line added after the first answer.\n');
+  invalidate(getNotebook('test')); // what adding a source does; otherwise the shelf is cached for 30 s
+  try {
+    script.push({ file: 'cited-answer.sse' });
+    await run({ question: 'And where is that event fired?', conversationId: first.conversationId }).job.done;
+    const msgs = requests[2].body.messages;
+    assert.deepEqual(msgs.map((m) => m.role), ['user', 'assistant', 'user']);
+    assert.ok(!JSON.stringify(msgs).includes('"thinking"'), 'no thinking block may go back against a changed prefix');
+    assert.deepEqual(msgs[1].content.map((c) => c.type), ['text']);
+  } finally { fs.writeFileSync(doc, was); invalidate(getNotebook('test')); }
+});
+
+test('one-hour cache writes are priced at 2x and count as one-hour when the split is missing', () => {
+  const m = 1_000_000;
+  assert.equal(priceUsage('claude-opus-5-5', { cache_creation_input_tokens: m, cache_creation: { ephemeral_5m_input_tokens: m, ephemeral_1h_input_tokens: 0 } }), 5);
+  assert.equal(priceUsage('claude-opus-5-5', { cache_creation_input_tokens: m, cache_creation: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: m } }), 8);
+  assert.equal(priceUsage('claude-opus-5-5', { cache_creation_input_tokens: m }), 8);
+});
+
+test('after a mid-output fallback only text from before the boundary goes back', () => {
+  const content = [
+    { type: 'thinking', thinking: '', signature: 's' }, { type: 'text', text: 'a' }, { type: 'tool_use', id: 't1', name: 'grep', input: {} },
+    { type: 'fallback', from: { model: 'x' }, to: { model: 'y' } }, { type: 'text', text: 'b' }, { type: 'tool_use', id: 't2', name: 'read', input: {} },
+  ];
+  assert.deepEqual(engine.echoContent(content).map((b) => b.type + (b.id ?? b.text ?? '')), ['texta', 'textb', 'tool_uset2']);
+  assert.equal(engine.echoContent(content.slice(0, 3)).length, 3, 'nothing changes without a fallback block');
+});
+
+const EMPTY_ANSWER = [
+  'event: message_start',
+  'data: {"type":"message_start","message":{"id":"msg_empty","type":"message","role":"assistant","model":"claude-opus-5-5","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":10,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1}}}',
+  '', 'event: message_delta', 'data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}',
+  '', 'event: message_stop', 'data: {"type":"message_stop"}', '', '',
+].join('\n');
+
+test('an answer with no text is not saved for resending, so the follow-up replays plain text', async () => {
+  script.push({ body: EMPTY_ANSWER });
+  const first = await run({ question: 'How do I register payload handlers?' }).job.done;
+  assert.equal(getConversation(getNotebook('test'), first.conversationId).api, undefined);
+  script.push({ file: 'cited-answer.sse' });
+  await run({ question: 'And where is that event fired?', conversationId: first.conversationId }).job.done;
+  const msgs = requests[1].body.messages;
+  assert.deepEqual(msgs.map((m) => m.role), ['user', 'assistant', 'user']);
+  assert.deepEqual(msgs[1].content, [{ type: 'text', text: '(no answer)' }]);
+});
+
+test('a turn whose request came near the context window is not saved for resending', async () => {
+  script.push({ body: fixture('cited-answer.sse').replace('"input_tokens":300', '"input_tokens":700000') });
+  const out = await run({ question: 'How do I register payload handlers?' }).job.done;
+  assert.equal(getConversation(getNotebook('test'), out.conversationId).api, undefined);
+});
+
+test('a 400 on a resent transcript asks once more with plain text instead of wedging the conversation', async () => {
+  script.push({ file: 'tool-round.sse' }, { file: 'cited-answer.sse' });
+  const first = await run({ question: 'How do I register payload handlers?' }).job.done;
+  script.push({ status: 400 }, { file: 'cited-answer.sse' });
+  const out = await run({ question: 'And where is that event fired?', conversationId: first.conversationId }).job.done;
+  assert.ok(JSON.stringify(requests[2].body.messages).includes('sig-fixture'), 'the first try resent the transcript');
+  assert.deepEqual(requests[3].body.messages.map((m) => m.role), ['user', 'assistant', 'user']);
+  assert.ok(!JSON.stringify(requests[3].body.messages).includes('"thinking"'), 'the retry carries no thinking blocks');
+  const conv = getConversation(getNotebook('test'), out.conversationId);
+  assert.equal(conv.turns.length, 2);
+  assert.equal(conv.api.turns, 2, 'the transcript starts again from what the retry sent');
 });
 
 test('tool input is checked against the schema', () => {

@@ -9,6 +9,11 @@
 - over Tailscale you can look at settings but only the machine Lectern runs on can change them
 - the no-engine message points at Settings now instead of telling you to restart with an env var
 - CI skips the Electron download, the tests never start it
+- API engine caching is one-hour now (shelf, the earlier turns and the growing end), so a follow-up asked 20 minutes later still reads the shelf from cache instead of paying for it again
+- follow-ups on the API engine send the earlier turns back whole, tool rounds and thinking included, so the model remembers the files it already read. When the docs, roots or system prompt changed in between it falls back to plain text, since the API refuses old thinking blocks against a changed prefix
+- one-hour cache writes are priced at 2x in the spend meter and budgets
+- a conversation whose last answer can't be sent back as is, or that got near the context window, drops to plain text for the next follow-up, and a resend the API rejects is asked again in plain text, so neither one gets stuck
+- after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
 
 ## 1.0.0-rc.1 (2026-10-25)
 
