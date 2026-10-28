@@ -7,10 +7,14 @@ import { state, ctx, on, emit, GENERATORS, MODELS, normTurn, apiEngineAvailable 
 import { renderAnswer } from './markdown.js';
 import { isDoc } from './viewer.js';
 import { decorate, receipt, counts, miniReceipt, scheduleLayout } from './cites.js';
-import { sourcesOf, swatch, qnum, nextQnum, kbd, glyph, relPath, shortPath, inScope, scopeForAsk } from './layers.js';
+import { sourcesOf, swatch, qnum, nextQnum, kbd, glyph, shortPath, inScope, scopeForAsk } from './layers.js';
+import { toolRead, buildTraverse, drawTraverse, trailSummary } from './traverse.js';
+export { trailSummary };
+import { compare, words } from './status.js';
 import { renderOnboarding, onboardingActive, endOnboarding } from './onboard.js';
+import { recallParts } from './recall.js';
 
-let center, scroller, inner, textarea, askBtn, modelBtn, numEl, chipsEl, quoteEl, errEl, belowBtn, sr, composerEl, menuEl = null;
+let center, scroller, inner, textarea, askBtn, modelBtn, numEl, chipsEl, quoteEl, recallEl, errEl, belowBtn, sr, composerEl, menuEl = null;
 let quote = null; // { text, path, line, endLine } from "Ask about this"
 
 // follow the stream only while the reader is near the bottom
@@ -50,7 +54,7 @@ export function initChat(el) {
     const code = b.closest('.codeblock')?.querySelector('code');
     if (code) copyInline(b, code.innerText, 'Copied');
   });
-  on('notebook', () => { quote = null; drawQuote(); if (!ctx.creatingNotebook) endOnboarding(); renderThread(); });
+  on('notebook', () => { quote = null; drawQuote(); hideRecall(); recallOff = null; if (!ctx.creatingNotebook) endOnboarding(); renderThread(); });
   on('refresh', () => { if (!state.streaming && !state.conv?.turns.length) renderThread(); drawComposer(); });
   on('scope', () => drawComposer());
   on('status', () => drawModel());
@@ -61,6 +65,7 @@ export function initChat(el) {
 
 export function renderThread() {
   clear(inner);
+  if (recallEl) { hideRecall(); recallOff = null; }
   setReceipt(null);
   drawComposer();
   const setup = onboardingActive();
@@ -102,8 +107,6 @@ const hhmm = (iso) => { const d = iso ? new Date(iso) : null; return d && !isNaN
 
 // ---------- trail ----------
 
-const STEP_GLYPH = { Read: 'read', Grep: 'search', Glob: 'search', LS: 'search' };
-
 function stepCmd(s) {
   const sum = String(s.summary || `${s.name} ${s.input ? JSON.stringify(s.input).slice(0, 100) : ''}`).trim();
   const m = sum.match(/^(\S+)\s+([\s\S]*)$/);
@@ -113,27 +116,7 @@ function stepCmd(s) {
   return { verb, rest };
 }
 
-function stepPath(s) {
-  const p = s.input?.file_path || s.input?.path;
-  return s.name === 'Read' && p ? relPath(p) : null;
-}
-
-// kept for Studio, which stores this on artifacts
-export function trailSummary(steps) {
-  const reads = new Set(), counts = { search: 0, glob: 0, other: 0 };
-  for (const s of steps) {
-    if (s.name === 'Read') reads.add(s.input?.file_path || s.input?.path || s.summary || s.id);
-    else if (s.name === 'Grep') counts.search++;
-    else if (s.name === 'Glob') counts.glob++;
-    else counts.other++;
-  }
-  const parts = [];
-  if (reads.size) parts.push(`Read ${reads.size} file${reads.size === 1 ? '' : 's'}`);
-  if (counts.search) parts.push(`${counts.search} search${counts.search === 1 ? '' : 'es'}`);
-  if (counts.glob) parts.push(`${counts.glob} file lookup${counts.glob === 1 ? '' : 's'}`);
-  if (counts.other) parts.push(`${counts.other} other step${counts.other === 1 ? '' : 's'}`);
-  return parts.join(', ') || 'No tool calls';
-}
+const stepPath = (s) => toolRead(s)?.path ?? null;
 
 function doneSummary(steps, turn) {
   const s = trailSummary(steps);
@@ -151,11 +134,13 @@ const msText = (s) => (s.ms != null ? (s.ms >= 1000 ? `${(s.ms / 1000).toFixed(1
 class Trail {
   constructor(live) {
     this.steps = [];
+    this.cites = [];
     this.text = h('span', { class: 'trail-text' });
     this.btn = h('button', { class: 'trail-sum', 'aria-expanded': 'false', onclick: () => this.toggle() },
       h('span', { class: 't-kicker' }, 'Trail'), this.text, h('span', { class: 'grow' }), h('span', { class: 'chev' }, icon('down', 12)), kbd('L'));
     this.log = h('ol', { class: 'trail-log', hidden: true });
-    this.el = h('div', { class: `trail${live ? ' live' : ''}` }, this.btn, this.log);
+    this.map = h('div', { class: 'tmap', hidden: true });
+    this.el = h('div', { class: `trail${live ? ' live' : ''}` }, this.btn, this.map, this.log);
     if (live) this.text.append(h('span', { class: 'cur' }, 'reading the question'));
   }
   toggle(force) {
@@ -163,7 +148,13 @@ class Trail {
     this.log.hidden = !open;
     this.btn.setAttribute('aria-expanded', String(open));
     this.el.classList.toggle('open', open);
+    if (open) this.drawMap(); else this.map.hidden = true;
     scheduleLayout(this.el.closest('.turn'));
+  }
+  drawMap() {
+    const m = buildTraverse(this.steps, this.cites, state.nb, isDoc);
+    this.map.replaceChildren(m.stations.length > 1 ? drawTraverse(m) : '');
+    this.map.hidden = m.stations.length < 2;
   }
   add(ev) {
     const s = { ...ev, id: ev.id || 's' + this.steps.length, done: !!ev.done };
@@ -183,13 +174,13 @@ class Trail {
   }
   row(s) {
     const { verb, rest } = stepCmd(s);
-    const path = stepPath(s);
+    const rd = toolRead(s), path = rd?.path;
     const cmd = path
-      ? h('button', { class: 'tl-cmd link', title: path, onclick: () => ctx.openFile(path, { line: s.input?.offset || null }) }, verb + ' ', h('bdi', null, rest))
+      ? h('button', { class: 'tl-cmd link', title: path, onclick: () => ctx.openFile(path, { line: rd.from > 1 ? rd.from : null }) }, verb + ' ', h('bdi', null, rest))
       : h('span', { class: 'tl-cmd' }, verb + ' ', h('bdi', null, rest));
     s.res = h('span', { class: 'tl-res' }, resText(s));
     s.msEl = h('span', { class: 'tl-ms' }, msText(s));
-    s.li = h('li', { class: `tl-row${s.ok === false ? ' err' : ''}` }, h('span', { class: 'tl-g' }, icon(STEP_GLYPH[s.name] === 'read' ? 'file' : 'search', 14)), cmd, s.res, s.msEl);
+    s.li = h('li', { class: `tl-row${s.ok === false ? ' err' : ''}` }, h('span', { class: 'tl-g' }, icon(rd ? 'file' : 'search', 14)), cmd, s.res, s.msEl);
     this.log.append(s.li);
   }
   // live: steps joined with ">", older ones fold into "n steps >"
@@ -211,6 +202,7 @@ class Trail {
     this.text.replaceChildren(...kids, h('span', { class: 'sep' }, ' > '), h('span', { class: 'cur' }, `checking ${n} citation${n === 1 ? '' : 's'}`));
   }
   finish(turn) {
+    this.cites = turn.citations || [];
     this.el.classList.remove('live');
     // the shelf warm-up is not stored with the turn, so drop it here too; the log then reads the same after a reload
     for (const s of this.steps.filter((x) => x.name === 'Shelf')) s.li?.remove();
@@ -225,6 +217,7 @@ class Trail {
         h('button', { class: 'tl-cmd link', title: p, onclick: () => ctx.openFile(p) }, 'pinned ', h('bdi', null, shortPath(p, 2))),
         h('span', { class: 'tl-res' }, 'from the pinned docs')));
     }
+    if (!this.log.hidden) this.drawMap();
   }
 }
 
@@ -271,6 +264,8 @@ class TurnView {
     } else {
       this.trail.finish(turn);
       if (!this.trail.steps.length) this.trail.el.hidden = true;
+      const d = driftBanner(turn, index);
+      if (d) this.answer.before(d);
       this.draw(false);
       this.drawActions();
     }
@@ -338,7 +333,7 @@ class TurnView {
   }
 
   decorate(live) {
-    const k = decorate(this.el, this.turn, { live });
+    const k = decorate(this.el, this.turn, { live, replay: !live && !!this.turn.citeCheck });
     this.foldRc.replaceChildren(...miniReceipt(k));
     if (this.el.isConnected || live) setReceipt(k);
     else requestAnimationFrame(() => { if (this.el === inner.lastElementChild) setReceipt(k); });
@@ -427,6 +422,21 @@ export function banner(kind, title, body, action) {
   return h('div', { class: `banner ${kind}`, role: kind === 'error' ? 'alert' : 'status' },
     glyph(kind === 'error' ? 'unverified' : kind === 'warn' ? 'moved' : 'pending'),
     h('div', { class: 'bn-body' }, h('strong', null, title), body ? h('span', null, ' ', body) : null), action || null);
+}
+
+// A reopened turn whose citations got worse: say so above the answer. Re-ask only on the first turn, a follow-up leans on the turns before it.
+function driftBanner(turn, index) {
+  const r = !turn.kind && compare(turn.citations, { at0: turn.citeCheck?.checkedAt0 });
+  if (!r?.worse) return null;
+  const ask = index === 0 && turn.question ? h('button', { class: 'btn', title: 'Ask the same question in a new conversation, against the files as they are now', onclick: () => reAsk(turn) }, 'Re-ask') : null;
+  return banner('warn', `${r.worse} of ${r.total} citation${r.total === 1 ? '' : 's'} got worse since ${r.since}.`, `${words(r.bad)}.`, ask);
+}
+
+function reAsk(turn) {
+  if (state.streaming) { toast('Stop the current answer first.', 'info'); return; }
+  quote = null; drawQuote(); // a pending 'Ask about this' chip would be prefixed to the question
+  ctx.newConversation(); // a fresh session, so the model reads the files as they are today
+  ctx.ask(turn.question);
 }
 
 async function copyInline(btn, text, done) {
@@ -519,6 +529,7 @@ async function run(path, body, turn, after) {
   } finally {
     state.streaming = null;
     textarea.value = '';
+    hideRecall(); recallOff = null;
     autosize();
     drawComposer();
     drawBelow();
@@ -531,6 +542,7 @@ async function run(path, body, turn, after) {
 ctx.ask = async (question) => {
   question = String(question || '').trim();
   if (!question || !state.nbId) return;
+  hideRecall(); recallOff = null;
   const asked = question;
   if (quote) {
     question = `About this passage from ${quote.path}${quote.line ? ':' + quote.line + (quote.endLine && quote.endLine !== quote.line ? '-' + quote.endLine : '') : ''}:\n\n> ${quote.text.split('\n').join('\n> ')}\n\n${question}`;
@@ -571,7 +583,7 @@ ctx.generate = async (kind) => {
   });
 };
 
-const modelBody = () => (state.model === 'api' ? { model: 'opus', engine: 'api' } : { model: state.model });
+const modelBody = () => (state.model === 'api' ? { engine: 'api', ...(state.fast ? { fast: true } : { model: 'opus' }) } : { model: state.model, ...(state.fast ? { fast: true } : {}) });
 
 export function stopStreaming() { state.streaming?.controller.abort(); }
 export const isStreaming = () => !!state.streaming;
@@ -625,6 +637,64 @@ function drawQuote() {
   if (src) quoteEl.dataset.layer = src.layer; else delete quoteEl.dataset.layer;
 }
 
+// ---------- asked before (DESIGN 11.3): one earlier answer that reads like the question being typed ----------
+
+let recallTimer, recallCtl, recallSeq = 0, recallShown = null, recallOff = null;
+const recallKey = (hit) => `${hit.notebook}/${hit.id}`;
+
+function queueRecall() {
+  clearTimeout(recallTimer);
+  recallCtl?.abort();
+  recallSeq++;
+  const q = textarea.value.trim();
+  if (!q) recallOff = null;
+  if (state.streaming || !state.nbId || q.split(/\s+/).filter(Boolean).length < 3) return hideRecall();
+  recallTimer = setTimeout(() => askRecall(q), 350);
+}
+
+async function askRecall(q) {
+  recallCtl = new AbortController();
+  const seq = ++recallSeq;
+  let hit;
+  try {
+    const r = await api.get(`/api/recall?mode=hint&kinds=answer&limit=1&q=${encodeURIComponent(q.slice(0, 500))}&nb=${encodeURIComponent(state.nbId)}${state.convId ? `&skip=${encodeURIComponent(state.convId)}` : ''}`, recallCtl.signal);
+    hit = r?.hits?.[0];
+  } catch { return; } // no hint is the right answer when the server is away or mocked
+  if (seq !== recallSeq) return;
+  if (!hit || recallKey(hit) === recallOff) return hideRecall();
+  showRecall(hit);
+}
+
+function showRecall(hit) {
+  const { status, text } = recallParts(hit, state.nbId);
+  const key = recallKey(hit);
+  const st = status ? h('span', { class: `rc-st st-${status}` }, glyph(status, 'glyph sm')) : null, tx = h('span', { class: 'rc-text' }, text);
+  if (key === recallShown && !recallEl.hidden) { // same answer again: leave the buttons, so a focused Open keeps its focus
+    recallEl.querySelector('.rc-st')?.remove();
+    recallEl.querySelector('.rc-text').replaceWith(tx);
+    if (st) recallEl.prepend(st);
+  } else recallEl.replaceChildren(st ?? '', tx,
+    h('button', { class: 'btn link', type: 'button', onclick: () => { recallOff = recallKey(hit); hideRecall(); ctx.openRecall(hit); } }, 'Open', kbd('Tab')),
+    h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Dismiss', onclick: dismissRecall }, icon('x', 14)));
+  recallEl.hidden = false;
+  if (key !== recallShown) say(text, true);
+  recallShown = key;
+}
+
+function hideRecall() {
+  clearTimeout(recallTimer);
+  recallCtl?.abort();
+  recallSeq++;
+  recallShown = null;
+  if (recallEl) { recallEl.hidden = true; clear(recallEl); }
+}
+
+function dismissRecall() {
+  recallOff = recallShown;
+  hideRecall();
+  textarea.focus();
+}
+
 ctx.askAbout = (q) => askAbout(q);
 export function askAbout(q) {
   quote = q;
@@ -668,16 +738,18 @@ function composer() {
   numEl = h('span', { class: 't-mono-sm' });
   chipsEl = h('div', { class: 'c-scope' });
   quoteEl = h('div', { class: 'c-quote', hidden: true });
+  recallEl = h('div', { class: 'c-recall', role: 'group', 'aria-label': 'Asked before', hidden: true });
+  recallEl.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); dismissRecall(); } });
   errEl = h('div', { class: 'c-error', role: 'alert', hidden: true });
   composerEl = h('form', { class: 'composer', 'aria-label': 'Ask',
     onsubmit: (e) => { e.preventDefault(); state.streaming ? stopStreaming() : ctx.ask(textarea.value); } },
   h('div', { class: 'c-row1' }, h('label', { class: 't-kicker accent', for: 'ask-input' }, 'Ask'), h('span', { class: 'grow' }), numEl),
-  quoteEl, textarea,
+  quoteEl, textarea, recallEl,
   h('div', { class: 'c-row3' }, chipsEl, h('span', { class: 'grow' }), modelBtn, askBtn));
   textarea.id = 'ask-input';
   composerEl.addEventListener('pointerdown', (e) => { if (!e.target.closest('button, textarea')) { e.preventDefault(); textarea.focus(); } });
   belowBtn = h('button', { class: 'new-below', hidden: true, onclick: toBottom }, 'New text below', kbd('End'));
-  textarea.addEventListener('input', () => { autosize(); drawComposer(); });
+  textarea.addEventListener('input', () => { autosize(); drawComposer(); queueRecall(); });
   textarea.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -686,6 +758,7 @@ function composer() {
     }
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); if (!state.streaming) ctx.ask(textarea.value); return; }
     if (e.key === 'Escape' && state.streaming) { e.preventDefault(); e.stopPropagation(); stopStreaming(); return; }
+    if (e.key === 'Escape' && recallShown) { e.preventDefault(); e.stopPropagation(); dismissRecall(); return; }
     if (e.key === 'Escape' && !textarea.value) { e.preventDefault(); textarea.blur(); return; }
     // "/" in an empty composer starts a new question
     if (e.key === '/' && !textarea.value && state.convId) { e.preventDefault(); ctx.newConversation(); return; }

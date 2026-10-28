@@ -27,10 +27,10 @@ function fixture(name, result) {
 const okFixture = fixture('ok.jsonl', { subtype: 'success', is_error: false, result: ANSWER });
 const capFixture = fixture('cap.jsonl', { subtype: 'error_max_turns', is_error: true });
 
-function start(fixturePath) {
+function start(fixturePath, { cwd, home } = {}) {
   const child = spawn(process.execPath, [MCP], {
-    env: { ...process.env, LECTERN_FAKE_ENGINE: '1', LECTERN_FAKE_FIXTURE: fixturePath, LECTERN_HOME: env.home },
-    stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true,
+    env: { ...process.env, LECTERN_FAKE_ENGINE: '1', LECTERN_FAKE_FIXTURE: fixturePath, LECTERN_HOME: home ?? env.home },
+    stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true, ...(cwd ? { cwd } : {}),
   });
   const waiting = new Map();
   const stdout = [];
@@ -61,7 +61,7 @@ test('initialize negotiates the protocol version and names the server lectern', 
   const r = await srv.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } });
   assert.equal(r.result.protocolVersion, '2025-06-18');
   assert.equal(r.result.serverInfo.name, 'lectern');
-  assert.deepEqual(r.result.capabilities, { tools: { listChanged: false } });
+  assert.deepEqual(r.result.capabilities, { tools: { listChanged: false }, prompts: { listChanged: false } });
   srv.raw(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }));
   const odd = await srv.request('initialize', { protocolVersion: '1999-01-01', capabilities: {} });
   assert.equal(odd.result.protocolVersion, '2025-11-25');
@@ -83,7 +83,7 @@ test('ping, unknown methods, parse errors and invalid requests follow JSON-RPC',
 
 test('tools/list gives every tool a strict input schema', async () => {
   const { tools } = (await srv.request('tools/list', {})).result;
-  assert.deepEqual(tools.map((t) => t.name).sort(), ['ask', 'generate', 'get_artifact', 'list_artifacts', 'list_notebooks', 'read_source', 'search', 'verify']);
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['ask', 'check_notebook', 'generate', 'get_artifact', 'list_artifacts', 'list_notebooks', 'read_source', 'recall', 'search', 'submit_artifact', 'verify']);
   for (const t of tools) {
     assert.equal(t.inputSchema.type, 'object', t.name);
     assert.equal(t.inputSchema.additionalProperties, false, t.name);
@@ -170,6 +170,10 @@ test('ask with the fake engine returns the answer, checked citations and a saved
   assert.equal(s.answer, 'Handlers go in the event [1]. Foo is the class [2]. Ghosts too [3].');
   assert.deepEqual(s.citations.map((c) => [c.n, c.status, c.path, c.line]), [[1, 'verified', 'docs/guide/a.md', 6], [2, 'verified', 'src/java/net/x/Foo.java', 3], [3, 'missing', 'docs/ghost.md', 1]]);
   assert.equal(s.model, 'haiku'); // fast is the default mode
+  // the saved lines are file text and stay out of what the model gets back
+  assert.ok(!s.citations.some((c) => 'saw' in c));
+  assert.ok(!JSON.stringify(r.structuredContent).includes('public class Foo'));
+  assert.ok(!r.content.map((x) => x.text).join(' ').includes('public class Foo'));
   assert.equal(s.costUsd, 0.0123);
   assert.equal(typeof s.seconds, 'number');
   const t = r.content[0].text;
@@ -276,4 +280,204 @@ test('a cancel that lands while generate is still preparing stops the run', asyn
   await new Promise((r) => setTimeout(r, 500));
   assert.equal(fs.readdirSync(path.join(env.nbDir, 'artifacts')).length, before);
   assert.ok(!srv.notes.some((m) => m.id === id), 'a cancelled request gets no reply');
+});
+
+// ---------- recipe prompts and submit_artifact ----------
+
+const { listRecipes } = await import('../lib/studio/recipes.mjs');
+const rpc = async (s, method, params) => (await s.request(method, params));
+const promptText = (r) => r.result.messages[0].content.text;
+const artDir = path.join(env.nbDir, 'artifacts');
+const artFiles = () => (fs.existsSync(artDir) ? fs.readdirSync(artDir).filter((f) => f.endsWith('.json')) : []);
+const fence = (o, before = 'The map shows the main class.') => `${before}\n\n\`\`\`json\n${JSON.stringify(o, null, 2)}\n\`\`\`\n`;
+const PAD = 'These notes cover the intro page and one page that is not there, and they run long enough to pass the length check. ';
+
+test('prompts/list gives every recipe a slash command with its inputs as arguments', async () => {
+  const { prompts } = (await rpc(srv, 'prompts/list', {})).result;
+  const recipes = listRecipes();
+  assert.equal(prompts.length, 24);
+  assert.deepEqual(prompts.map((p) => p.name), recipes.map((r) => r.id));
+  for (const p of prompts) {
+    assert.ok(p.title, p.name);
+    assert.ok(p.description.length > 20, p.name);
+    const last = p.arguments.at(-1);
+    assert.equal(last.name, 'notebook', p.name);
+    assert.equal(last.required, false, p.name);
+    assert.equal(new Set(p.arguments.map((a) => a.name)).size, p.arguments.length, `${p.name} repeats an argument name`);
+  }
+  const args = (n) => prompts.find((p) => p.name === n).arguments.map((a) => [a.name, a.required]);
+  assert.deepEqual(args('diff-review'), [['diff', true], ['notebook', false]]);
+  assert.deepEqual(args('adr'), [['decision', true], ['options', false], ['notebook', false]]);
+  assert.match(prompts.find((p) => p.name === 'tech-spec').description, /Give one of: source, idea/);
+  for (const p of prompts) for (const a of p.arguments) assert.doesNotMatch(a.description, /[?!]\.|[^.]\.\.(\s|$)/, `${p.name}.${a.name} doubles its punctuation`);
+});
+
+test('prompts/get returns the recipe prompt, the agent steps and the exact submit call', async () => {
+  const r = await rpc(srv, 'prompts/get', { name: 'adr', arguments: { decision: 'How should we store settings?' } });
+  assert.equal(r.result.messages.length, 1);
+  assert.equal(r.result.messages[0].role, 'user');
+  assert.equal(r.result.messages[0].content.type, 'text');
+  const t = promptText(r);
+  for (const bit of ['architecture decision record', 'How should we store settings?', 'submit_artifact', 'read_source', 'notebook "test"', 'recipe "adr"', 'inputs {"decision":"How should we store settings?"}']) assert.ok(t.includes(bit), bit);
+  assert.match(r.result.description, /Test Notebook/);
+  const map = await rpc(srv, 'prompts/get', { name: 'code-map', arguments: { root: 'code' } });
+  assert.ok(promptText(map).includes('notebook path "src/java"'));
+  // the agent block lists the roots itself, so recipes that name none still get them
+  const gloss = promptText(await rpc(srv, 'prompts/get', { name: 'glossary', arguments: { notebook: '' } }));
+  assert.match(gloss, /these code roots also work[^]*\n {2}- code: .*src[\\/]java/);
+});
+
+test('prompts/get errors are invalid params, not crashes', async () => {
+  const bad = async (params) => (await rpc(srv, 'prompts/get', params)).error;
+  let e = await bad({ name: 'nope', arguments: {} });
+  assert.equal(e.code, -32602); assert.match(e.message, /Unknown prompt/);
+  e = await bad({ name: 'adr', arguments: {} });
+  assert.equal(e.code, -32602); assert.match(e.message, /decision is required/);
+  e = await bad({ name: 'adr', arguments: { decision: 'x', extra: 'y' } });
+  assert.equal(e.code, -32602); assert.match(e.message, /not a known property/);
+  e = await bad({ name: 'adr', arguments: { decision: 5 } });
+  assert.equal(e.code, -32602); assert.match(e.message, /must be a string/);
+  e = await bad({ name: 'adr', arguments: { decision: 'x', notebook: 'ghost' } });
+  assert.equal(e.code, -32602); assert.match(e.message, /no notebook "ghost"; known notebooks: test/);
+  e = await bad({ name: 'tech-spec', arguments: {} });
+  assert.equal(e.code, -32602); assert.match(e.message, /give one of/);
+  assert.deepEqual((await rpc(srv, 'ping')).result, {});
+});
+
+test('prompts/get picks the notebook from where Claude Code was started when there are several', async () => {
+  const other = path.join(env.root, 'other');
+  fs.mkdirSync(path.join(other, 'code'), { recursive: true });
+  fs.writeFileSync(path.join(other, 'notebook.json'), JSON.stringify({ name: 'other', title: 'Other', pinned: [], roots: { src: 'code' } }));
+  const home = path.join(env.root, 'home2');
+  fs.mkdirSync(home, { recursive: true });
+  const posix = (p) => p.split(path.sep).join('/');
+  fs.writeFileSync(path.join(home, 'registry.json'), JSON.stringify({ notebooks: { test: { dir: posix(env.nbDir), title: 'Test Notebook' }, other: { dir: posix(other), title: 'Other' } } }));
+  const inRoot = start(okFixture, { home, cwd: path.join(env.nbDir, 'src', 'java', 'net') });
+  const outside = start(okFixture, { home, cwd: env.root });
+  try {
+    const r = await rpc(inRoot, 'prompts/get', { name: 'adr', arguments: { decision: 'x' } });
+    assert.ok(promptText(r).includes('notebook "test"'));
+    const e = (await rpc(outside, 'prompts/get', { name: 'adr', arguments: { decision: 'x' } })).error;
+    assert.equal(e.code, -32602);
+    assert.match(e.message, /notebook is required; you have: test, other/);
+  } finally { inRoot.child.kill(); outside.child.kill(); }
+});
+
+test('submit_artifact saves a checked doc, reports statuses and replaces its own draft', async () => {
+  await srv.request('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'claude-code', version: '1' } });
+  const bad = `# Cheats\n\n${PAD}Welcome text [[docs/intro.md|"Welcome."]]. A ghost [[docs/ghost.md#L1]].`;
+  const r = await srv.call('submit_artifact', { notebook: 'test', recipe: 'cheat-sheet', draft: bad });
+  assert.ok(!r.isError, r.content[0].text);
+  const s = r.structuredContent;
+  assert.equal(s.saved, true);
+  assert.deepEqual(s.counts, { verified: 1, moved: 0, unverified: 0, missing: 1 });
+  assert.match(r.content[0].text, /Fix every unverified or missing/);
+  assert.ok(r.content[0].text.includes('[2] missing docs/ghost.md:1'));
+  const saved = JSON.parse(fs.readFileSync(path.join(artDir, `${s.id}.json`), 'utf8'));
+  assert.equal(saved.engine, 'mcp');
+  assert.equal(saved.client, 'claude-code');
+  assert.equal(saved.model, null);
+  assert.equal(saved.status, 'ok');
+  assert.ok(saved.markdown.includes('[^1]'));
+  assert.equal((await srv.call('get_artifact', { notebook: 'test', id: s.id })).structuredContent.id, s.id);
+
+  const good = `# Cheats\n\n${PAD}Welcome text [[docs/intro.md|"Welcome."]]. The title line [[docs/intro.md#L1]].`;
+  const again = await srv.call('submit_artifact', { notebook: 'test', recipe: 'cheat-sheet', draft: good, replaces: s.id });
+  assert.ok(!again.isError, again.content[0].text);
+  assert.equal(again.structuredContent.id, s.id);
+  assert.deepEqual(again.structuredContent.counts, { verified: 2, moved: 0, unverified: 0, missing: 0 });
+  assert.doesNotMatch(again.content[0].text, /Fix every/);
+  const after = JSON.parse(fs.readFileSync(path.join(artDir, `${s.id}.json`), 'utf8'));
+  assert.equal(after.createdAt, saved.createdAt);
+  const list = await srv.call('list_artifacts', { notebook: 'test' });
+  assert.equal(list.structuredContent.artifacts.filter((a) => a.recipe === 'cheat-sheet' && a.id !== 'art-1').length, 1);
+});
+
+test('submit_artifact refuses a draft that breaks the contract and saves nothing', async () => {
+  const before = artFiles().length;
+  const r = await srv.call('submit_artifact', { notebook: 'test', recipe: 'code-map', inputs: { root: 'code' }, draft: 'no json here' });
+  assert.equal(r.isError, true);
+  assert.match(r.content[0].text, /Nothing was saved/);
+  assert.match(r.content[0].text, /no ```json block/);
+  assert.equal(r.structuredContent.saved, false);
+  const noCite = await srv.call('submit_artifact', { notebook: 'test', recipe: 'cheat-sheet', draft: `# Cheats\n\n${PAD}${PAD}` });
+  assert.equal(noCite.isError, true);
+  assert.match(noCite.content[0].text, /has no citations/);
+  assert.equal(artFiles().length, before);
+});
+
+test('submit_artifact checks inputs like generate and only replaces its own drafts', async () => {
+  const draft = `# Cheats\n\n${PAD}Welcome text [[docs/intro.md|"Welcome."]].`;
+  const noInput = await srv.call('submit_artifact', { notebook: 'test', recipe: 'adr', draft: '# x' });
+  assert.equal(noInput.isError, true);
+  assert.match(noInput.content[0].text, /Decision to make/);
+
+  const foreign = path.join(artDir, 'other-1.json');
+  fs.writeFileSync(foreign, JSON.stringify({ id: 'other-1', recipe: 'cheat-sheet', kind: 'doc', status: 'ok', title: 'Mine', markdown: '# Mine', citations: [] }));
+  const bytes = fs.readFileSync(foreign);
+  const notMine = await srv.call('submit_artifact', { notebook: 'test', recipe: 'cheat-sheet', draft, replaces: 'other-1' });
+  assert.equal(notMine.isError, true);
+  assert.match(notMine.content[0].text, /was not made by submit_artifact/);
+  assert.ok(fs.readFileSync(foreign).equals(bytes));
+
+  const gone = await srv.call('submit_artifact', { notebook: 'test', recipe: 'cheat-sheet', draft, replaces: 'nope-1' });
+  assert.match(gone.content[0].text, /no artifact nope-1 to replace/);
+  const odd = await srv.call('submit_artifact', { notebook: 'test', recipe: 'cheat-sheet', draft, replaces: '../x' });
+  assert.match(odd.content[0].text, /has the wrong format/);
+
+  const mine = await srv.call('submit_artifact', { notebook: 'test', recipe: 'cheat-sheet', draft });
+  const other = await srv.call('submit_artifact', { notebook: 'test', recipe: 'glossary', draft, replaces: mine.structuredContent.id });
+  assert.equal(other.isError, true);
+  assert.match(other.content[0].text, /was not made by submit_artifact for glossary/);
+});
+
+test('submit_artifact lists data refs that did not verify', async () => {
+  const graph = {
+    title: 'Code map', layout: 'layered',
+    nodes: [
+      { id: 'pkg', label: 'net.x', kind: 'package' },
+      { id: 'foo', label: 'Foo', kind: 'class', ref: 'src/java/net/x/Foo.java#L3', detail: 'The main class [[src/java/net/x/Foo.java#L3-L5]].' },
+      { id: 'ghost', label: 'Ghost', kind: 'class', ref: 'src/java/Ghost.java#L1', detail: 'Not there.' },
+    ],
+    edges: [{ from: 'pkg', to: 'foo', label: 'contains', kind: 'contains' }, { from: 'pkg', to: 'ghost' }],
+  };
+  const r = await srv.call('submit_artifact', { notebook: 'test', recipe: 'code-map', inputs: { root: 'code' }, draft: fence(graph, 'The map shows the package [[docs/intro.md|"Welcome."]].') });
+  assert.ok(!r.isError, r.content[0].text);
+  assert.deepEqual(r.structuredContent.badRefs, ['src/java/Ghost.java#L1 (missing)']);
+  assert.match(r.content[0].text, /Fix every unverified or missing citation and ref/);
+});
+
+test('recall returns saved answers with citations re-checked, and a plain message when nothing is close', async () => {
+  const dir = path.join(env.nbDir, 'conversations');
+  fs.mkdirSync(dir, { recursive: true });
+  const cite = { n: 1, path: 'docs/intro.md', quote: 'Welcome.', line: 3, endLine: 3, status: 'verified' };
+  fs.writeFileSync(path.join(dir, 'recall-1.json'), JSON.stringify({ id: 'recall-1', notebook: 'test', title: 'intro', created: '2026-01-01T00:00:00Z', updated: '2026-01-01T00:00:00Z',
+    turns: [{ question: 'How does the intro greet new readers?', answer: 'It opens with a welcome line [^1].', citations: [cite] }] }));
+  const r = await srv.call('recall', { query: 'intro greet readers' });
+  assert.ok(!r.isError, r.content[0].text);
+  const hit = r.structuredContent.hits.find((h) => h.id === 'recall-1');
+  assert.equal(hit.kind, 'answer');
+  assert.equal(hit.cites.verified, 1);
+  assert.equal(hit.citations[0].status, 'verified');
+  assert.doesNotMatch(hit.text, /\[\^1\]/);
+  assert.match(r.content[0].text, /Citations \(checked just now\):/);
+  assert.match(r.content[0].text, /conversationId: recall-1/);
+  const none = await srv.call('recall', { query: 'zzqq xxyy' });
+  assert.match(none.content[0].text, /^No saved answer/);
+  assert.deepEqual(none.structuredContent.hits, []);
+});
+
+test('recall takes one notebook, a kinds filter and rejects bad arguments', async () => {
+  const ghost = await srv.call('recall', { query: 'intro greet readers', notebook: 'ghost' });
+  assert.equal(ghost.isError, true);
+  assert.match(ghost.content[0].text, /no notebook "ghost"/);
+  const one = await srv.call('recall', { query: 'intro greet readers', notebook: 'test', limit: 1 });
+  assert.equal(one.structuredContent.hits.length, 1);
+  const sheets = await srv.call('recall', { query: 'intro greet readers', kinds: ['sheet'] });
+  assert.ok(sheets.structuredContent.hits.every((h) => h.kind === 'sheet'));
+  const bogus = await srv.call('recall', { query: 'intro', kinds: ['bogus'] });
+  assert.equal(bogus.isError, true);
+  assert.match(bogus.content[0].text, /must be one of answer, note, sheet/);
+  const zero = await srv.call('recall', { query: 'intro', limit: 0 });
+  assert.match(zero.content[0].text, /must be at least 1/);
 });

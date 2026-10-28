@@ -81,6 +81,10 @@ npm run build:exe
 
 `dist/Lectern Setup.exe` installs it for your user, `dist/Lectern.exe` is the portable one (slow to open, it unpacks every launch). `npm run app` opens the window straight from the clone without building. It uses the same home folder and settings as the CLI, and if `lectern serve` already has the port it just shows that server.
 
+Closing the window sends Lectern to the system tray, where it keeps watching the code roots of every notebook (pinned docs aren't watched). A git pull, a checkout or a save is folded into one re-check about 3 seconds after the last change, and if citations in a saved answer or sheet moved you get a Windows notification like `Moved 3 citations in Question 047`. Click it and the window opens on that question. The tray menu has Open, the answers that drifted since you last opened them, and Quit. Turn on Quit when the window closes in Settings (or set `LECTERN_QUIT_ON_CLOSE=1`) to get the old behaviour back, which you want when you run `npm run app` over and over while editing code, otherwise the new launch just reaches the hidden old one. Quit in the tray menu stops the hidden one.
+
+Quick ask is a global hotkey, so it starts off. Switch on Quick ask hotkey in Settings (or set `LECTERN_QUICK_ASK=1`) and it works right away, no restart. Ctrl+Alt+Space then opens a small always-on-top window from any app, with whatever text you last copied (up to 8,000 characters) already in the palette. File and question matches show at once and cost nothing. Enter asks your last-used notebook on the fast preset (Haiku, low effort), Alt+Enter opens the question in the main window, and Esc or a click elsewhere hides the popup. If another app already owns Ctrl+Alt+Space (the Claude desktop app does on Windows), Lectern shows a "Quick ask is off" notification once and carries on without it. Free the shortcut, then switch the setting off and on again.
+
 ## 6. Let Claude Code use it (MCP)
 
 ```

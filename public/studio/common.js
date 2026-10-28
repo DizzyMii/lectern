@@ -137,6 +137,12 @@ export function textWidth(text, font = `500 13px ${UI_FONT}`) {
   return measureCtx.measureText(String(text)).width;
 }
 
+// DESIGN 8.5: the OS setting, unless Settings forces motion on (full) or off (reduce)
+export const reducedMotion = () => {
+  const m = document.documentElement.dataset.motion;
+  return m === 'reduce' || (m !== 'full' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+};
+
 export function clip(text, max) {
   const t = String(text ?? '');
   return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;

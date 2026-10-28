@@ -257,3 +257,22 @@ test('artifact summaries carry citation status counts and item sizes', () => {
   const broken = studio.summarizeArtifact({ id: 'e', kind: 'graph', status: 'invalid', data: null });
   assert.deepEqual(broken.size, [{ n: 0, unit: 'nodes' }, { n: 0, unit: 'edges' }]);
 });
+
+test('artifact citations and refs carry saved lines, and chains and exports do not', async () => {
+  const { artifact } = await runRecipe('code-map', { root: 'code' }, [fence(goodGraph)]);
+  assert.equal(artifact.status, 'ok');
+  const code = artifact.citations.find((c) => c.path === 'src/java/net/x/Foo.java');
+  assert.match(code.saw.text, /void payload/);
+  assert.deepEqual(artifact.sawRefs['src/java/net/x/Foo.java#L3'], { from: 3, to: 3, text: 'public class Foo {' });
+  assert.deepEqual(Object.keys(artifact.sawRefs), ['src/java/net/x/Foo.java#L3']);
+  assert.ok(!JSON.stringify(artifact.data).includes('void payload'));
+  const { artifactText } = await import('../lib/studio/inputs.mjs');
+  assert.ok(!artifactText(artifact).includes('void payload'));
+  const out = studio.exportArtifact(artifact, 'json');
+  assert.ok(!out.text.includes('void payload'));
+  assert.ok(JSON.parse(out.text).citations.every((c) => !('saw' in c)));
+  // the stored artifact keeps the saved lines, and a re-check leaves them alone
+  const again = studio.getArtifact(nb, artifact.id, { recheck: true });
+  assert.deepEqual(again.sawRefs, artifact.sawRefs);
+  assert.equal(again.citeCheck.changed, false);
+});

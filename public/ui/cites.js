@@ -1,14 +1,16 @@
 // Citations on the page (DESIGN 11.5 to 11.9): claim spans, gutter marks, margin cards,
 // the receipt, the hover card and the J/K claim cursor.
 
-import { h, clear, icon, copyText } from './dom.js';
+import { h, clear, icon, copyText, toast } from './dom.js';
 import { highlightLines } from './markdown.js';
-import { getFile, openFile, isDoc } from './viewer.js';
-import { ctx } from './state.js';
+import { getFile, openFile, isDoc, closeViewer, viewerOpen } from './viewer.js';
+import { ctx, state, on } from './state.js';
+import { windows, ghostOf, ribbonPath, hairPath } from './ribbon.js';
+import { citeWhy, readNote, wordDiff, when } from './witness.js';
 import { sourceFor, layerAttrs, swatch, glyph, statusOf, STATUS_WORD, shortPath, midPath, kbd } from './layers.js';
+import { RANK, changedCite, compare, series, shown, dayWord } from './status.js';
 
 const BLOCKS = 'p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote, dd, dt';
-const RANK = { unverified: 4, moved: 3, pending: 2, verified: 1 };
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduce';
 
 export function citeFor(chip) {
@@ -184,8 +186,8 @@ function uncitedCount(answer, claims) {
 }
 
 export function counts(turn, answer, claims) {
-  const out = { verified: 0, moved: 0, unverified: 0, pending: 0, uncited: 0, total: 0 };
-  for (const c of turn.citations || []) { out[statusOf(c)]++; out.total++; }
+  const out = { verified: 0, moved: 0, unverified: 0, pending: 0, uncited: 0, total: 0, thin: 0 };
+  for (const c of turn.citations || []) { out[statusOf(c)]++; out.total++; if (statusOf(c) === 'verified' && !c.quote && c.line && !c.saw) out.thin++; }
   if (answer && claims) out.uncited = uncitedCount(answer, claims);
   return out;
 }
@@ -198,17 +200,21 @@ export function receipt(turn, k, { checking = false } = {}) {
   const col = (n, st, word) => h('div', { class: `rc-col st-${st}${n ? '' : ' zero'}${checking ? ' checking' : ''}`, role: 'button', tabindex: 0, 'aria-label': `${n} ${word}`, dataset: { st } },
     h('span', { class: 'rc-num t-numeral-xl' }, checking ? '‒' : String(n), st !== 'uncited' && !checking ? glyph(st, 'glyph sm') : null),
     h('span', { class: 'rc-word' }, word));
-  const t = turn.startedAt ? new Date(new Date(turn.startedAt).getTime() + (turn.seconds || 0) * 1000) : null;
+  const t = turn.citeCheck?.checkedAt ? new Date(turn.citeCheck.checkedAt) : turn.startedAt ? new Date(new Date(turn.startedAt).getTime() + (turn.seconds || 0) * 1000) : null;
+  const d = !checking && k.total ? compare(turn.citations, { at0: turn.citeCheck?.checkedAt0 }) : null;
   let caption;
   if (checking) caption = k.total ? `Checking ${k.total} citation${k.total === 1 ? '' : 's'}...` : 'Checking citations...';
   else if (!k.total) caption = 'This answer has no citations. Treat it as a sketch.';
-  else if (k.unverified) caption = `${k.unverified} quote${k.unverified === 1 ? ' was' : 's were'} not found. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
+  else if (k.unverified && (turn.citations || []).every((c) => statusOf(c) !== 'unverified' || c.quote)) caption = `${k.unverified} quote${k.unverified === 1 ? ' was' : 's were'} not found. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
+  else if (k.unverified) caption = `${k.unverified} citation${k.unverified === 1 ? '' : 's'} did not check out. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
+  else if (k.thin) caption = `Quotes were found again in their files. ${k.thin} code citation${k.thin === 1 ? '' : 's'} only checked that the lines still exist.`;
   else caption = 'Every quote here was found again in its file, or where it moved to. Sentences with no mark are uncited.';
   const el = h('section', { class: `receipt neatline${!checking && k.total && k.verified === k.total && k.total > 1 ? ' all-ok' : ''}${!checking && !k.total ? ' none' : ''}`,
     'aria-label': `${k.verified} verified, ${k.moved} moved, ${k.unverified} unverified, ${k.uncited} uncited` },
   h('div', { class: 'double-rule' }),
   h('div', { class: 'rc-head' }, h('span', { class: 't-kicker' }, 'Checked'), fmtTime(t) && !checking ? h('span', { class: 't-mono-sm' }, 're-read ' + fmtTime(t)) : null),
   h('div', { class: `rc-cols${Math.max(k.verified, k.moved, k.unverified, k.uncited) >= 100 ? ' wide' : ''}` }, col(k.verified, 'verified', 'verified'), col(k.moved, 'moved', 'moved'), col(k.unverified, 'unverified', 'unverified'), col(k.uncited, 'uncited', 'uncited')),
+  d ? h('p', { class: 'rc-drift t-mono-sm' }, d.then, h('span', { class: 'rc-now' }, d.now)) : null,
   h('p', { class: `rc-caption${!checking && !k.total ? ' warn' : ''}` }, caption));
   return el;
 }
@@ -218,6 +224,12 @@ export function miniReceipt(k) {
   const item = (st, n) => h('span', { class: `mr st-${st}${n ? '' : ' zero'}` }, glyph(st, 'glyph sm'), String(n));
   return [h('span', { class: 'mini-receipt', role: 'img', 'aria-label': `${k.verified} verified, ${k.moved} moved, ${k.unverified} unverified, ${k.uncited} uncited` },
     item('verified', k.verified), item('moved', k.moved), item('unverified', k.unverified), h('span', { class: 'mr-unc' }, `· ${k.uncited} uncited`))];
+}
+
+// reopened sheet: chips whose citation changed since it was printed stamp in again
+export function stampChanged(host) {
+  if (reduced()) return;
+  for (const chip of host.querySelectorAll('.chip:not(.static)[data-n]')) if (changedCite(host.cites?.get(chip.dataset.n))) chip.classList.add('stamp');
 }
 
 // numerals count up once over 300ms when the last check lands
@@ -249,9 +261,8 @@ function cardFor(c, claim) {
     h('div', { class: 'mc-row' }, h('span', { class: `chip ${c.status} static`, 'aria-hidden': 'true', ...layerAttrs(src) }, c.n), glyph(st), h('span', { class: 'mc-st t-kicker' }, STATUS_WORD[st])),
     body,
     h('div', { class: 'mc-path', title: c.path }, midPath(shortPath(c.path, 2), c.line ? ':' + c.line : '')));
-  if (st === 'moved' && c.citedLine) card.append(h('div', { class: 'mc-moved' }, `Cited L${c.citedLine}, found at L${c.line}. Same text.`));
-  if (c.status === 'missing') card.append(h('div', { class: 'mc-bad' }, 'File no longer exists at this path.'));
-  else if (st === 'unverified') card.append(h('div', { class: 'mc-bad' }, `Quote not found in ${shortPath(c.path, 1)}.`));
+  const why = citeWhy(c, shortPath(c.path, 1));
+  if (why) card.append(h('div', { class: why.cls === 'moved' ? 'mc-moved' : 'mc-bad' }, why.text));
   card.addEventListener('click', () => { if (claim) setCursor(claim); const chip = claim?.chips.find((x) => x.dataset.n === String(c.n)) || claim?.chips[0]; if (chip) showCard(chip, { pinned: true }); });
   card.addEventListener('pointerenter', () => claim?.spans.forEach((s) => s.classList.add('hot')));
   card.addEventListener('pointerleave', () => claim?.spans.forEach((s) => s.classList.remove('hot')));
@@ -274,9 +285,15 @@ async function fillLine(item, relayout) {
 
 // ---------- decorate a finished (or streaming) turn ----------
 
+// the label on a moved mark; on a replay it rolls from the line it was cited at to the line it is at now
+const movedLabel = (c, roll) => (roll && c.line0 != null && c.line0 !== c.line
+  ? h('span', { class: 'gm-line roll' }, h('span', { class: 'gm-roll' }, h('span', null, 'L' + c.line0), h('span', null, 'L' + c.line)))
+  : h('span', { class: 'gm-line' }, 'L' + c.line));
+
 // turnEl holds .gutter, .answer and .margin .cards. Returns the counts for the receipt.
-export function decorate(turnEl, turn, { live = false } = {}) {
+export function decorate(turnEl, turn, { live = false, replay = false } = {}) {
   const answer = turnEl.querySelector('.answer');
+  if (proofTurn === turnEl) proofOff();
   const claims = buildClaims(answer);
   turnEl._claims = claims;
   turnEl._turn = turn;
@@ -285,9 +302,10 @@ export function decorate(turnEl, turn, { live = false } = {}) {
 
   const gutter = clear(turnEl.querySelector('.gutter'));
   for (const cl of claims) {
-    const mark = h('span', { class: `gmark st-${cl.status}${live && !reduced() ? ' stamp' : ''}`, 'aria-hidden': 'true', dataset: { claim: cl.id } }, glyph(cl.status));
+    const stamp = !reduced() && (live || (replay && cl.cites.some(changedCite)));
+    const mark = h('span', { class: `gmark st-${cl.status}${stamp ? ' stamp' : ''}`, 'aria-hidden': 'true', dataset: { claim: cl.id } }, glyph(cl.status));
     const mv = cl.cites.find((c) => statusOf(c) === 'moved');
-    if (mv) mark.append(h('span', { class: 'gm-line' }, 'L' + mv.line));
+    if (mv) mark.append(movedLabel(mv, replay && !reduced() && changedCite(mv)));
     cl.mark = mark;
     gutter.append(mark);
     // narrow pages drop the gutter, so the mark also sits inline before the claim
@@ -355,6 +373,7 @@ function layout(turnEl) {
     const r = el?.getClientRects()[0];
     if (!r || !cl.mark) continue;
     cl.top = r.top - base;
+    cl.lineH = r.height;
     cl.markTop = Math.round(r.top + r.height / 2 - 8 - base);
     if (!lines.has(cl.markTop)) lines.set(cl.markTop, []);
     lines.get(cl.markTop).push(cl);
@@ -380,6 +399,7 @@ function layout(turnEl) {
     bottom = top + it.card.offsetHeight;
   }
   cardsEl.style.height = bottom + 'px';
+  if (turnEl.classList.contains('proof')) drawRibbons(turnEl, cardsEl);
 }
 
 // ---------- hover card ----------
@@ -420,6 +440,7 @@ export function showCard(chip, { pinned: pin = false } = {}) {
   const st = statusOf(c);
   const src = sourceFor(c.path);
   const excerpt = h('div', { class: 'hc-ex' });
+  const why = citeWhy(c, shortPath(c.path, 1));
   const acts = h('div', { class: 'hc-acts' },
     h('button', { class: 'btn quiet', onclick: () => { hideCard(true); openAt(c); } }, 'Open at line', kbd('O')),
     h('button', { class: 'btn quiet', onclick: () => copyText(refOf(c), `Copied ${refOf(c)}`) }, 'Copy ref'),
@@ -430,12 +451,13 @@ export function showCard(chip, { pinned: pin = false } = {}) {
       h('span', { class: `chip ${c.status} static`, ...layerAttrs(src) }, c.n), h('span', { class: 't-mono-sm' }, `of ${totalIn(chip)}`)),
     excerpt,
     h('div', { class: 'hc-loc' }, swatch(src, true), h('span', { class: 'hc-path' }, midPath(shortPath(c.path, 4))), c.line ? h('span', { class: 'hc-line' }, ':' + range(c)) : null),
-    st === 'moved' && c.citedLine ? h('div', { class: 'hc-note moved' }, `Cited L${c.citedLine}, found at L${c.line}. Same text.`) : null,
-    c.status === 'missing' ? h('div', { class: 'hc-note bad' }, 'File no longer exists at this path.') : null,
-    c.status === 'unverified' ? h('div', { class: 'hc-note bad' }, `Quote not found in ${shortPath(c.path, 1)}.`,
-      c.quote ? h('button', { class: 'btn quiet', onclick: () => { hideCard(true); ctx.openSearch(c.quote.slice(0, 60)); } }, 'Search all sources') : null) : null,
+    why ? h('div', { class: `hc-note ${why.cls}` }, why.text,
+      c.status === 'unverified' && c.quote ? h('button', { class: 'btn quiet', onclick: () => { hideCard(true); ctx.openSearch(c.quote.slice(0, 60)); } }, 'Search all sources') : null) : null,
+    witnessNotes(c),
     acts);
   if (c.quote) excerpt.append(h('blockquote', { class: 'hc-quote' }, '“', c.quote.replace(/`/g, ''), '”'));
+  const hist = historyRow(c);
+  if (hist) acts.before(hist);
   card.addEventListener('pointerenter', () => clearTimeout(hideT));
   card.addEventListener('pointerleave', () => hideCard());
   cardChip = chip;
@@ -445,21 +467,85 @@ export function showCard(chip, { pinned: pin = false } = {}) {
   claimOf(chip)?.spans.forEach((s) => s.classList.add('hot'));
   document.body.append(card);
   place(card, chip);
+  // rewritten lines: what was saved above, what is there now below
+  if (c.status === 'unverified' && c.saw && !c.quote && c.line) {
+    getFile(c.path).then((f) => {
+      if (cardChip !== chip || !card) return;
+      excerpt.after(compareBlock(c, f));
+      place(card, chip);
+    }).catch(() => {});
+    return;
+  }
   if (c.line && c.status !== 'missing' && !(c.quote && isDoc(c.path))) {
     // reserve the space, fill in place when the file arrives (prefetched by the margin cards)
     getFile(c.path).then((f) => {
       if (cardChip !== chip || !card) return;
       const a = Math.max(1, c.line - 2);
       const b = Math.min(a + 6, (c.endLine || c.line) + 2);
-      const lines = highlightLines(f.text.split('\n').slice(a - 1, b).join('\n'), f.lang || c.path.split('.').pop());
-      excerpt.append(h('div', { class: 'hc-code' }, lines.map((html, i) => {
-        const n = a + i;
-        const hit = n >= c.line && n <= (c.endLine || c.line);
-        return h('div', { class: `row${hit ? ' hit' : ''}` }, h('span', { class: 'n' }, n), h('span', { class: 'c', html: html || ' ' }));
-      })));
+      excerpt.append(h('div', { class: 'hc-code' }, excerptRows(c, f, a, b)));
       place(card, chip);
     }).catch(() => {});
   }
+}
+
+// rows a..b of a file: the cited range banded; for a moved citation, g marks the lines it was cited at
+function excerptRows(c, f, a, b, g = null) {
+  const lines = highlightLines(f.text.split('\n').slice(a - 1, b).join('\n'), f.lang || c.path.split('.').pop());
+  const hi = c.endLine || c.line;
+  return lines.map((html, i) => {
+    const n = a + i, hit = n >= c.line && n <= hi, gh = !hit && g && n >= g.from && n <= g.to;
+    const tag = g && ((hit && n === c.line) ? 'found here' : (gh && n === g.from) ? 'cited here' : null);
+    return h('div', { class: `row${hit ? ' hit' : ''}${gh ? ' ghost' : ''}`, dataset: { n } },
+      h('span', { class: 'n' }, n), h('span', { class: 'c', html: html || ' ' }), tag ? h('span', { class: 'ltag' }, tag) : null);
+  });
+}
+
+// what the saved lines and the trail's reads say about a citation, as hover card notes
+function witnessNotes(c) {
+  const out = [];
+  const rd = readNote(c, isDoc(c.path));
+  if (rd) out.push(h('div', { class: 'hc-note' }, rd.text));
+  if (c.saw?.cut) out.push(h('div', { class: 'hc-note dim' }, `Only the first ${c.saw.text.split('\n').length} cited lines were saved.`));
+  if (c.saw?.base) out.push(h('div', { class: 'hc-note dim' }, `Lines saved on ${when(c.saw.at)} when this citation was first re-checked. Earlier edits are not visible.`));
+  if (!c.saw && statusOf(c) === 'verified' && !c.quote && c.line) out.push(h('div', { class: 'hc-note dim' }, 'No saved copy of these lines. Lectern only checked that they still exist.'));
+  return out;
+}
+
+const MAX_CMP_ROWS = 8;
+
+// the saved lines above, today's lines below, changed words marked on both
+function compareBlock(c, f) {
+  const { saw } = c;
+  const span = (a, b) => (a === b ? `L${a}` : `L${a}-${b}`);
+  const all = f.text.split('\n');
+  const today = all.slice(saw.from - 1, saw.to).map((l) => l.replace(/\r$/, ''));
+  const gone = saw.from > all.length;
+  const diff = wordDiff(saw.text, gone ? '' : today.join('\n'));
+  const date = saw.base ? saw.at : c.checkedAt0;
+  // the window starts a couple of rows above the first changed word, so an edit deep in a long block still shows
+  const firstX = (ls) => { const i = ls.findIndex((r) => r.some((x) => x.x)); return i < 0 ? Infinity : i; };
+  const first = Math.min(firstX(diff.a), firstX(diff.b));
+  const start = Number.isFinite(first) ? Math.max(0, Math.min(first - 2, Math.max(diff.a.length, diff.b.length) - MAX_CMP_ROWS)) : 0;
+  const side = (cls, kicker, lines, from) => h('div', { class: `hc-cmp-side ${cls}` },
+    h('div', { class: 't-kicker' }, kicker),
+    start ? h('div', { class: 't-mono-sm' }, `${start} lines above`) : null,
+    h('div', { class: 'hc-code' }, lines.slice(start, start + MAX_CMP_ROWS).map((runs, i) => h('div', { class: 'row' }, h('span', { class: 'n' }, from + start + i),
+      h('span', { class: 'c' }, runs.length ? runs.map((r) => (r.x ? h('span', { class: 'dw' }, r.t) : r.t)) : ' ')))),
+    lines.length > start + MAX_CMP_ROWS ? h('div', { class: 't-mono-sm' }, `+${lines.length - start - MAX_CMP_ROWS} more lines`) : null);
+  return h('div', { class: 'hc-cmp' },
+    side('old', `Saved ${span(saw.from, saw.to)}${date ? ` · ${when(date)}` : ''}`, diff.a, saw.from),
+    gone ? h('div', { class: 'hc-cmp-side new' }, h('div', { class: 't-kicker' }, `Now ${span(saw.from, saw.to)}`), h('p', { class: 't-ui-sm' }, 'These lines are past the end of the file.'))
+      : side('new', `Now ${span(saw.from, saw.from + today.length - 1)}`, diff.b, saw.from));
+}
+
+// dated glyphs, as written first, for a citation that has changed since
+function historyRow(c) {
+  const s = series(c);
+  if (!s.length) return null;
+  const word = (e) => `${dayWord(e.at)} ${STATUS_WORD[shown(e.status)]}${e.line ? ' L' + e.line : ''}`.trim();
+  return h('div', { class: 'hc-hist', role: 'img', 'aria-label': 'History: ' + s.map(word).join(', ') },
+    h('span', { class: 't-kicker' }, 'History'),
+    s.map((e) => h('span', { class: `hd st-${shown(e.status)}`, title: word(e) }, glyph(shown(e.status), 'glyph sm'), h('span', { class: 't-mono-sm' }, dayWord(e.at)))));
 }
 
 // below the chip, flipped above when there is no room
@@ -492,6 +578,7 @@ export function clearCursor() {
   cursor.spans.forEach((s) => s.classList.remove('cur'));
   cursor.mark?.classList.remove('cur');
   cursor.cards?.forEach((c) => c.classList.remove('cur'));
+  ribbonCursor(cursor.turnEl, null);
   cursor = null;
   return true;
 }
@@ -499,6 +586,7 @@ export function clearCursor() {
 export function setCursor(cl, { scroll = false } = {}) {
   clearCursor();
   cursor = cl;
+  ribbonCursor(cl.turnEl, cl);
   cl.spans.forEach((s) => s.classList.add('cur'));
   cl.mark?.classList.add('cur');
   cl.cards?.forEach((c) => c.classList.add('cur'));
@@ -544,6 +632,18 @@ export function pinCitation(n) {
   return true;
 }
 
+// jump to citation n of the turn at index `turn`: scroll its chip to the middle, set the claim cursor, pin its card
+export function revealCite(turn, n) {
+  const t = document.querySelector(`#chat .turn[data-index='${turn}']`);
+  const chip = t?.querySelector(`.answer .chip[data-n='${n}']`);
+  if (!chip) return false;
+  chip.scrollIntoView({ block: 'center', behavior: 'instant' });
+  const cl = claimOf(chip);
+  if (cl) setCursor(cl);
+  showCard(chip, { pinned: true });
+  return true;
+}
+
 export function stepCitation(dir) {
   const t = activeTurn();
   if (!t) return;
@@ -561,6 +661,131 @@ export function pinCursor() {
   return true;
 }
 
+// ---------- proof ribbons ----------
+
+let proofTurn = null;
+
+export const proofOpen = () => !!proofTurn?.isConnected;
+
+// V: on for the active answer, off if it is already on
+export function toggleProof(turn = activeTurn()) {
+  if (proofTurn && proofTurn === turn) { proofOff(); ctx.say?.('Proof ribbons off.'); return false; }
+  return proofOn(turn);
+}
+
+function proofOn(turn) {
+  if (!turn?.offsetParent) return false;
+  if (state.streaming) { toast('Wait for the answer to finish.', 'info', 2400); return false; }
+  const items = (turn._cards || []).filter((it) => it.claim && it.c.line && ['verified', 'moved'].includes(it.st));
+  if (!items.length) { toast('No cited lines to show in this answer.', 'info', 2400); return false; }
+  if (!turn.querySelector('.margin').offsetParent) { toast('The margin is folded at this width. Widen the window for proof ribbons.', 'info', 3200); return false; }
+  proofOff();
+  if (viewerOpen()) closeViewer();
+  hideCard(true);
+  const svg = h('svg', { class: 'ribbons', 'aria-hidden': 'true' });
+  holdPlace(turn, () => { turn.classList.add('proof'); turn.append(svg); });
+  proofTurn = turn;
+  for (const it of items) {
+    const doc = isDoc(it.c.path);
+    it.pane = h('div', { class: `mc-proof hc-code${doc ? ' doc' : ''}` });
+    it.card.classList.add('has-proof');
+    it.card.querySelector('.mc-row').after(it.pane);
+    const f = turn.querySelector('.cards').dataset.filter;
+    const mk = (cls) => { const p = h('path', { class: `ribbon${cls}${f && it.st !== f ? ' dim' : ''}`, ...layerAttrs(sourceFor(it.c.path)) }); svg.append(p); return p; };
+    it.rb = mk('');
+    it.rg = ghostOf(it.c) ? mk(' ghost') : null;
+    fillProof(turn, it);
+  }
+  if (cursor?.turnEl === turn) ribbonCursor(turn, cursor);
+  const moved = items.filter((it) => it.st === 'moved').length;
+  ctx.say?.(`Proof ribbons on. ${items.length} cited file${items.length === 1 ? '' : 's'} in the margin${moved ? `, ${moved} moved` : ''}. V closes.`);
+  scheduleLayout(turn);
+  return true;
+}
+
+async function fillProof(turn, it) {
+  const { c, pane } = it;
+  try {
+    const f = await getFile(c.path);
+    if (!pane.isConnected) return;
+    const ws = f.binary ? [] : windows(c, f.text.split('\n').length, isDoc(c.path) ? 1 : 2);
+    if (!ws.length) throw new Error('no lines');
+    const g = ghostOf(c);
+    ws.forEach((w, i) => {
+      if (i) pane.append(h('div', { class: 'row gap' }, h('span', { class: 'n' }, '…'), h('span', { class: 'c' }, ` ${w.a - ws[i - 1].b - 1} lines`)));
+      pane.append(...excerptRows(c, f, w.a, w.b, g));
+    });
+  } catch { if (pane.isConnected) dropPane(it); }
+  scheduleLayout(turn);
+}
+
+function dropPane(it) {
+  it.pane?.remove(); it.rb?.remove(); it.rg?.remove();
+  it.card.classList.remove('has-proof');
+  it.pane = it.rb = it.rg = null;
+}
+
+export function proofOff() {
+  const t = proofTurn;
+  proofTurn = null;
+  if (!t?.isConnected) return !!t;
+  holdPlace(t, () => {
+    t.classList.remove('proof', 'has-cur');
+    t.querySelector('.ribbons')?.remove();
+    for (const it of t._cards || []) dropPane(it);
+  });
+  scheduleLayout(t);
+  return true;
+}
+
+// entering or leaving re-wraps the answer: keep the line the reader was on where it was
+function holdPlace(turn, change) {
+  const sc = turn.closest('.page-scroll'), top = sc.getBoundingClientRect().top;
+  const cl = (cursor?.turnEl === turn && cursor) || (turn._claims || []).find((c) => (c.spans[0] || c.anchor)?.getBoundingClientRect().bottom > top);
+  const el = cl && (cl.spans[0] || cl.anchor);
+  const y = el?.getBoundingClientRect().top;
+  change();
+  if (el) sc.scrollTop += el.getBoundingClientRect().top - y;
+}
+
+// the cursor claim's ribbons stay full, the rest collapse (CSS reads .has-cur and .cur)
+function ribbonCursor(turnEl, cl) {
+  turnEl.classList.toggle('has-cur', !!cl);
+  for (const it of turnEl._cards || []) for (const p of [it.rb, it.rg]) p?.classList.toggle('cur', !!cl && it.claim === cl);
+}
+
+function drawRibbons(turnEl, cardsEl) {
+  const svg = turnEl.querySelector('.ribbons');
+  if (!svg) return;
+  const t = turnEl.getBoundingClientRect();
+  const x0 = Math.round(turnEl.querySelector('.answer').getBoundingClientRect().right - t.left) + 8;
+  const w = Math.round(cardsEl.getBoundingClientRect().left - t.left) - 2 - x0;
+  svg.style.display = w < 24 ? 'none' : '';
+  if (w < 24) return;
+  Object.assign(svg.style, { left: x0 + 'px', width: w + 'px', height: turnEl.offsetHeight + 'px' });
+  const y = (el) => { const r = el.getBoundingClientRect(); return [r.top - t.top, r.bottom - t.top]; };
+  // claims that start on the same line split that line's box between their ribbons
+  const rows = new Map();
+  for (const cl of turnEl._claims || []) {
+    if (cl.top == null) continue;
+    for (const it of turnEl._cards || []) if (it.claim === cl && it.rb) {
+      if (!rows.has(cl.markTop)) rows.set(cl.markTop, []);
+      rows.get(cl.markTop).push(it);
+    }
+  }
+  for (const its of rows.values()) {
+    const cl = its[0].claim;
+    its.forEach((it, i) => {
+      const hit = it.pane.querySelectorAll('.row.hit'), gh = it.pane.querySelectorAll('.row.ghost');
+      if (!hit.length) { it.rb.removeAttribute('d'); it.rg?.removeAttribute('d'); return; }
+      const s = cl.lineH / its.length, a = [cl.top + i * s, cl.top + (i + 1) * s];
+      it.rb.setAttribute('d', ribbonPath(w, a, [y(hit[0])[0], y(hit[hit.length - 1])[1]]));
+      if (it.rg && gh.length) it.rg.setAttribute('d', hairPath(w, (a[0] + a[1]) / 2, (y(gh[0])[0] + y(gh[gh.length - 1])[1]) / 2));
+      else it.rg?.removeAttribute('d');
+    });
+  }
+}
+
 export function challenge(cl = cursor) {
   if (!cl) return false;
   const text = cl.spans.map((s) => s.textContent).join('').trim();
@@ -574,7 +799,10 @@ function filterState(turnEl, st) {
   const cards = turnEl.querySelector('.cards');
   const on = cards.dataset.filter === st ? '' : st;
   cards.dataset.filter = on;
-  for (const it of turnEl._cards || []) it.card.classList.toggle('dim', !!on && it.st !== on);
+  for (const it of turnEl._cards || []) {
+    it.card.classList.toggle('dim', !!on && it.st !== on);
+    for (const p of [it.rb, it.rg]) p?.classList.toggle('dim', !!on && it.st !== on);
+  }
   if (on) {
     const list = (turnEl._claims || []).filter((cl) => cl.status === on);
     const i = cursor && list.includes(cursor) ? list.indexOf(cursor) + 1 : 0;
@@ -584,6 +812,8 @@ function filterState(turnEl, st) {
 
 export function initCites() {
   document.documentElement.setAttribute('data-cite-cards', '');
+  // the drawer overlays the margin, so it replaces proof mode (proofOn closes it first, so this skips entry)
+  on('viewer', () => { if (viewerOpen()) proofOff(); });
   document.addEventListener('pointerover', (e) => {
     const chip = e.target.closest?.('.chip:not(.static)');
     if (!chip || !chip.closest('.has-cites')) return;

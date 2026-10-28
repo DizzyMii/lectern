@@ -1,13 +1,16 @@
 // Sequence artifacts: actor boxes, dashed lifelines, numbered arrows, notes,
 // activation bars between a call and its reply, and a step panel on the right
-// with the current step's citations. Up/Down walk the steps, Enter or O opens the ref.
+// with the current step's citations. Up/Down walk the steps, Enter or O opens the ref,
+// Space plays a packet along the arrows.
 
 import {
-  h, s, textWidth, clip, slug, download, copy, btn, menuButton,
+  h, s, icon, reducedMotion, textWidth, clip, slug, download, copy, btn, menuButton,
   citeHost, mdInline, stateView, emptyView, summaryBlock, inlineSvg, svgToPng, cssVar, mermaidId, mermaidText,
   layerOf, statusOf, statusLine, markShapes, swatch, citesIn, citeCard, midPath, sourceName, refLabel, isExternal, regenButton,
   UI_FONT, MONO_FONT, STATUS_WORD,
 } from './common.js';
+import { store } from '../ui/dom.js';
+import { HOP, hold, hopFrames, liveBars } from './sequence-play.js';
 
 const LABEL_FONT = `400 12.5px ${UI_FONT}`;
 const CODE_FONT = `400 12px ${MONO_FONT}`;
@@ -136,6 +139,8 @@ export function render(container, artifact, ctx = {}) {
   const gBars = s('g', { class: 'sq-bars' });
   const gMsgs = s('g', { class: 'sq-msgs' });
   content.append(gRows, gLife, gBars, gMsgs);
+  const packet = s('circle', { class: 'sq-packet', r: 4.5 });
+  content.append(packet);
 
   const actorBox = (i, yy) => {
     const a = actors[i];
@@ -150,9 +155,12 @@ export function render(container, artifact, ctx = {}) {
     gLife.append(s('line', { class: 'sq-lifeline', x1: ax[i], x2: ax[i], y1: 54, y2: H - 4 }));
     gLife.append(actorBox(i, 8));
   });
+  const barEls = [];
   for (const b of bars) {
     const y1 = rows[b.from].arrowY, y2 = rows[b.to].arrowY;
-    gBars.append(s('rect', { class: 'sq-bar', x: ax[b.actor] - 4, y: y1, width: 8, height: Math.max(8, y2 - y1) }));
+    const bar = s('rect', { class: 'sq-bar', x: ax[b.actor] - 4, y: y1, width: 8, height: Math.max(8, y2 - y1) });
+    gBars.append(bar);
+    barEls.push(bar);
   }
 
   const rowEls = [];
@@ -182,10 +190,12 @@ export function render(container, artifact, ctx = {}) {
     if (r.self) {
       const d = `M${x1 + 4},${ay} h22 v14 h-18`;
       g.append(s('path', { class: 'sq-line', d }));
+      r.pts = [[x1 + 4, ay], [x1 + 26, ay], [x1 + 26, ay + 14], [x1 + 6, ay + 14]];
       end = { x: x1 + 6, y: ay + 14 }; from = { x: x1 + 20, y: ay + 14 };
     } else {
       const sx = x1 + dirn * 9, ex = x2 - dirn * (st.ret ? 1 : 5);
       g.append(s('path', { class: 'sq-line', d: `M${sx},${ay} L${ex},${ay}` }));
+      r.pts = [[sx, ay], [ex, ay]];
       end = { x: ex, y: ay }; from = { x: ex - dirn * 10, y: ay };
     }
     const ang = Math.atan2(end.y - from.y, end.x - from.x);
@@ -213,7 +223,7 @@ export function render(container, artifact, ctx = {}) {
   const headSvg = s('svg', { class: 'sq-head-svg', width: W, height: HEAD, viewBox: `0 0 ${W} ${HEAD}`, 'aria-hidden': 'true' });
   actors.forEach((_, i) => headSvg.append(actorBox(i, 8)));
   const sticky = h('div', { class: 'sq-sticky' }, headSvg);
-  const scroller = h('div', { class: 'sq-scroll', tabindex: '0', 'aria-label': 'Sequence diagram. Up and Down step through, Enter opens the source.' }, sticky, h('div', { class: 'sq-body' }, svg));
+  const scroller = h('div', { class: 'sq-scroll', tabindex: '0', 'aria-label': 'Sequence diagram. Up and Down step through, Enter opens the source. Space plays.' }, sticky, h('div', { class: 'sq-body' }, svg));
   const edge = () => scroller.classList.toggle('more-right', scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 4);
   const onScroll = () => { sticky.classList.toggle('show', scroller.scrollTop > HEAD * k * 0.6); edge(); };
   scroller.addEventListener('scroll', onScroll, { passive: true });
@@ -307,7 +317,7 @@ export function render(container, artifact, ctx = {}) {
       !st.ref && !cites.length ? h('p', { class: 'sa-muted' }, 'This step has no source.') : null].filter(Boolean));
   }
 
-  function select(ri, reveal = false) {
+  function paint(ri, reveal = false) {
     cur = ri;
     rowBgs.forEach((b, i) => b.classList.toggle('sel', i === ri));
     rowEls.forEach((g, i) => g.classList.toggle('sel', i === ri));
@@ -321,21 +331,90 @@ export function render(container, artifact, ctx = {}) {
       listItems[ri]?.scrollIntoView({ block: 'nearest' });
     }
   }
+  // anything the user does takes over from a running Play and becomes where the next Play starts
+  function select(ri, reveal = false) { stop(); startAt = ri; paint(ri, reveal); }
   const step = (d) => select(Math.max(0, Math.min(steps.length - 1, cur + d)), true);
+  // ---------- play ----------
+  let run = 0;       // stop() bumps it, so a timer or finish event from an older run does nothing
+  let timer = 0;
+  let startAt = 0;   // where the next Play begins: the step last picked by hand, 0 at first and after a full run
+  let follow = Boolean(store.get('studio.seqFollow', false));
+  let sawDrawer = false;
+  const playing = () => svg.classList.contains('playing');
+  const paintBars = (i, landed) => liveBars(bars, i, landed).forEach((on, n) => barEls[n].classList.toggle('live', on));
+
+  function drawPlay() {
+    playBtn.replaceChildren(icon(playing() ? 'stop' : 'play', 14), h('span', null, playing() ? 'Stop' : 'Play'), h('kbd', null, 'Space'));
+  }
+  function setFollow(v) { follow = v; followBox.checked = v; store.set('studio.seqFollow', v); }
+  // true when the drawer was asked to show the step; false when the user closed it mid-play, which turns Follow off
+  function showSource(ref) {
+    const open = () => document.documentElement.classList.contains('drawer-open');
+    if (sawDrawer && !open()) { setFollow(false); return false; }
+    ctx.openRef?.(ref);
+    sawDrawer = open();
+    return true;
+  }
+  function hop(i, my) {
+    if (my !== run) return;
+    const reduced = reducedMotion();
+    paint(i, true);          // row, list and side panel move as the packet leaves
+    paintBars(i, false);     // a bar closes as its reply leaves
+    const land = () => {
+      if (my !== run) return;
+      paintBars(i, true);    // a bar opens as its call lands
+      const opened = follow && steps[i].ref ? showSource(steps[i].ref) : false;
+      timer = setTimeout(() => (i + 1 < steps.length ? hop(i + 1, my) : stop(true)), hold(opened, reduced));
+    };
+    packet.getAnimations().forEach((a) => a.cancel());
+    packet.classList.toggle('on', !reduced);
+    if (reduced) return land();
+    packet.animate(hopFrames(rows[i].pts), { duration: HOP, easing: 'linear', fill: 'forwards' }).onfinish = land;
+  }
+  function stop(finished = false) {
+    if (!playing()) return;
+    run++;
+    clearTimeout(timer);
+    packet.getAnimations().forEach((a) => a.cancel());
+    packet.classList.remove('on');
+    svg.classList.remove('playing');   // bars go back to the full static set
+    curBox.setAttribute('aria-live', 'polite');
+    startAt = finished ? 0 : cur;
+    drawPlay();
+  }
+  function play() {
+    if (playing()) return stop();
+    if (!root.contains(document.activeElement)) scroller.focus({ preventScroll: true });   // the Play button can live in the cover bar, outside root
+    svg.classList.add('playing');
+    curBox.setAttribute('aria-live', 'off');   // one announcement per step would be a flood
+    sawDrawer = false;
+    drawPlay();
+    hop(startAt < steps.length - 1 ? startAt : 0, run);
+  }
+  const onEsc = (e) => { if (e.key === 'Escape' && playing()) { stop(); e.preventDefault(); e.stopPropagation(); } };
+  const onHide = () => { if (document.hidden) stop(); };
+  document.addEventListener('keydown', onEsc, true);   // capture: beats canvasKeys, globalKeys and the drawer's own Esc
+  document.addEventListener('visibilitychange', onHide);
+  cleanup.push(() => { stop(); document.removeEventListener('keydown', onEsc, true); document.removeEventListener('visibilitychange', onHide); });
   root.addEventListener('keydown', (e) => {
     if (e.target.closest('input, textarea') || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === 'ArrowDown' || e.key === 'j' || e.key === 'J') step(1);
     else if (e.key === 'ArrowUp' || e.key === 'k' || e.key === 'K') step(-1);
     else if ((e.key === 'Enter' || e.key === 'o' || e.key === 'O') && cur >= 0 && steps[cur].ref && !e.target.closest('button')) ctx.openRef?.(steps[cur].ref);
+    else if (e.key === ' ' && !e.target.closest('button, a, summary')) { if (!e.repeat) play(); }
     else return;
     e.preventDefault();
     e.stopPropagation();
   });
 
-  const exportSource = () => inlineSvg(content, { box: { x: 0, y: 0, w: W0, h: H }, background: cssVar(container, '--paper', '#ffffff') });
+  const exportSource = () => { stop(); return inlineSvg(content, { box: { x: 0, y: 0, w: W0, h: H }, background: cssVar(container, '--paper', '#ffffff') }); };
+  const playBtn = btn('Play', play, { iconName: 'play', cls: 'quiet', kbd: 'Space', title: 'Send a packet along each arrow, one at a time' });
+  const followBox = h('input', { type: 'checkbox', class: 'checkbox', checked: follow, onchange: () => setFollow(followBox.checked) });
+  const followLabel = h('label', { class: 'sq-follow', title: 'While playing, open each step source in the drawer at its line' }, followBox, h('span', null, 'Follow code'));
   const toolbar = h('div', { class: 'sa-toolbar' },
     h('div', { class: 'sa-meta' }, `${actors.length} actors · ${steps.length} steps · ${cited} cited`),
     h('div', { class: 'sa-spacer' }),
+    h('div', { class: 'sa-group' }, playBtn, cited ? followLabel : null),
     h('div', { class: 'sa-group' },
       h('button', { type: 'button', class: 'icon-btn sa-icon', 'aria-label': 'Zoom out', title: 'Zoom out', onclick: () => setZoom(k / 1.2) }, h('span', { 'aria-hidden': 'true' }, '−')),
       h('button', { type: 'button', class: 'icon-btn sa-icon', 'aria-label': 'Zoom in', title: 'Zoom in', onclick: () => setZoom(k * 1.2) }, h('span', { 'aria-hidden': 'true' }, '+')),
@@ -350,7 +429,7 @@ export function render(container, artifact, ctx = {}) {
   const sum = summaryBlock(artifact);
   if (sum) { citeHost(sum, artifact, ctx); root.append(sum); }
   setZoom(1);
-  select(Math.max(0, steps.findIndex((st) => st.ref)));
+  paint(Math.max(0, steps.findIndex((st) => st.ref)));
   // shrink to fit only while labels stay readable; past that the scroller pans sideways
   requestAnimationFrame(() => {
     const z = (scroller.clientWidth - 8) / W0;

@@ -469,6 +469,7 @@ Springs are implemented with WAAPI keyframes generated once from the spring para
 
 | Moment | Motion |
 |---|---|
+| Sequence play | a packet dot moves along each arrow by `transform: translate`, 320ms linear, then rests 140ms (900ms after a step whose source opened in the drawer). Activation bars fade in and out by `--d-1`. Reduced motion: no packet, steps advance every 900ms |
 | Hover on row, button, chip | background and colour, `--d-1` `--ease-out` |
 | Button press | scale 0.97 on `:active`, `--d-1` |
 | Tooltip | appears after 500ms hover delay; once one tooltip has shown, the next shows with 0 delay for 800ms; fade + translateY(2px to 0), `--d-2` |
@@ -487,9 +488,10 @@ Springs are implemented with WAAPI keyframes generated once from the spring para
 | Plan checkbox | check stroke draws in 120ms; phase segment fills 160ms |
 | Flashcard flip | rotateY 0 to 180 over 240ms `--ease-out`, backface hidden; with reduced motion, crossfade 0ms |
 | Graph | node drag and fling use spring `drag`; zoom by wheel is immediate (no easing); `0` (fit) animates the viewport over 240ms `--ease-out` |
+| Reopen replay | only citations that changed since they were written stamp in again (gutter marks and, on sheets, chips); a moved label rolls from the cited line to the found line over `--d-3`; skipped in reduced motion |
 
 ### 8.3 What never animates
-- Keyboard navigation of any kind: J/K, arrows in lists, 1 to 9, `[` `]`, Tab, palette results, tree expand by key, Studio cell focus.
+- Keyboard navigation of any kind: J/K, arrows in lists, 1 to 9, `[` `]`, Tab, palette results, tree expand by key, Studio cell focus. Play on a sequence sheet is something the user starts on purpose, so the packet moves; J/K and the arrows on that sheet still jump with no animation.
 - Theme switch: add `<style>*{transition:none!important;animation:none!important}</style>`, flip `data-theme`, read `getComputedStyle(document.body).opacity`, remove the style.
 - Text layout: no reflow on chip resolve (chips reserve their width from the start, section 11.5).
 - Scroll: no smooth-scroll on programmatic jumps. Jumps are instant; the target line flashes (band-strong, 600ms fade out) so the eye finds it.
@@ -522,6 +524,7 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | `/` | focus composer (Ask) | everywhere except inputs |
 | `N` | new question (clears page, focuses composer) | page |
 | `Up` in empty composer | edit last question | composer |
+| `Tab`, `Enter` | open the earlier answer the composer offers (`Esc` dismisses it) | composer |
 | `J` / `K` | next / previous claim (claim cursor) | page |
 | `1` to `9` | open citation n (pins its hover card and scrolls its margin card into view) | page |
 | `[` / `]` | previous / next citation | page |
@@ -532,14 +535,19 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | `W` | ask "What could make this wrong?" | page |
 | `H` | toggle claim bands (underline-only mode) | page |
 | `L` | toggle the trail log | page |
+| `V` | proof ribbons: widen the margin into the cited files, a ribbon from each claim to its lines | page |
+| `E` | show the cited file as it was when the answer was written (or the saved lines when there is no usable commit) | drawer, on a moved or unverified citation |
+| `D` | list the commits since that touched the cited lines | drawer, on a moved or unverified citation |
 | `P` | Studio | everywhere |
 | `Ctrl+1` / `2` / `3` | focus rail / page / margin | everywhere |
 | `Ctrl+B` | toggle rail | everywhere |
 | `Space` on a source row | toggle its scope | rail |
-| `Esc` | close the top layer (hover card, menu, palette, drawer, dialog), then clear claim cursor | everywhere |
+| `Esc` | close the top layer (hover card, menu, palette, drawer, proof ribbons, dialog), then clear claim cursor | everywhere |
 | `?` | shortcut sheet dialog | everywhere |
 | `Ctrl+Shift+L` | toggle theme | everywhere |
 | `Ctrl+Enter` | Generate (Studio form), Ask (composer, plain Enter also asks) | forms |
+| `Ctrl+Alt+Space` | quick-ask popup, from any app (desktop app, off until switched on in Settings) | Windows |
+| `Alt+Enter` | open this question in the main window | quick-ask popup |
 | Studio: type | filter cells | Studio |
 | Studio: two digits | jump to sheet number (`0` `9` = Sequence diagram) | Studio |
 | Studio: `Enter` | open the selected recipe's form | Studio |
@@ -549,6 +557,9 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | Graph: `M` | matrix view toggle | graph (over 20 nodes) |
 | Flashcards: `Space` flip, `Right` got it, `Left` again, `S` shuffle | | quiz |
 | Plan: `X` on a task toggles its next acceptance item, `Shift+X` all | | plan |
+| Sequence: `Space` plays or stops, `Esc` stops it before anything else closes | | sequence |
+
+In the quick-ask popup Esc hides the window once no layer (drawer, dialog, menu, hover card) is open, and while an answer streams it stops the answer first.
 
 Shortcut hints are shown inline: in the palette next to each command, in tooltips, in the key strip, and on buttons as `kbd` caps.
 
@@ -598,6 +609,7 @@ States:
 - Typing: Ask enabled. `@` opens source scope menu inline at caret. `#` opens a "pin a file" menu (adds a path chip).
 - Asking (streaming): textarea locked showing the question in `--ink-3`, Ask becomes secondary `Stop` with `Esc` kbd. Composer stays where it is.
 - Selection-scoped: when the user selects text in the answer or source drawer and presses `/` or clicks **Ask about this**, a quote strip appears above row 2: 3px left border in the selection's layer `mid`, quote in `quote` style, truncated to 2 lines, path:line in `mono-sm`, and an `x`.
+- Recall: one line under the textarea when an earlier answer in any notebook reads like the question being typed, shown only for 3 or more meaningful words and a close match: `Asked before: Question 044. 9 citations, all still verified.` (with ` in NeoForge 1.21.1` when it lives in another notebook). Status glyph in the status colour, an `Open` button with `Tab`, and a dismiss `x`. Words come from the fresh citation check and say no more than the receipt: verified, moved, unverified. It never blocks typing or Ask, and `Esc` dismisses it.
 - Error: a line under the frame in `ui-sm` `--accent`: `The model did not answer. Retry  R` with a secondary Retry button.
 - Disabled (no sources yet): placeholder `Add a source first`, Ask disabled, link `Add a source` in row 3.
 
@@ -652,9 +664,10 @@ Anatomy:
 1. Header row (28px): status glyph + status word in `kicker` in status colour (`VERIFIED`, `MOVED`, `UNVERIFIED`, `CHECKING`), right: citation number `3` in a small chip and `of 3`.
 2. Quote: `quote` style (Newsreader italic 15/22) for docs; for code, a 3 to 7 line excerpt in `code` on `--well` with line numbers, the cited lines on layer `band-strong`.
 3. Location line: hatch swatch (10px), path in `mono-sm` `--ink-2` (middle-truncated: `networking/payload.md`), `:96` in `--ink`.
-4. Moved line (moved only): `Cited L92, found at L96. Same text.` in `ui-sm` `--moved`. If the text changed slightly: `Cited L92, closest match at L96 (2 words differ).` and the diff with removed words struck in `--ink-3` and added words on `--moved-wash`.
-5. Unverified line: `Quote not found in this file. Searched 1 file, 0 matches.` in `ui-sm` `--accent`, plus quiet button `Search all sources`.
+4. Moved line (moved only): `Cited L92, found at L96. Same text.` in `ui-sm` `--moved`. Code citations save the cited lines when the answer is written, and a re-check compares them ignoring whitespace and blank lines, so there is no closest-match view. The saved block is found whole (moved) or it is gone. Rewritten code is unverified, and its card shows the saved lines above and today's lines below (`Saved L31-40 · Oct 28`, `Now L31-40`, at most 8 rows each), saved words that changed struck in `--ink-3` and today's changed words on `--moved-wash`. A plain note under it says whether the trail read those lines (`The trail read L22-58, which covers these lines.`, or that it never opened the file).
+5. Unverified line, in `ui-sm` `--accent`: for a quote `Quote not found in Foo.java.` plus quiet button `Search all sources`; for code `These lines were rewritten after the answer was written.` (or `Foo.java no longer has these lines.` when the file got shorter). Citations saved before lines were kept get their baseline at the first re-check and say so: `Lines saved on Oct 28 when this citation was first re-checked. Earlier edits are not visible.`
 6. Actions row (28px, 1px `--rule` top): `Open at line  O`, `Copy ref`, `Challenge  X`.
+7. History row (only for a citation that has changed since it was written, above the actions row): kicker `History`, then one status glyph and date per entry, as written first (`Oct 24 verified L92` in the title and the aria-label), at most 7 entries (the first plus the last six).
 
 States: loading never shown (excerpt is prefetched when the chip resolves; if it is not ready the card shows the quote from the citation and the location line with excerpt space reserved, filling in place); pinned (a small pin glyph in the header, stays open while the cursor moves inside it, Esc closes); file deleted (`File no longer exists at this path.` in `--accent`, status forced to unverified).
 
@@ -672,6 +685,8 @@ States: rest; hover (ring 1px `--rule-strong`, claim gets band-strong); cursor-l
 
 Below the cards: **Print this as...** panel (11.19 compact form): kicker `STUDIO`, four suggested recipes as rows `09 Sequence diagram ...... diagram` (dot leaders, number in `--accent` `mono-sm`), then link `All 24 recipes  P`.
 
+**Proof mode (`V`).** The margin widens to `clamp(300px, 34cqw, 440px)` and the gap to 64px. Each verified or moved card with a claim grows an excerpt pane built from the hover card rows (cited lines banded, a few lines of context). A ribbon in the layer's `band-strong` with a `mid` edge runs from the claim's first line across the gap to those lines. A moved card adds a dashed `--moved-line` ribbon to the lines the model cited, with `cited here` and `found here` tags on the rows, the same words as the drawer. `J`/`K` keeps the cursor claim's ribbon filled and drops the others to hairlines. Unverified and missing cards get no pane and no ribbon. Nothing animates. `V` again, `Esc` or opening the drawer ends it, and below 1100px `V` toasts that the margin is folded.
+
 ### 11.9 Receipt
 The honest count. Two forms.
 
@@ -681,6 +696,7 @@ The honest count. Two forms.
 - Four columns of `numeral-xl`: `2` verified (`--verified`), `1` moved (`--moved`), `0` unverified (`--ink-4` when zero, `--accent` when not), `1` uncited (`--ink-3`). Under each, glyph + word in `mono-sm` in the same colour.
 - Caption in `quote` style `--ink-2`: `Every quote here was found again in its file, or where it moved to. Sentences with no mark are uncited.` When unverified > 0: `1 quote was not found. It is marked in red.`
 - Clicking a numeral filters the margin to that state and steps the cursor through those claims.
+- On a reopened answer `re-read` is the time of the re-check. If a citation changed status since it was written, two `mono-sm` lines sit under the numerals: `Written Oct 24: 3 verified.` and `Today: 2 verified, 1 moved.` (`Written 14:02` when it was today). Sheets show the same pair beside the cover receipt with `Printed`.
 
 **Mini receipt** (top bar, and the one-line receipt under the trail at narrow widths): 12px marks + counts in `mono-sm`: `[mark] 2  [moved] 1  [query] 0  · 1 uncited`. `aria-label="2 verified, 1 moved, 0 unverified, 1 uncited"`.
 
@@ -691,7 +707,7 @@ The trail is a factual action log, never narration.
 
 **Live** (while working): one line under the headline, height 28, `mono` `--ink-2`, prefix kicker `TRAIL`. Steps join with ` > ` in `--ink-4`: `grep PayloadRegistrar · neoforge > read RegisterPayloadHandlersEvent.java 22-58 > read networking/payload.md 1-120 > checking 3 citations`. The current step is `--ink`; finished steps `--ink-3`. If the line overflows, older steps collapse into `3 steps >` at the left. First step must appear within 1s of Ask; if the model has not issued a tool call by 800ms, show `reading the question` as step 0.
 
-**Done**: collapses to summary: `TRAIL  Read 3 files · 2 searches · checked 3 citations · 4.1 s` with a chevron and `L` kbd. Expanded log: a list, one row per step (24px): step glyph (search, read, check), the command in `mono` (`grep "PayloadRegistrar" neoforge`), result in `mono-sm` `--ink-3` (`4 matches in 3 files`), duration right-aligned. Every file path is a link that opens the source drawer at that range. Every source consulted is listed, including ones not cited.
+**Done**: collapses to summary: `TRAIL  Read 3 files · 2 searches · checked 3 citations · 4.1 s` with a chevron and `L` kbd. Expanded log: a list, one row per step (24px): step glyph (search, read, check), the command in `mono` (`grep "PayloadRegistrar" neoforge`), result in `mono-sm` `--ink-3` (`4 matches in 3 files`), duration right-aligned. Every file path is a link that opens the source drawer at that range. Every source consulted is listed, including ones not cited. Expanded, the log opens under a survey drawing: a band per source consulted, a station per file read or place searched, a traverse line in visit order (solid legs for reads, dashed for searches), the benchmark mark in status colour on cited files and a hollow dot on files read but not cited. Stations open the source drawer.
 
 **Streaming answer**:
 - Tokens buffer and reveal at a steady word cadence (target 28 words/s, catch up to 60 words/s if the buffer exceeds 80 words), decoupled from network bursts. Written to the DOM through direct node appends, not framework re-renders.
@@ -725,7 +741,7 @@ Anatomy:
 - First row is always `Ask "<query>"` with `Enter` when the query is 3+ characters.
 - Footer 28px, 1px `--rule` top: `Up Down to move · Enter to open · Tab to scope · Ctrl+Enter ask in new question` in `mono-sm` `--ink-3`.
 
-Behaviour: fuzzy match over titles plus aliases (shown as `Ask (survey)` when an alias matched); default ranking before typing: recent questions, then commands by frequency, rare commands scored 0 so they appear only when matched; context boost (on an artifact, its actions rank first); up to 3,000 items without virtualisation; nested pages via a stack (a recipe opens its input form page inside the palette; Backspace on empty input or Esc pops); `loop` arrow navigation; numbers `Ctrl+1` to `Ctrl+9` pick the nth row; Tab cycles a scope filter chip (All, Files, Studio, Questions).
+Behaviour: fuzzy match over titles plus aliases (shown as `Ask (survey)` when an alias matched); default ranking before typing: recent questions, then commands by frequency, rare commands scored 0 so they appear only when matched; context boost (on an artifact, its actions rank first); up to 3,000 items without virtualisation; nested pages via a stack (a recipe opens its input form page inside the palette; Backspace on empty input or Esc pops); `loop` arrow navigation; numbers `Ctrl+1` to `Ctrl+9` pick the nth row; Tab cycles a scope filter chip (All, Files, Studio, Questions, Recall). Recall searches the past questions, answers, notes and sheets of every notebook, grouped under `ANSWERS`, `NOTES` and `SHEETS` kickers (Recall scope only); a row in another notebook switches to it first.
 States: empty query (recent questions and top commands); typing; no results (`No match. Enter asks "<query>" across all sources.`); file index still warming (`Indexing files · 412 of 1,588` row at the top of FILES with a segment bar); recipe page (form fields, Generate `Ctrl+Enter`).
 
 ### 11.15 Dialogs
@@ -744,11 +760,12 @@ Slides from the right over the margin. Width 640. Opens from: citation `O`, hove
 
 Anatomy:
 - Header 48px: hatch swatch, source name `ui-strong`, path `mono-sm` `--ink-3` with copy button, tabs `File` / `Outline`, icon buttons `Open in editor` (vscode:// link), `Close  Esc`.
-- Status strip (only when opened from a citation), 32px, ground status wash: glyph, `Citation 2 · verified · line 31` or `Citation 3 · moved · cited L92, found at L96`.
+- Status strip (only when opened from a citation), 32px, ground status wash: glyph, `Citation 2 · verified · line 31` or `Citation 3 · moved · cited L92, found at L96`. An unverified code citation reads `lines rewritten since the answer`. When the citation is moved or unverified the strip also holds two quiet small buttons with `kbd` caps, `Show as it was  E` (or `Compare saved lines  E` when the file had uncommitted edits, the root is outside git or the answer has no commit but has saved lines) and `What changed it  D` (only with a commit). `E` swaps the body for two columns in one scroller, the file at the commit (`As it was · 9f3c1d2 · 28 Oct`) beside `Today`, rows in the code type with the cited range banded on both sides and the shorter side padded down so the two bands line up; saved lines show only the saved range against today's lines around it. `D` puts a panel between the strip and the body, `Commits since 9f3c1d2 that touched L96-105, as of the last commit.`, one 24px row per commit (short hash, subject, `date · author`; click copies the hash), at most 20. Errors, such as a remote viewer or a commit that is gone, are one line in the panel. Both buttons are toggles with `aria-pressed`.
 - Body: code on `--well`, `code` type, line numbers in `--ink-3` 48px column, the cited range on layer `band-strong` with a 2px layer `mid` bar at the left of the line numbers; for moved, the original cited line has a dashed `--moved-line` outline and a label `cited here` while the found line has the band and `found here`. Markdown sources render as reading prose (`read`, 60ch) with the cited passage banded.
 - Selection: selecting lines shows a floating mini toolbar (`Ask about this  /`, `Copy ref`) above the selection.
 - Jump: opens scrolled so the cited line sits at 35% of the drawer height; the range flashes (band-strong fading to band over 600ms; off in reduced motion).
 States: loading (only if over 100ms: header renders, body shows line numbers column and `Reading RegisterPayloadHandlersEvent.java` in `mono-sm`); file too large (over 2MB: first 5,000 lines with `Showing lines 1-5000 of 18,240. Jump to line  G`); binary (`Binary file, not shown.`); missing (`This file is gone from neoforge. It was cited from an older index.` + `Reindex`).
+Dependents: lines that a saved answer, sheet or note cites carry the status glyph (`glyph sm`, 12px) in the right 16px lane of the line-number column, x 41-53, clear of the digits and the `read` bar. A range gets the glyph on its first line and a 2px stem of the same ink (50%) down the rest, through the middle of the glyph column. Colour is the worst current status of whatever covers the line. Statuses come from `GET /cited`, which re-checks the file's citations on every open, so they can differ from the stored ones. Hover (120ms dwell) or click a mark lists the dependents in a `hovercard` (`Q012 [3]`, `Sheet 06 node PayloadRegistrar`, `Note <title> [2]`; status word and `L12-20`, or `L96 · cited L92` when moved). One dependent: click jumps to it, the drawer collapses and the answer's citation card is pinned. Several: click pins the list. Marks are mouse and touch only; the keyboard way in is the `Cited by n` button in the drawer's tab row, which opens the whole file's list with focus on the first row (Up and Down move, Enter jumps, Esc closes the list before the drawer). Page mode has no number column, so each block with a citation gets one glyph in the left margin instead.
 
 ### 11.19 Studio recipe card (sheet cell)
 In the Studio index, cells are 156 x 104 in a 6-column grid, 1px gaps where contour lines run.
@@ -804,7 +821,7 @@ States: rest, hover, focus ring, selected (ground `--paper-3`, 2px left bar grou
 Settings > Show key strip (on by default; after 14 days of use a one-time inline note offers to hide it). `kbd` style: `kbd` type, 1px `--rule-strong`, 1px bottom border `--rule-strong` + 1px extra bottom (2px total), radius 2, padding 0 4, height 18, ground `--paper`.
 
 ### 11.25 Banners
-Inline, full width of the column, radius 4, 12px padding, glyph left. Info: ground `--paper-2`, 1px `--rule`. Warning: `--moved-wash`, title `--moved`. Error: `--accent-wash`, title `--accent`, body `--ink`. Always state what happened and the one action: `Index is 3 days older than neoforge. Answers may cite moved lines.  Reindex`.
+Inline, full width of the column, radius 4, 12px padding, glyph left. Info: ground `--paper-2`, 1px `--rule`. Warning: `--moved-wash`, title `--moved`. Error: `--accent-wash`, title `--accent`, body `--ink`. Always state what happened and the one action: `Index is 3 days older than neoforge. Answers may cite moved lines.  Reindex`. A reopened turn whose citations got worse says so above the answer: `2 of 5 citations got worse since Oct 24.` `1 moved, 1 unverified.` with `Re-ask` (first turn only; it starts a new conversation). A sheet shows the same with `Regenerate`.
 
 ---
 
@@ -817,7 +834,7 @@ Every artifact opens in the page as a full canvas (`P` back to Studio, `Esc` bac
 - Double rule at top (`--ink`).
 - Kicker row: `SHEET 06 · VISUAL · CODE MAP` in `kicker` `--accent`.
 - Title in `cover-xl` (56px Archivo wdth 125 weight 800 upper), with riso overprint (6.3) settling once on first open after printing. Long titles step down to 40px then 28px to stay on 2 lines.
-- Meta line in `mono-sm` `--ink-2`: `neoforge · 48 nodes · Opus · $0.41 · printed 14:20`.
+- Meta line in `mono-sm` `--ink-2`: `neoforge · 48 nodes · Opus · $0.41 · printed 14:20`. A sheet an outside agent submitted over MCP shows `via claude-code` (the client's name) where the model goes, and has no cost.
 - Receipt mini (`31 verified · 1 moved · 0 unverified`).
 - Actions row (right aligned, quiet buttons): `Regenerate`, `Export`, `Copy`, `...` (Delete). Then "Next step" chips (secondary buttons with an arrow): PRD -> `Tech spec`, Tech spec -> `Build plan`, `Test plan`, any doc -> `CLAUDE.md`.
 - Tabs below: `Rendered`, `Source` (raw JSON or markdown), `Citations 32`.
@@ -858,6 +875,7 @@ Citations inside artifacts render with the same chip, hover card, status and dra
 - Activation bars: 8px wide `--paper-3` boxes on a lifeline between a request and its return.
 - Keyboard: Up/Down steps through steps (highlight row with band of the ref's layer, or `--paper-3`), Enter opens ref, `O` same.
 - Empty: `No steps.` Huge: 60 steps max by contract; over 30, a step minimap appears on the right edge.
+- Play: a `Play` button and `Space` send a 9px packet (`--ink` with a `--paper` ring) along each arrow in turn, the row, list and step panel advancing with it; bars open on the callee as the call lands and close as the reply leaves. Next to it, `Follow code` (shown when a step has a ref, remembered per viewer) opens each step's ref in the drawer as the packet lands. Play never starts on open. J/K and the arrows stay instant and stop a run. `Esc` stops a run first, a second `Esc` closes the drawer.
 - Export: SVG and Mermaid.
 
 ### 12.4 Plan
@@ -1020,9 +1038,12 @@ Body: `background: var(--paper); color: var(--ink); font: 450 13px/20px var(--fo
 
 ### 17.2 Data the UI needs from the server
 - Per source: `layer`, `kind` (`docs` | `primer` | `root` | `repo`), `version` (for roots), `branch` and `dirty` count (for repos), file count, index time, index progress.
-- Per citation: `n`, `path`, `line`, `foundLine`, `status` (`pending` | `verified` | `moved` | `unverified`), `quote`, `span` (character offsets of the claim in the answer), `layer`, `diff` (moved with changes).
+- History, local only. Per answer and per artifact: `commits`, `{ [root]: { sha, dirty: [paths] } }` for the roots whose files it read or cited. `GET /api/notebooks/:nb/history/was?path&sha` returns the file at that commit (2 MB cap, `binary`, `truncated`), and `.../history/changes?path&sha&line&endLine` returns the commits since that touched the lines (or the path, with `by: 'path'` and a `change` letter per commit). `sha` is a full lowercase hex hash and nothing else.
+- Per citation: `n`, `path`, `line`, `foundLine`, `status` (`pending` | `verified` | `moved` | `unverified`), `quote`, `span` (character offsets of the claim in the answer), `layer`, `saw` (for code: `from`, `to`, `text` and `read`, the saved lines and which of them the trail read; the word diff is worked out in the browser from `saw.text` and the file, nothing is stored for it), `sha` (the git HEAD of its code root when the answer was written) and `dirty` (true when its file differed from that commit then).
 - Per answer: `number` (047), trail steps with `tool`, `args`, `result`, `ms`, and an `uncited` sentence count.
+- Per citation after a re-check: `status0`, `line0`, `checkedAt0` (as written) and `drift` (dated changes), plus `citeCheck.checkedAt` and `checkedAt0` on the turn or sheet. The reopen replay (8.2, 11.7, 11.9) reads these. A sheet's written date is `generatedAt`; older sheets fall back to `updatedAt`.
 - Per artifact: `sheet` number (stable, per notebook, assigned at creation), group, plus the existing artifact fields.
+- Per recall hit (`GET /api/recall`): `kind` (`answer` | `note` | `sheet`), `notebook`, `notebookTitle`, `id`, `turn` (answers), `num` (the question number, answers), `title`, `at`, `score`, and `cites` (`total`, `verified`, `moved`, `unverified`, `missing`, checked again when asked; `null` for notes).
 
 ### 17.3 Files
 - `public/styles.css`: tokens, base, components 11.x.

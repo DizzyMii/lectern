@@ -4,6 +4,7 @@
 
 import { h, store, midPath } from './dom.js';
 import { state, emit } from './state.js';
+import { shown } from './status.js';
 export { midPath };
 
 const LAYERS = ['water', 'heath', 'spruce', 'sand', 'moor', 'lichen', 'clay', 'dusk'];
@@ -95,6 +96,15 @@ export function sourceFor(path, nb = state.nb) {
   return best?.s || null;
 }
 
+// One key for a file however it is spelled: "code/net/Foo.java" and "src/java/net/Foo.java" are the same file when root code lives at src/java
+export function fileKey(p, nb = state.nb) {
+  p = String(p || '').replace(/\\/g, '/');
+  const s = sourceFor(p, nb);
+  if (!s?.root) return p;
+  const pre = [s.prefix, s.root.name + '/'].filter((x) => p.startsWith(x)).sort((a, b) => b.length - a.length)[0];
+  return s.root.name + '/' + p.slice(pre.length);
+}
+
 export const layerFor = (path) => sourceFor(path)?.layer || null;
 
 // Put data-layer (and data-dense) on an element so it reads --l-* tokens.
@@ -118,7 +128,7 @@ export const nextQnum = (nb = state.nb) => pad3((nb?.conversations.length || 0) 
 export const pad3 = (n) => String(n).padStart(3, '0');
 
 // status words and glyphs (DESIGN 6.1). "missing" is shown as unverified.
-export const statusOf = (c) => (c?.status === 'missing' ? 'unverified' : c?.status || 'pending');
+export const statusOf = (c) => shown(c?.status);
 export const STATUS_WORD = { verified: 'verified', moved: 'moved', unverified: 'unverified', pending: 'checking' };
 
 export function glyph(status, cls = 'glyph') {

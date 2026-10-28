@@ -62,6 +62,10 @@ That leaves two files in `dist/`:
 
 Neither needs Node on the machine it runs on. Neither is code signed yet either, so SmartScreen asks the first time (More info, Run anyway).
 
+Closing the window leaves Lectern in the system tray (the Quit when the window closes switch in Settings turns that off). While it sits there it watches your code roots, and after a git pull or a save moves the citations in a saved answer you get a notification with the question number, click it to land on that answer.
+
+Quick ask is off until you switch it on in Settings. With it on, <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd> in any app opens a small Lectern window with your clipboard text already in the palette. <kbd>Enter</kbd> asks your last-used notebook on the fast preset (Haiku, low effort), and <kbd>Alt</kbd>+<kbd>Enter</kbd> opens that question in the main window. Clipboard text is cut at 8,000 characters.
+
 ### npm
 
 Needs Node 20 or newer.
@@ -97,7 +101,7 @@ npm run app      # the same thing in the desktop window
 ## What it does that NotebookLM doesn't
 
 - **Code roots.** A notebook holds pinned docs (the shelf) plus code roots, which are folders or git repos on your disk. The model can search and read any text file under a root while it answers, so it quotes the real source of the library you're using.
-- **Checked citations.** Every `[n]` points at a file and a line range, and Lectern checks the quote is really there. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified or missing, and they get re-checked whenever you open an old conversation, so if the docs changed under you, it shows.
+- **Checked citations.** Every `[n]` points at a file and a line range, and Lectern checks the quote is really there. Code citations save the lines they cite and compare them again on every re-check. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified (the quote is gone, or the saved code lines were rewritten) or missing, and they get re-checked whenever you open an old conversation, so if the docs or the code changed under you, it shows.
 - **Studio.** 24 recipes that turn a notebook into a saved artifact (specs, code maps, a CLAUDE.md, flashcards, a diff review...) with the same citation checks.
 - **MCP.** `lectern mcp` lets Claude Code or Cursor search your notebook for free and ask it questions while they work.
 
@@ -105,7 +109,7 @@ It all runs on your machine. The server only listens on 127.0.0.1.
 
 ## How a citation gets checked
 
-Behind every `[n]` is a file plus a short verbatim quote, a line range or both (docs mostly get a quote, code gets line numbers). Lectern opens that file as it is on disk right now and looks, and does it again every time you open an old conversation.
+Behind every `[n]` is a file plus a short verbatim quote, a line range or both (docs mostly get a quote, code gets line numbers). A line-only citation also saves a copy of the lines it points at when the answer is saved. Lectern opens the file as it is on disk right now and looks, and does it again every time you open an old conversation.
 
 ```mermaid
 flowchart LR
@@ -116,17 +120,20 @@ flowchart LR
     F -->|"at the cited lines"| V["verified"]
     F -->|"elsewhere in the file"| MV["moved<br>(new line given)"]
     F -->|"not in the file"| U["unverified"]
-    Q -->|"no, lines only"| L{"Lines inside<br>the file?"}
-    L -->|yes| V
-    L -->|no| U
+    Q -->|"no, lines only"| L{"Where are the<br>saved lines?"}
+    L -->|"at the cited lines"| V
+    L -->|"elsewhere in the file"| MV
+    L -->|"rewritten or gone"| U
 ```
 
 | Status | Means |
 |---|---|
-| **verified** | The quote is within two lines of the cited range (anywhere in the file if no range was given), or a line-only citation falls inside the file. |
-| **moved** | The quote is in the file but at different lines. The card says where, like "Cited L9, found at L15". |
-| **unverified** | The quote isn't in the file, or the lines are past the end of it. |
+| **verified** | The quote is within two lines of the cited range (anywhere in the file if no range was given), or the saved lines are still at the cited range. Whitespace and blank lines don't count as a change. |
+| **moved** | The quote or the saved lines are in the file at different lines. The card says where, like "Cited L9, found at L15". |
+| **unverified** | The quote isn't in the file, or the saved lines were rewritten. The hover card shows the saved lines over today's with the changed words marked. |
 | **missing** | No such file inside the notebook or its code roots, or it's over 2 MB. |
+
+Each answer also records the git commit of every code root it read. When a code citation drifts, <kbd>E</kbd> in the drawer shows the file as it was beside today's version, and <kbd>D</kbd> lists the commits since then that touched those lines. Answers saved before Lectern kept these copies get one the first time they're re-checked, and the card says so.
 
 ## Demos
 
@@ -146,7 +153,7 @@ Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), wi
   <img src="docs/media/drift.gif" alt="Screen recording of the same answer re-checked after the files changed: the receipt reads 5 verified, 4 moved, 1 unverified, a red citation says the quote was not found in db.ts, and another card says cited L9, found at L15 with the same text" width="780">
 </p>
 
-Same answer as above, re-read after `db.ts` got shorter and `Plugins.md` grew six lines at the top. Citation 1 loses its quote and goes red (unverified), citation 4 comes back moved, cited L9, found at L15. The receipt reads 5 verified, 4 moved, 1 unverified. [Full quality (MP4)](docs/media/drift.mp4)
+Same answer as above, re-read after `db.ts` got shorter and `Plugins.md` grew six lines at the top. Citation 1's lines in `db.ts` are gone, so it goes red (unverified), and citation 4 comes back moved, cited L9, found at L15. The receipt reads 5 verified, 4 moved, 1 unverified. [Full quality (MP4)](docs/media/drift.mp4)
 
 ### Studio
 
@@ -205,6 +212,9 @@ The cog in the top bar (or the engine label, or `Settings` in the <kbd>Ctrl</kbd
 | Clone size cap (MB) | `LECTERN_CLONE_MAX_MB` | A git checkout over this gets deleted again. 1024 when empty. |
 | Allow private URLs | `LECTERN_ALLOW_PRIVATE_URLS` | Lets Add URL fetch intranet and localhost pages. |
 | Port | `PORT` | 4317 when empty. Restart. |
+| Use my Claude Code login | `LECTERN_PREFER_CLAUDE_CODE` | Answer through the Claude Code login on this machine even with an API key set, so it bills your plan. Personal use only. |
+| Quit when the window closes | `LECTERN_QUIT_ON_CLOSE` | Desktop app. Off means closing the window leaves Lectern in the tray, watching your code roots. |
+| Quick ask hotkey | `LECTERN_QUICK_ASK` | Desktop app. <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd> from any app. Off by default because another app may already own that shortcut. |
 
 Each one is also an environment variable, and a value saved in Settings wins over the environment. Clear the field and the environment's value comes back. Over Tailscale the page can show settings but only the machine Lectern runs on can change them.
 
@@ -214,11 +224,14 @@ Each one is also an environment variable, and a value saved in Settings wins ove
 
 **Your Claude Code login.** If you already use Claude Code, Lectern can drive `claude -p` headless on whatever account `claude` is logged into. Install it, run `claude` once to log in, make sure it's on your PATH. This is for your own personal use on your own machine (check Anthropic's terms for your plan before pointing anything shared at it). Lectern strips the API key from that process so it really does bill the login, and a hook keeps its Read, Grep and Glob inside the notebook and its code roots.
 
-With both set up the API key wins. `--engine api` or `--engine claude-code` on the CLI picks one and errors out if it isn't set up. A follow-up stays on the engine its conversation started on.
+With both set up the API key wins, unless Use my Claude Code login is on in Settings. `--engine api` or `--engine claude-code` on the CLI picks one and errors out if it isn't set up. A follow-up stays on the engine its conversation started on.
 
 ## Use it from Claude Code or Cursor (MCP)
 
 Install globally first so `lectern` is on your PATH.
+
+> [!TIP]
+> Installed the desktop app with Lectern Setup.exe? Settings has a Connect Claude Code and a Connect Cursor button that register `lectern mcp` to run through the installed exe, so you don't need Node or npm. Connect Cursor shows what it will add to `mcp.json` before writing it and keeps the old file as `mcp.json.bak`. The portable Lectern.exe can't do this because it unpacks to a new temp folder on every start, so Settings shows the npm commands to copy instead.
 
 **Claude Code:**
 
@@ -236,7 +249,36 @@ claude mcp add lectern --scope user -- lectern mcp
 }
 ```
 
-`list_notebooks`, `search`, `read_source`, `verify`, `list_artifacts` and `get_artifact` never call a model and come back in well under a second. `ask` and `generate` do and cost money. The web server doesn't need to be running. Arguments and protocol details are in [docs/mcp.md](docs/mcp.md).
+`list_notebooks`, `recall`, `search`, `read_source`, `verify`, `list_artifacts`, `get_artifact`, `check_notebook` and `submit_artifact` never call a model and come back in well under a second. `ask` and `generate` do and cost money. `recall` looks through the answers, notes and sheets you already saved, in every notebook, so Claude Code can check them before it pays for an `ask`. The 24 Studio recipes are also slash commands in Claude Code (`/mcp__lectern__diff-review`): the agent reads the notebook with the free tools and writes the sheet, and `submit_artifact` checks it and saves it, so it costs nothing. The web server doesn't need to be running. Arguments and protocol details are in [docs/mcp.md](docs/mcp.md).
+
+## Check Claude Code's citations
+
+`lectern hook stop` is a Claude Code Stop hook. When Claude Code finishes a turn it reads the final message, finds every `[[path#L12]]`, `[[path#L12-L20]]` and `[[path|"quote"]]` in it, and checks each one against the notebook whose folder or code root contains the working directory. If one fails, the finish is blocked with a reason like `[[src/Foo.java#L40]] is past the end of src/java/Foo.java (32 lines)`, and Claude fixes it before you read it. No model is called and no file text leaves your machine.
+
+```sh
+lectern hook install            # prints the settings for this repo
+lectern hook install --write    # merges them into .claude/settings.local.json
+```
+
+It goes in `settings.local.json` because the command has this machine's node and lectern paths in it. `--write` keeps everything else in the file and replaces an earlier Lectern entry, and it refuses a file it can't merge into. Claude only writes these citations when it is asked to, so add a line about them to your CLAUDE.md.
+
+<details>
+<summary><b>What the hook checks, and its limits</b></summary>
+
+<br>
+
+- Only the final message is checked. Fenced code, inline code, wiki links like `[[Some note]]` and C++ attributes like `[[nodiscard]]` are skipped.
+- A citation fails when it comes back `unverified` or `missing`. `moved` passes, because the quote is still in the file.
+- A line-only citation fails only when the range is past the end of the file or the file isn't there. The hook can't know what a line says.
+- A block gives Claude one retry per stop. If the citations are still bad after that, you get a notice and the finish goes through.
+- Anything odd (bad input, no matching notebook, an error in Lectern) lets Claude stop. The hook never traps a session.
+- The repo has to sit inside a notebook folder or one of its code roots. Add it with `lectern add <notebook> <folder>`.
+- It needs the npm install of Lectern on this machine. The command points at `bin/lectern.mjs`, and the portable exe unpacks to a new temp folder every launch.
+- On Windows without Git Bash, Claude Code runs hooks through PowerShell and the quoted command doesn't parse. Change the entry to the exec form there: `command` is the node path and `args` is `["<path to bin/lectern.mjs>", "hook", "stop"]`.
+
+Lectern's own `claude -p` runs skip the hook.
+
+</details>
 
 ## CLI
 
@@ -245,8 +287,10 @@ lectern serve [--port n] [--open]
 lectern ask <notebook> "<question>" [--json] [--fast | --deep] [--continue <conversationId>]
             [--model opus|sonnet|haiku] [--effort e] [--max-turns n] [--engine api|claude-code]
 lectern mcp
+lectern hook stop | install [--dir folder] [--write]
 lectern list [--json]
 lectern show <notebook> <conversationId|artifactId> [--json]
+lectern check <notebook> [files...] [--fail-on moved|unverified] [--json]
 lectern new <id> [--title t] [--dir folder]
 lectern add <notebook> <url|path|git-url> [--name n] [--branch b] [--subdir d]
 lectern example [name] [--dir folder] [--code]
@@ -257,6 +301,9 @@ lectern --version | --help
 - `--fast` is Haiku at low effort with at most 4 rounds, `--deep` is Opus at high effort with at most 12. Without either it's Opus with at most 12. A round is one model request, every batch of tool calls costs another, and hitting the cap gives an error that says so.
 - `add` works out what you gave it. A git URL (or a plain github, gitlab or codeberg link) gets cloned as a code root, any other http URL is fetched as a doc, a folder becomes a code root and a file gets copied in.
 - `show` re-checks the saved citations against the files as they are now.
+- `check` does that for the whole notebook: every conversation, every Studio sheet and every note, plus the Lectern footnotes (`[^1]: path:12-14 "quote" (verified)`) in any markdown files you name. It lists what got worse since it was written, grouped by the cited file, and never calls a model or writes to disk. A citation that was already moved, unverified or missing when it was saved is counted separately and doesn't fail anything.
+
+  `--fail-on moved` exits 1 when any citation got worse, `--fail-on unverified` only when one is now unverified or missing. Without the flag it always exits 0. A bad flag value, an unknown notebook or a file that isn't there exits 2. For CI, register the committed notebook folder (`lectern new ci --dir ./notebook` leaves an existing notebook.json alone) and run `lectern check ci --fail-on unverified`. Commit notebook.json, conversations/ and artifacts/, and give code roots as relative paths in notebook.json. As a pre-commit hook it is the same one line. A Lectern-written CLAUDE.md has no footnotes in it, so check reports the sheet that wrote it, and names the file the sheet was written to. One limit: footnotes in notes and in files you name carry no copy of the cited lines, so a code line footnote only goes bad when the file shrinks past them or disappears. Quote footnotes drift properly.
 - `example` with no name lists the ready-made notebooks. `neoforge` is the big one, add `--code` to also pull the NeoForge and GeckoLib sources.
 
 The web app's HTTP API is internal and can change between versions, script against the CLI or MCP.
@@ -296,6 +343,8 @@ Code map, CLAUDE.md, Glossary and Product requirements make a LOT of tool calls 
 | <kbd>1</kbd> to <kbd>9</kbd> | open citation n |
 | <kbd>[</kbd> / <kbd>]</kbd> | previous / next citation |
 | <kbd>O</kbd> | open the current citation in the source drawer at the line |
+| <kbd>V</kbd> | proof ribbons: the cited files open in the margin with a ribbon from each claim to its lines |
+| <kbd>E</kbd> / <kbd>D</kbd> | in the drawer: the code as it was, and the commits that changed those lines |
 | <kbd>C</kbd> | copy the answer with citations |
 | <kbd>X</kbd> | challenge the claim under the cursor |
 | <kbd>W</kbd> | ask "what could make this wrong?" |
@@ -309,8 +358,9 @@ Code map, CLAUDE.md, Glossary and Product requirements make a LOT of tool calls 
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> | search the notebook |
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> | toggle theme |
 | <kbd>Esc</kbd> | close the top layer, then clear the claim cursor |
+| <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>Space</kbd> | quick ask from any app (desktop app, once it's on in Settings) |
 
-Inside Studio artifacts, flashcards flip with <kbd>Space</kbd> and rate with the arrow keys, graphs zoom with <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd>, sequence diagrams step with <kbd>J</kbd> / <kbd>K</kbd>, and <kbd>Ctrl</kbd>+<kbd>S</kbd> saves an edited file.
+Inside Studio artifacts, flashcards flip with <kbd>Space</kbd> and rate with the arrow keys, graphs zoom with <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd>, sequence diagrams step with <kbd>J</kbd> / <kbd>K</kbd> and play with <kbd>Space</kbd>, and <kbd>Ctrl</kbd>+<kbd>S</kbd> saves an edited file.
 
 </details>
 
@@ -322,6 +372,7 @@ Inside Studio artifacts, flashcards flip with <kbd>Space</kbd> and rate with the
 - **Your question, the pinned docs and whatever files the model reads** go to Anthropic, through the API or through Claude Code. The first ask in a conversation sends the whole shelf, follow-ups send the conversation so far, and tool calls send back the file contents the model asked for.
 - **Adding a URL** fetches that page (user-agent `lectern/1.0`) and saves it as markdown. Loopback, private and link-local addresses are refused, redirects included, unless you turn on Allow private URLs.
 - **Adding a git URL** runs `git clone --depth 1` (sparse when you give a subfolder). https:// or git@ only, symlinks come out as plain files, hooks and LFS downloads are off, and a checkout over the size cap gets deleted again.
+- **Quick ask** reads your clipboard when you press its hotkey and shows it in its own window. Nothing is sent until you press Enter, and then it goes out as an ordinary question.
 - **`lectern example`** downloads that example's sources from GitHub.
 - On the Claude Code engine, Claude Code's own telemetry settings apply to that process. Lectern leaves them alone.
 
@@ -364,7 +415,8 @@ The config file is handy when your home drive is full. If you ran the old spike 
 - The text file list leans toward what I use (Java, Kotlin, Gradle, JSON, JS, TS, Python, shaders, markdown). No Go, Rust or C yet, files with those extensions get skipped.
 - Files over 2 MB count as missing for search, reads and citations.
 - On the API engine a follow-up sends the earlier turns back whole, files the model read included, and most of that comes from cache. If you add a source or a code root mid-conversation it has to fall back to the answers as plain text, so the model forgets what it read and that follow-up re-pays the cache.
-- The packaged desktop app can't be used as the CLI. Use `lectern` from npm or `node bin/lectern.mjs` for that.
+- The packaged desktop app can't be used as the CLI. Use `lectern` from npm or `node bin/lectern.mjs` for that. The Connect buttons in Settings are the one exception, they register `lectern mcp` with Claude Code and Cursor.
+- The tray watcher only watches code roots, pinned docs are left alone. It runs while the app is open or in the tray. A pull made with Lectern closed shows up as the drift badge when you open the answer, or in the first notification after the next change in that root, whichever comes first.
 - This is a release candidate, things will still move before 1.0.0.
 
 ## License

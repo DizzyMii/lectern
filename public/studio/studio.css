@@ -300,6 +300,12 @@
 .artifact-canvas .sq-actor .label { font: var(--type-ui-strong); fill: var(--ink); }
 .artifact-canvas .sq-lifeline { stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 3 4; }
 .artifact-canvas .sq-bar { fill: var(--paper-3); stroke: var(--rule-strong); stroke-width: 1; }
+/* play: the packet rides above the arrows, bars only follow the run while it is going */
+.artifact-canvas .sq-packet { display: none; fill: var(--ink); stroke: var(--paper); stroke-width: 2; pointer-events: none; }
+.artifact-canvas .sq-packet.on { display: block; }
+.artifact-canvas .sq-svg.playing .sq-bar { opacity: 0; transition: opacity var(--d-1) var(--ease-out); }
+.artifact-canvas .sq-svg.playing .sq-bar.live { opacity: 1; }
+.artifact-canvas .sq-follow { display: inline-flex; align-items: center; gap: 6px; font: var(--type-ui-sm); color: var(--ink-2); cursor: pointer; }
 
 .artifact-canvas .sq-row-bg { fill: transparent; }
 .artifact-canvas .sq-row-bg.hover { fill: color-mix(in oklab, var(--paper-3) 60%, transparent); }

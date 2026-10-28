@@ -44,6 +44,7 @@ const ICONS = {
   moon: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
   up: 'M12 19V5M6 11l6-6 6 6',
   stop: 'M7 7h10v10H7z',
+  play: 'M8 5l11 7-11 7z',
   copy: 'M9 9h10v10H9zM5 15V5h10',
   check: 'M5 12.5l4.5 4.5L19 7',
   trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
@@ -115,9 +116,11 @@ export function toast(msg, kind = 'error', ms = 5200) {
   while (box.children.length > 4) box.firstChild.remove();
 }
 
+// the quick-ask popup (?quick=1) shares this origin's storage with the main window, so it reads it and never writes it
+export const quickMode = typeof location !== 'undefined' && new URLSearchParams(location.search).has('quick');
 export const store = {
   get(k, d) { try { const v = localStorage.getItem('nb.' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-  set(k, v) { try { localStorage.setItem('nb.' + k, JSON.stringify(v)); } catch {} },
+  set(k, v) { if (quickMode) return; try { localStorage.setItem('nb.' + k, JSON.stringify(v)); } catch {} },
 };
 
 export async function copyText(text, what = 'Copied') {

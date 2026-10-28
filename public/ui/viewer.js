@@ -1,12 +1,16 @@
 // Source drawer (DESIGN 11.18): files at a cited line, a source's file tree, full-text search
 // and notes. Slides over the margin from the right. Open items are kept as a small tab row.
 
-import { h, clear, icon, iconBtn, toast, copyText, basename, esc, arrowNav, fmtNum } from './dom.js';
+import { h, clear, icon, iconBtn, toast, copyText, basename, esc, arrowNav, fmtNum, place } from './dom.js';
 import { api, nbPath } from './api.js';
 import { state, ctx, on, emit } from './state.js';
 import { highlightLines, renderDocBlocks, renderAnswer, splitFootnotes } from './markdown.js';
-import { sourceFor, swatch, glyph, statusOf, STATUS_WORD, kbd, shortPath, relPath } from './layers.js';
+import { readRanges } from './traverse.js';
+import { lineMap, refsIn, worst, shown as stShown } from './status.js';
+import { sourceFor, swatch, glyph, statusOf, STATUS_WORD, kbd, shortPath, qnum } from './layers.js';
 import { loadDir } from './rail.js';
+import { citeWhy } from './witness.js';
+import { align, when } from './witness.js';
 
 let root;
 let tabs = [];
@@ -16,6 +20,7 @@ let collapsed = false;   // drawer hidden but tabs kept
 const files = new Map(); // `${nb}:${path}` -> Promise<{path,text,lang,lines}>
 let wrap = window.matchMedia('(max-width: 767px)').matches; // phones start wrapped so a long line needs no panning
 let selBar = null;
+let depHost = null, depSeq = 0, depRefs = [], depTrunc = false, depMap = new Map(), depEl = null, depTimer = 0;
 
 const hlCache = new Map();
 function linesFor(key, file, lang) {
@@ -54,11 +59,22 @@ export function initViewer(el) {
   }, true);
   // Esc from a field inside the drawer still closes it
   root.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.defaultPrevented && e.target.closest('input, textarea')) { e.preventDefault(); closeViewer(); } });
+  // a pinned list closes on a click elsewhere, and Esc closes it before the drawer
+  document.addEventListener('click', (e) => { if (depEl?.classList.contains('pinned') && !depEl.contains(e.target) && !e.target.closest?.('.dr-cited')) hideDeps(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !depEl) return;
+    const back = depEl.opener;
+    hideDeps();
+    e.preventDefault(); e.stopPropagation();
+    if (back?.isConnected && back.matches('.dr-cited')) back.focus();
+  }, true);
+  on('refresh', () => { if (depHost) loadDeps(depHost); });
   render();
 }
 
 function setOpen(open) {
   document.documentElement.classList.toggle('drawer-open', open);
+  if (!open) hideDeps();
   root.inert = !open;
   const t = open ? tabs.find((x) => x.key === active) : null;
   emit('viewer', t?.path || t?.src?.prefix || null);
@@ -97,7 +113,7 @@ function openTab(tab) {
 
 export function openFile(path, { line = null, endLine = null, quote = null, mode, cite = null, list = null } = {}) {
   if (!path) return;
-  openTab({ key: 'f:' + path, kind: 'file', title: basename(path), path, line, endLine, quote, cite, list, view: 'file', mode: mode || (isDoc(path) ? 'page' : 'code') });
+  openTab({ key: 'f:' + path, kind: 'file', title: basename(path), path, line, endLine, quote, cite, list, view: 'file', mode: mode || (isDoc(path) ? 'page' : 'code'), cmp: false, was: null, chg: false, changes: null });
 }
 
 export function openSource(src) {
@@ -120,25 +136,19 @@ function closeTab(key) {
   render();
 }
 
-// Lines of this file the open conversation's trail read, as merged [from, to] ranges
-function trailReads(path, lineCount) {
-  const out = [];
-  for (const t of state.conv?.turns || []) for (const c of t.toolCalls || []) {
-    const p = c.name === 'Read' && (c.input?.file_path || c.input?.path);
-    if (!p || relPath(p) !== path) continue;
-    const from = Math.max(1, Number(c.input.offset) || 1);
-    const to = c.input.limit ? Math.min(lineCount, from + Number(c.input.limit) - 1) : lineCount;
-    out.push([from, to]);
-  }
-  out.sort((x, y) => x[0] - y[0]);
-  const merged = [];
-  for (const r of out) { const last = merged.at(-1); if (last && r[0] <= last[1] + 1) last[1] = Math.max(last[1], r[1]); else merged.push([...r]); }
-  return merged;
+// Lines of this file the open conversation's trail read, as merged [from, to] ranges.
+// A citation that saved what its answer read (cite.saw.read) wins over walking the turns.
+function trailReads(path, lineCount, cite) {
+  const saved = cite?.saw?.read;
+  if (Array.isArray(saved)) return saved.filter(([x]) => x <= lineCount).map(([x, y]) => [x, Math.min(y, lineCount)]);
+  return readRanges((state.conv?.turns || []).flatMap((t) => t.toolCalls || []), path, lineCount);
 }
 
 function render() {
   saveScroll();
   dropSelBar();
+  hideDeps();
+  depHost = null;
   setOpen(tabs.length > 0 && !collapsed);
   if (collapsed && tabs.length) return;
   clear(root);
@@ -197,10 +207,13 @@ async function renderFile(tab, body) {
   const bar = h('div', { class: 'dr-tabs' });
   root.append(bar);
   if (tab.cite) root.append(statusStrip(tab));
+  if (tab.cite && tab.chg) root.append(changesPanel(tab));
   body.append(h('div', { class: 'dr-loading' }, `Reading ${basename(tab.path)}`));
   let file;
   try { file = await getFile(tab.path); }
   catch (e) {
+    // a file that is gone is the main reason to look at the commit
+    if (tab.cmp && tab.cite) { await renderCompare(tab, body, null); return; }
     clear(body).append(h('div', { class: 'dr-empty' },
       glyph('unverified'),
       h('p', null, /not found|404/i.test(e.message) ? `This file is gone from ${src?.name || 'the notebook'}. It was cited from an older index.` : `Could not open ${tab.path}.`),
@@ -211,13 +224,13 @@ async function renderFile(tab, body) {
   if (!tab.line && tab.quote) tab.line = findQuoteLine(file.text, tab.quote);
   const doc = isDoc(tab.path);
   const lineCount = file.text.split('\n').length;
-  const reads = trailReads(tab.path, lineCount);
+  const reads = trailReads(tab.path, lineCount, tab.cite);
   const wasRead = (n) => reads.some(([x, y]) => n >= x && n <= y);
-  const tabBtn = (id, label) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(tab.view === id), onclick: () => { tab.view = id; tab.scrolled = false; render(); } }, label);
+  const tabBtn = (id, label) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(tab.view === id), onclick: () => { tab.view = id; tab.cmp = false; tab.scrolled = false; render(); } }, label);
   bar.append(...[h('div', { class: 'tabs-row', role: 'tablist', 'aria-label': 'View' }, tabBtn('file', 'File'), tabBtn('outline', 'Outline')),
     doc && tab.view === 'file' ? h('div', { class: 'segmented', role: 'radiogroup', 'aria-label': 'Show as' },
-      ['page', 'code'].map((m) => h('button', { role: 'radio', 'aria-checked': String(tab.mode === m), onclick: () => { tab.mode = m; tab.scrolled = false; tab.scrollTop = null; render(); } }, m === 'page' ? 'Page' : 'Source'))) : null,
-    tab.mode === 'code' && tab.view === 'file' && !file.binary ? h('button', { class: 'btn quiet sm', 'aria-pressed': String(wrap), onclick: (e) => {
+      ['page', 'code'].map((m) => h('button', { role: 'radio', 'aria-checked': String(tab.mode === m), onclick: () => { tab.mode = m; tab.cmp = false; tab.scrolled = false; tab.scrollTop = null; render(); } }, m === 'page' ? 'Page' : 'Source'))) : null,
+    tab.mode === 'code' && tab.view === 'file' && !file.binary && !tab.cmp ? h('button', { class: 'btn quiet sm', 'aria-pressed': String(wrap), onclick: (e) => {
       wrap = !wrap;
       e.currentTarget.setAttribute('aria-pressed', String(wrap));
       body.querySelector('.code')?.classList.toggle('wrap', wrap);
@@ -231,13 +244,18 @@ async function renderFile(tab, body) {
       h('button', { class: 'btn', onclick: () => copyText(tab.path, `Copied ${tab.path}`) }, 'Copy path')));
     return;
   }
+  if (tab.cmp && tab.cite) { await renderCompare(tab, body, file); return; }
   if (tab.view === 'outline') { body.append(outline(tab, file)); return; }
   if (tab.mode === 'page' && doc) {
     const page = h('div', { class: 'page' }, h('div', { class: 'prose', html: renderDocBlocks(file.text) }));
     wirePage(page, tab);
     body.append(page);
     const restore = canRestore(tab);
-    requestAnimationFrame(() => { markPage(page, tab, body); if (restore) body.scrollTop = tab.scrollTop; });
+    requestAnimationFrame(() => {
+      markPage(page, tab, body);
+      if (restore) body.scrollTop = tab.scrollTop;
+      if (body.isConnected) { depHost = { tab, body, bar, page, lineCount }; loadDeps(depHost); }
+    });
   } else {
     const lines = linesFor(`${state.nbId}:${tab.path}`, file, file.lang || tab.path.split('.').pop());
     const a = tab.line || 0, b = tab.endLine || tab.line || 0;
@@ -265,6 +283,8 @@ async function renderFile(tab, body) {
       if (l && e.target.classList.contains('n')) copyText(`${tab.path}:${l.dataset.n}`, `Copied ${tab.path}:${l.dataset.n}`);
     });
     body.append(code);
+    depHost = { tab, body, bar, code, lineCount };
+    loadDeps(depHost);
     wireSelection(body, tab);
     if (canRestore(tab)) requestAnimationFrame(() => { body.scrollTop = tab.scrollTop; });
     else if (a && !tab.scrolled) {
@@ -290,7 +310,7 @@ let refocusStep = null;
 function statusStrip(tab) {
   const c = tab.cite;
   const st = statusOf(c);
-  const line = st === 'moved' && c.citedLine ? `cited L${c.citedLine}, found at L${c.line}` : c.status === 'missing' ? 'file not found' : st === 'unverified' ? 'quote not found in this file' : c.line ? `line ${c.line}${c.endLine && c.endLine !== c.line ? '-' + c.endLine : ''}` : '';
+  const line = citeWhy(c, shortPath(c.path, 1))?.short ?? (c.line ? `line ${c.line}${c.endLine && c.endLine !== c.line ? '-' + c.endLine : ''}` : '');
   const list = tab.list || [];
   const i = list.findIndex((x) => x.n === c.n);
   const step = (d) => {
@@ -302,6 +322,7 @@ function statusStrip(tab) {
     h('span', { class: 't-ui-strong' }, `Citation ${c.n}`), h('span', { class: 'sep' }, '·'), h('span', { class: 'st-word' }, STATUS_WORD[st]),
     line ? [h('span', { class: 'sep' }, '·'), h('span', null, line)] : null,
     h('span', { class: 'grow' }),
+    historyButtons(tab),
     list.length > 1 ? [stepBtn('Previous citation', '[', i <= 0, () => step(-1)),
       h('span', { class: 't-mono-sm' }, `${i + 1} of ${list.length}`),
       stepBtn('Next citation', ']', i >= list.length - 1, () => step(1))] : null);
@@ -325,6 +346,154 @@ export function stepDrawerCitation(d) {
   if (!viewerOpen() || !t?.step) return false;
   t.step(d);
   return true;
+}
+
+// E and D in the drawer: the code as it was, and the commits that touched these lines
+export function drawerHistory(kind) {
+  const t = tabs.find((x) => x.key === active);
+  if (!viewerOpen() || !t?.history) return false;
+  return t.history(kind);
+}
+
+// ---------- as it was ----------
+
+// like refocusStep: the history button that was pressed gets focus back after the redraw
+let refocusHist = null;
+
+function historyButtons(tab) {
+  const c = tab.cite;
+  tab.history = (kind) => {
+    const b = root?.querySelector(`.dr-status [data-hist="${kind}"]`);
+    if (!b) return false;
+    b.click();
+    return true;
+  };
+  if (!['moved', 'unverified', 'missing'].includes(c.status)) return null;
+  const btn = (kind, prop, label, key) => {
+    const b = h('button', { class: 'btn quiet sm', 'data-hist': kind, 'aria-pressed': String(Boolean(tab[prop])),
+      onclick: () => { refocusHist = kind; tab[prop] = !tab[prop]; tab.scrolled = false; tab.scrollTop = null; render(); } }, label, kbd(key));
+    if (refocusHist === kind) requestAnimationFrame(() => { refocusHist = null; if (b.isConnected) b.focus({ preventScroll: true }); });
+    return b;
+  };
+  const was = c.sha && !c.dirty ? 'Show as it was' : c.saw ? 'Compare saved lines' : null;
+  return [was ? btn('was', 'cmp', was, 'E') : null, c.sha ? btn('changes', 'chg', 'What changed it', 'D') : null];
+}
+
+const sha7 = (c) => String(c.sha || '').slice(0, 7);
+
+// The file at the recorded commit, or the lines saved with the answer. Never throws.
+function loadWas(tab) {
+  tab.was ??= (async () => {
+    const c = tab.cite;
+    let note = null;
+    if (c.sha && !c.dirty) {
+      try {
+        const r = await api.get(nbPath(state.nbId, `/history/was?path=${encodeURIComponent(c.path)}&sha=${c.sha}`));
+        return { text: String(r.text ?? '').replace(/\r\n?/g, '\n'), from: 1, full: true, label: sha7(c), truncated: Boolean(r.truncated), binary: Boolean(r.binary) };
+      } catch (e) { note = `Could not read ${sha7(c)}: ${String(e.message).replace(/\.$/, '')}.`; }
+    } else if (c.sha) note = 'This file had uncommitted edits when the answer was written, so the commit is not what it read.';
+    if (typeof c.saw?.text === 'string') return { text: c.saw.text, from: c.saw.from, full: false, label: 'saved lines', note };
+    return { empty: true, note: [note, 'There is nothing saved to compare.'].filter(Boolean).join(' ') };
+  })();
+  return tab.was;
+}
+
+const CMP_ROW = 22;
+
+// rows in the same markup as the code view, so every row is 22px and the two panes stay in step
+function cmpRows(lines, from, a, b) {
+  let html = '';
+  for (let i = 0; i < lines.length; i += 200) {
+    html += '<div class="chunk">';
+    for (let j = i; j < Math.min(lines.length, i + 200); j++) {
+      const n = from + j;
+      const hit = a && n >= a && n <= b;
+      html += `<div class="l${hit ? ` hit${n === a ? ' first' : ''}${n === b ? ' last' : ''}` : ''}" data-n="${n}"><span class="n">${n}</span><span class="t">${lines[j] || ' '}</span></div>`;
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+// the file at the commit beside today's file, the cited lines lined up
+async function renderCompare(tab, body, file) {
+  const c = tab.cite;
+  const was = await loadWas(tab);
+  if (!body.isConnected || tabs.find((t) => t.key === active) !== tab || !tab.cmp) return;
+  clear(body);
+  if (was.empty) { body.append(h('div', { class: 'dr-empty' }, h('p', null, was.note))); return; }
+  const lang = (f) => f?.lang || tab.path.split('.').pop();
+  const when0 = !was.full && c.saw?.base ? c.saw.at : c.checkedAt0;
+  const date = when0 ? ` · ${when(when0)}` : '';
+  const a1 = c.line ?? tab.line ?? null, b1 = c.endLine ?? a1;
+  const a0 = c.line0 ?? a1, b0 = c.endLine0 ?? c.endLine ?? a0;
+  let oldHtml = null, newHtml = null, oldRow = 0, newRow = 0;
+  const todayLines = file ? linesFor(`${state.nbId}:${tab.path}`, file, lang(file)) : null;
+  if (was.full) {
+    if (!was.binary) {
+      oldHtml = cmpRows(linesFor(`${state.nbId}:${tab.path}@${c.sha}`, { text: was.text }, lang(file)), 1, a0, b0);
+      oldRow = Math.max(0, (a0 || 1) - 1);
+    }
+    if (todayLines) { newHtml = cmpRows(todayLines, 1, a1, b1); newRow = Math.max(0, (a1 || 1) - 1); }
+  } else {
+    const saved = highlightLines(was.text, lang(file));
+    oldHtml = cmpRows(saved, was.from, was.from, was.from + saved.length - 1);
+    if (todayLines && a1) {
+      const first = Math.max(1, a1 - 3);
+      const part = todayLines.slice(first - 1, (b1 || a1) + 3);
+      if (part.length && first <= todayLines.length) { newHtml = cmpRows(part, first, a1, b1); newRow = a1 - first; }
+    }
+  }
+  const pad = align(oldRow, newRow);
+  const notes = [was.note, was.truncated ? 'Showing the first 2 MB.' : null].filter(Boolean);
+  const pane = (kicker, label, html, none, padRows) => h('div', { class: 'cmp-col', role: 'group', 'aria-label': label },
+    h('div', { class: 'cmp-head t-kicker' }, kicker),
+    html != null ? h('div', { class: 'code', style: `--pad: ${padRows * CMP_ROW}px`, ...(sourceFor(tab.path)?.layer ? { 'data-layer': sourceFor(tab.path).layer } : {}), html })
+      : h('p', { class: 'cmp-none t-ui-sm' }, none));
+  const old = pane(was.full ? `As it was · ${was.label}${date}` : `Saved lines${date}`, was.full ? `The file at ${was.label}` : 'Saved lines', oldHtml,
+    was.binary ? 'Binary file, not shown.' : 'There is nothing saved to compare.', pad.old);
+  const now = pane('Today', 'The file today', newHtml, file ? 'Today\'s file no longer has these lines.' : 'This file is not in the notebook now.', pad.new);
+  body.append(h('div', { class: 'dr-cmp' }, notes.length ? h('p', { class: 'cmp-note t-ui-sm' }, notes.join(' ')) : null, old, now));
+  if (tab.scrolled && tab.scrollTop != null) { requestAnimationFrame(() => { body.scrollTop = tab.scrollTop; }); return; }
+  tab.scrolled = true;
+  // the cited line sits at 35% of the drawer height, as in the file view
+  requestAnimationFrame(() => {
+    body.scrollTop = Math.max(0, (Math.max(oldRow + pad.old, newRow + pad.new)) * CMP_ROW - body.clientHeight * 0.35);
+    requestAnimationFrame(() => {
+      const el = body.querySelector('.l.first') || body.querySelector('.l.hit');
+      if (!el) return;
+      body.scrollTop += el.getBoundingClientRect().top - body.getBoundingClientRect().top - body.clientHeight * 0.35;
+    });
+  });
+}
+
+const span = (a, b) => (!a ? '' : !b || a === b ? `L${a}` : `L${a}-${b}`);
+const CHANGE_WORD = { D: 'deleted', R: 'renamed', A: 'added', M: 'changed' };
+
+// commits since the answer that touched the cited lines, from git log -L
+function changesPanel(tab) {
+  const c = tab.cite;
+  const box = h('div', { class: 'dr-changes', role: 'region', 'aria-label': 'Commits since the answer', 'aria-live': 'polite' }, h('p', { class: 't-mono-sm' }, 'Asking git'));
+  const fill = (res) => {
+    clear(box);
+    if (res.error) { box.append(h('p', { class: 't-ui-sm' }, res.error)); return; }
+    const r = res.ok;
+    const by = r.by === 'path';
+    box.append(h('p', { class: 't-ui-sm' }, by ? `Commits since ${sha7(c)} that touched this path.` : `Commits since ${sha7(c)} that touched ${span(c.line, c.endLine) || 'these lines'}, as of the last commit.`));
+    if (!r.commits.length) box.append(h('p', { class: 't-ui-sm' }, `No commit since ${sha7(c)} touched ${by ? 'this path' : 'these lines'}.${r.dirtyNow ? ' The difference is in uncommitted edits.' : ''}`));
+    else {
+      box.append(...r.commits.map((k) => h('button', { class: 'chg-row', title: `Copy ${k.sha}`, onclick: () => copyText(k.sha, `Copied ${k.short}`) },
+        h('span', { class: 'chg-sha t-mono-sm' }, k.short),
+        h('span', { class: 'chg-sub' }, by && k.change ? `${CHANGE_WORD[k.change]}: ${k.subject}` : k.subject),
+        h('span', { class: 'chg-meta t-mono-sm' }, `${k.date} · ${k.author}`))));
+      if (r.truncated) box.append(h('p', { class: 't-mono-sm' }, 'Showing the latest 20.'));
+      if (r.dirtyNow) box.append(h('p', { class: 't-ui-sm' }, 'This file also has uncommitted edits, which are not commits.'));
+    }
+  };
+  tab.changes ??= api.get(nbPath(state.nbId, `/history/changes?path=${encodeURIComponent(c.path)}&sha=${c.sha}&line=${c.line ?? ''}&endLine=${c.endLine ?? ''}`))
+    .then((ok) => ({ ok }), (e) => ({ error: e.message }));
+  tab.changes.then((res) => { if (box.isConnected) fill(res); });
+  return box;
 }
 
 // headings for docs; class, method and field declarations for code
@@ -443,6 +612,124 @@ function markPage(page, tab, body) {
     tab.scrolled = true;
     body.scrollTop = Math.max(0, first.offsetTop - body.clientHeight * 0.35);
   }
+}
+
+// ---------- what depends on a line (DESIGN 11.18) ----------
+// GET /cited lists the saved answers, sheets and notes that cite this file. Marks are an extra: any failure leaves the file as it was.
+
+async function loadDeps(host) {
+  if (!host.body.isConnected) return;
+  const my = ++depSeq;
+  let r;
+  try { r = await api.get(nbPath(state.nbId, '/cited?path=' + encodeURIComponent(host.tab.path))); } catch { return; }
+  if (my !== depSeq || depHost !== host || !host.body.isConnected) return;
+  depRefs = Array.isArray(r?.refs) ? r.refs : [];
+  depTrunc = !!r?.truncated;
+  paintDeps(host);
+}
+
+function paintDeps(host) {
+  for (const el of host.body.querySelectorAll('.dep')) el.classList.remove('dep', 'st-verified', 'st-moved', 'st-unverified', 'st-pending');
+  for (const b of host.body.querySelectorAll('.dmark')) b.remove();
+  host.bar.querySelector('.dr-cited')?.remove();
+  hideDeps();
+  if (!depRefs.length) return;
+  if (host.code) {
+    depMap = lineMap(depRefs, host.lineCount);
+    for (const [n, e] of depMap) {
+      const el = host.code.children[(n - 1) / 200 | 0]?.children[(n - 1) % 200];
+      if (!el?.classList.contains('l')) continue;
+      el.classList.add('dep', 'st-' + e.status);
+      if (e.start) el.querySelector('.n')?.prepend(dmark(e));
+    }
+  } else {
+    for (const blk of host.page.querySelectorAll('.blk')) {
+      const refs = refsIn(depRefs, +blk.dataset.l1, +blk.dataset.l2);
+      if (!refs.length) continue;
+      const st = worst(refs.map((r) => r.status));
+      blk.classList.add('dep', 'st-' + st);
+      blk.prepend(dmark({ refs, status: st }));
+    }
+  }
+  if (!host.wired) {
+    host.wired = true;
+    (host.code || host.page).addEventListener('pointerover', depOver);
+    (host.code || host.page).addEventListener('pointerout', depOut);
+    host.body.addEventListener('scroll', () => hideDeps(), { passive: true });
+  }
+  const st = worst(depRefs.map((r) => r.status));
+  const count = new Set(depRefs.map((r) => `${r.kind}:${r.id}:${r.turn ?? ''}`)).size;
+  const btn = h('button', { type: 'button', class: `btn quiet sm dr-cited st-${st}`, 'aria-haspopup': 'dialog', onclick: () => showDeps(depRefs, btn, true, true) },
+    glyph(st, 'glyph sm'), `Cited by ${count}${depTrunc ? '+' : ''}`);
+  host.bar.querySelector('.grow')?.after(btn);
+}
+
+// a mouse and touch target only: hundreds of tab stops would be worse than none, the header button is the keyboard way in
+function dmark(e) {
+  const n = e.refs.length;
+  return h('button', { type: 'button', class: 'dmark', tabindex: -1, 'aria-label': `${n} saved citation${n === 1 ? '' : 's'} here, ${STATUS_WORD[e.status]}`,
+    onclick: (ev) => { ev.stopPropagation(); if (n === 1) openDep(e.refs[0]); else showDeps(e.refs, ev.currentTarget, true); } }, glyph(e.status, 'glyph sm'));
+}
+
+let depAt = null; // the line or block the open list belongs to
+const DEP_HIT = '.l.dep .n, .blk.dep .dmark';
+const refsFor = (el) => (el.matches('.blk') ? refsIn(depRefs, +el.dataset.l1, +el.dataset.l2) : depMap.get(+el.dataset.n)?.refs || []);
+
+function depOver(e) {
+  const x = e.target.closest?.(DEP_HIT);
+  if (!x || depEl?.classList.contains('pinned')) return;
+  const el = x.closest('.l, .blk');
+  clearTimeout(depTimer);
+  if (depAt === el) return;
+  depTimer = setTimeout(() => { showDeps(refsFor(el), x, false); depAt = el; }, 120);
+}
+
+function depOut(e) {
+  const x = e.target.closest?.(DEP_HIT);
+  if (!x || x.contains(e.relatedTarget) || depEl?.classList.contains('pinned')) return;
+  clearTimeout(depTimer);
+  depTimer = setTimeout(() => hideDeps(), 160);
+}
+
+function hideDeps() {
+  clearTimeout(depTimer);
+  depEl?.remove();
+  depEl = null;
+  depAt = null;
+}
+
+function openDep(r) { hideDeps(); ctx.openDependent?.(r); }
+
+const sheetNum = (r) => { const i = state.recipes.findIndex((x) => x.id === r.recipe); return i < 0 ? null : String(i + 1).padStart(2, '0'); };
+
+function depLabel(r) {
+  const cite = r.n != null ? ` [${r.n}]` : '';
+  if (r.kind === 'answer') { const q = qnum(r.id); return (q ? `Q${q}${r.turn > 0 ? '.' + (r.turn + 1) : ''}` : r.title || 'Answer') + cite; }
+  if (r.kind === 'sheet') { const no = sheetNum(r); return `${no ? `Sheet ${no}` : r.title || 'Sheet'}${r.node != null ? (r.node ? ` node ${r.node}` : ' data ref') : cite}`; }
+  return `Note ${r.title || r.id}${cite}`;
+}
+
+function depRow(r) {
+  const st = stShown(r.status);
+  const sub = r.kind === 'answer' ? r.question : r.kind === 'sheet' ? r.title : '';
+  const at = r.line ? `L${r.line}${r.endLine && r.endLine !== r.line ? '-' + r.endLine : ''}${st === 'moved' && r.citedLine ? ` · cited L${r.citedLine}` : ''}` : '';
+  return h('button', { type: 'button', class: `dc-row st-${st}`, onclick: () => openDep(r) }, glyph(st, 'glyph sm'),
+    h('div', { class: 'dc-main' }, h('div', { class: 'dc-label' }, depLabel(r)), sub ? h('div', { class: 'dc-sub' }, sub) : null),
+    h('div', { class: 'dc-st' }, h('div', null, STATUS_WORD[st]), at ? h('div', { class: 't-mono-sm' }, at) : null));
+}
+
+function showDeps(refs, anchor, pinned, whole = false) {
+  hideDeps();
+  const list = h('div', { class: 'dc-list' }, refs.map(depRow));
+  arrowNav(list, '.dc-row');
+  depEl = h('div', { class: 'hovercard depcard' + (pinned ? ' pinned' : ''), role: 'dialog', 'aria-label': 'Cited here' },
+    h('div', { class: 'hc-head' }, h('span', { class: 't-kicker' }, whole ? 'Cited in this file' : 'Cited here'), h('span', { class: 'grow' }), h('span', { class: 't-mono-sm' }, refs.length)), list);
+  depEl.opener = anchor;
+  depEl.addEventListener('pointerenter', () => clearTimeout(depTimer));
+  depEl.addEventListener('pointerleave', () => { if (!pinned) depTimer = setTimeout(() => hideDeps(), 160); });
+  document.body.append(depEl);
+  place(depEl, anchor.getBoundingClientRect());
+  if (whole) list.querySelector('.dc-row')?.focus();
 }
 
 function findTextRange(scope, quote) {

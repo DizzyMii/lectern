@@ -80,9 +80,11 @@ Shared sample notebook (all screens):
   - read · `networking/payload.md 1-120` · `120 lines` · `0.1 s`
   - search · `grep "HandlerThread" NeoForge docs` · `2 matches in 1 file` · `0.2 s`
   - check · `3 citations` · `2 verified, 1 moved` · `0.4 s`
+  - the drawing sits above the rows: a band per source, a station per file or search in visit order, solid legs for reads and dashed for searches, cited files marked in their status colour
 - D. Underline-only mode (`H`): no bands, underlines and marks stay.
 - E. One unverified variant: chip 2 unverified, its gutter shows the dashed query ring, card 2 reads `UNVERIFIED` + `Quote not found in RegisterPayloadHandlersEvent.java. Searched 1 file, 0 matches.` + `Search all sources`; receipt `1 1 1 1` with caption `1 quote was not found. It is marked in red.`
 - F. Width 1180: margin folded, one-line receipt under the trail, hover card is the only citation surface.
+- G. Proof ribbons (`V`): the margin widens into the cited files, each verified or moved card shows its lines, and a ribbon runs from the claim to them. A moved card has a second, dashed ribbon to the line it was cited at. `J`/`K` fills one claim's ribbon and thins the rest.
 
 ---
 

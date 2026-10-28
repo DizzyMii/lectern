@@ -1,19 +1,21 @@
 // Boot, cross-module actions, the keyboard model (DESIGN 10) and the key strip hints.
 
-import { h, clear, icon, toast, store } from './ui/dom.js';
+import { h, clear, icon, toast, store, quickMode } from './ui/dom.js';
 import { api, nbPath, initApi, mockMode } from './ui/api.js';
 import { state, ctx, on, emit, normNotebookSummary, normNotebook, normConversation, MODELS } from './ui/state.js';
 import { initRail, focusHistory } from './ui/rail.js';
 import { initChat, renderThread, focusComposer, copyAnswer, stopStreaming } from './ui/chat.js';
-import { initViewer, openFile, openSearch, openNote, openSource, closeViewer, viewerOpen, showViewer, viewerHasTabs, stepDrawerCitation } from './ui/viewer.js';
-import { initCites, openCitation, moveCursor, pinCitation, stepCitation, openCursor, pinCursor, challenge, clearCursor, cursorClaim } from './ui/cites.js';
+import { initViewer, openFile, openSearch, openNote, openSource, closeViewer, viewerOpen, showViewer, viewerHasTabs, stepDrawerCitation, drawerHistory } from './ui/viewer.js';
+import { initCites, openCitation, moveCursor, pinCitation, stepCitation, openCursor, pinCursor, challenge, clearCursor, cursorClaim, toggleProof, proofOpen, proofOff } from './ui/cites.js';
 import { openPalette, closePalette, paletteOpen } from './ui/palette.js';
 import { openAddSource, openNewNotebook, initDrop, openShortcuts, openSettings } from './ui/dialogs.js';
 import { initPanes } from './ui/panes.js';
 import { initStudio, openRecipe } from './ui/studio.js';
 import { initCanvas, openArtifact, closeCanvas, canvasOpen } from './ui/canvas.js';
+import { revealCite } from './ui/cites.js';
 import { initChrome, effectiveTheme, syncTheme } from './ui/chrome.js';
 import { kbd, glyph } from './ui/layers.js';
+import { initQuick } from './ui/quick.js';
 
 const app = document.getElementById('app');
 
@@ -47,10 +49,21 @@ Object.assign(ctx, {
     document.documentElement.classList.toggle('no-bands', on);
     store.set('noBands', on);
   },
+  toggleProof: () => toggleProof(),
 
   copyPlain() {
     const t = state.conv?.turns.at(-1);
     if (t) navigator.clipboard?.writeText(t.answer.replace(/\[\^(\d+)\]/g, '')).then(() => toast('Markdown copied', 'ok', 1800));
+  },
+
+  // jump from a drawer line marker to what cites it: a note opens as a tab, a sheet on its cover, an answer at its citation
+  async openDependent(r) {
+    if (r.kind === 'note') { const note = state.nb?.notes.find((x) => x.slug === r.id); if (note) openNote(note); return; }
+    closeViewer();
+    if (r.kind === 'sheet') return openArtifact(r.id);
+    const same = state.convId === r.id && !canvasOpen() && !ctx.studioShown();
+    if (!same) await ctx.openConversation(r.id);
+    requestAnimationFrame(() => revealCite(r.turn, r.n)); // after renderThread's own scroll rAF, which was queued earlier in the same frame
   },
 
   async loadNotebooks() {
@@ -111,6 +124,17 @@ Object.assign(ctx, {
     } catch (e) { toast(`Could not open the question: ${e.message}`); }
   },
 
+  // opens a recall hit, switching notebook first when it lives in another one
+  async openRecall(hit) {
+    const same = hit.notebook === state.nbId;
+    if (hit.kind === 'answer') return same ? ctx.openConversation(hit.id) : ctx.selectNotebook(hit.notebook, { conv: hit.id });
+    if (hit.kind === 'sheet') return same ? openArtifact(hit.id) : ctx.selectNotebook(hit.notebook, { artifact: hit.id });
+    if (!same) await ctx.selectNotebook(hit.notebook);
+    if (state.nbId !== hit.notebook) return;
+    const note = state.nb?.notes.find((n) => n.slug === hit.id);
+    if (note) openNote(note);
+  },
+
   newConversation() {
     if (state.streaming) { toast('Stop the current answer first.', 'info'); return; }
     state.conv = null;
@@ -142,16 +166,16 @@ Object.assign(ctx, {
 // ---------- key strip ----------
 
 const HINTS = {
-  page: ['Page', [['J', 'next claim'], ['K', 'previous'], ['1-9', 'citation'], ['O', 'open at line'], ['C', 'copy'], ['/', 'ask'], ['P', 'studio']]],
+  page: ['Page', [['J', 'next claim'], ['K', 'previous'], ['1-9', 'citation'], ['O', 'open at line'], ['V', 'proof ribbons'], ['C', 'copy'], ['/', 'ask'], ['P', 'studio']]],
   composer: ['Ask', [['Enter', 'ask'], ['Shift Enter', 'new line'], ['Up', 'edit last question'], ['M', 'model'], ['/', 'new question'], ['Esc', 'back to page']]],
-  drawer: ['Drawer', [['[ ]', 'citation'], ['/', 'ask about selection'], ['Esc', 'back to answer']]],
+  drawer: ['Drawer', [['[ ]', 'citation'], ['E', 'as it was'], ['D', 'what changed it'], ['/', 'ask about selection'], ['Esc', 'back to answer']]],
   palette: ['Palette', [['Up Down', 'move'], ['Enter', 'open'], ['Ctrl 1-9', 'pick row'], ['Tab', 'scope'], ['Esc', 'close']]],
   rail: ['Rail', [['Up Down', 'move'], ['Enter', 'open'], ['H', 'history'], ['A', 'add source'], ['Ctrl 2', 'page']]],
   setup: ['Setup', [['Tab', 'next field'], ['Enter', 'add source'], ['Ctrl Enter', 'start asking'], ['Ctrl K', 'palette'], ['?', 'shortcuts']]],
   studio: ['Studio', [['a-z', 'type to filter'], ['00', 'jump'], ['Enter', 'open'], ['V', 'list view'], ['Esc', 'back']]],
   // artifact canvases, picked by renderer kind (copied from the boards)
   map: ['Map', [['F', 'find'], ['Left Right', 'walk nodes'], ['Enter', 'detail'], ['O', 'open at line'], ['+ -', 'zoom'], ['0', 'fit'], ['M', 'matrix'], ['P', 'studio'], ['Esc', 'back']]],
-  sequence: ['Sequence', [['Up Down', 'step'], ['Enter', 'open ref'], ['O', 'open at line'], ['[ ]', 'citation'], ['Ctrl B', 'sources'], ['P', 'studio'], ['Esc', 'back']]],
+  sequence: ['Sequence', [['Up Down', 'step'], ['Space', 'play'], ['Enter', 'open ref'], ['O', 'open at line'], ['[ ]', 'citation'], ['Ctrl B', 'sources'], ['P', 'studio'], ['Esc', 'back']]],
   plan: ['Plan', [['J', 'next task'], ['K', 'previous'], ['Enter', 'open detail'], ['X', 'check next item'], ['O', 'open file'], ['V', 'list view'], ['P', 'studio'], ['Esc', 'back']]],
   cards: ['Cards', [['Space', 'flip'], ['Right', 'got it'], ['Left', 'again'], ['S', 'shuffle'], ['1-9', 'citation'], ['O', 'open at line'], ['P', 'studio'], ['Esc', 'back']]],
   quiz: ['Quiz', [['Enter', 'check'], ['Right', 'next'], ['Left', 'previous'], ['P', 'studio'], ['Esc', 'back']]],
@@ -227,6 +251,7 @@ function globalKeys(e) {
     if (viewerOpen()) closeViewer();
     else if (app.classList.contains('rail-open')) app.classList.remove('rail-open');
     else if (app.classList.contains('studio-float')) ctx.toggleStudio(false);
+    else if (proofOpen()) proofOff();
     else if (state.streaming) stopStreaming();
     else clearCursor();
     return;
@@ -240,6 +265,7 @@ function globalKeys(e) {
     case 'j': case 'J': if (!e.shiftKey) return act(() => moveCursor(1)); break;
     case 'k': case 'K': if (!e.shiftKey) return act(() => moveCursor(-1)); break;
     case 'o': case 'O': return act(() => openCursor());
+    case 'v': case 'V': if (!e.shiftKey) return act(() => ctx.toggleProof()); break;
     case 'c': case 'C': return act(() => copyAnswer());
     case 'x': case 'X': return act(() => { if (!challenge()) toast('Pick a claim with J and K first, then press X.', 'info', 2400); });
     case 'w': case 'W': return act(() => document.querySelector('.turn:last-of-type .btn.scrutiny')?.click());
@@ -249,6 +275,8 @@ function globalKeys(e) {
     case 'n': case 'N': return act(() => ctx.newConversation());
     case 'p': case 'P': return act(() => ctx.toggleStudio());
     case 'a': case 'A': return act(() => openAddSource());
+    case 'e': case 'E': if (drawerHistory('was')) e.preventDefault(); return;
+    case 'd': case 'D': if (drawerHistory('changes')) e.preventDefault(); return;
     case '[': return act(() => { if (!((inDrawer || viewerOpen()) && stepDrawerCitation(-1))) stepCitation(-1); });
     case ']': return act(() => { if (!((inDrawer || viewerOpen()) && stepDrawerCitation(1))) stepCitation(1); });
     case 'Enter': if (cursorClaim() && !e.target.closest('button, a')) return act(() => pinCursor()); break;
@@ -277,7 +305,11 @@ async function followHash() {
   if (nb !== state.nbId) await ctx.selectNotebook(nb, { conv, artifact });
   else if (artifact && artifact !== state.artifactId) await openArtifact(artifact);
   else if (!artifact && canvasOpen()) closeCanvas({ keepHash: true });
-  if (nb === state.nbId && conv && conv !== state.convId) await ctx.openConversation(conv);
+  if (nb === state.nbId && conv && conv !== state.convId) {
+    // a Question made in the quick-ask popup is not in this window's history yet
+    if (!state.nb.conversations.some((c) => c.id === conv)) await ctx.refreshNotebook();
+    await ctx.openConversation(conv);
+  }
   return true;
 }
 
@@ -291,6 +323,8 @@ function fatal(msg, retry) {
 
 async function boot() {
   await initApi();
+  // the quick-ask popup: always the fast preset, and initChat below has to see this to draw Haiku
+  if (quickMode) { document.documentElement.classList.add('quick'); state.fast = true; state.model = 'haiku'; }
   initPanes(app);
   initChrome();
   initRail(document.getElementById('rail'));
@@ -321,14 +355,28 @@ async function boot() {
     fatal(e.message, () => location.reload());
     return;
   }
-  if (!state.notebooks.length) { ctx.firstRun = true; emit('firstrun'); renderThread(); setHints('setup'); return; }
+  // the desktop app opens a question from the tray or a notification, including on a first run before any notebook exists.
+  // The question that is already open is read again, otherwise its old check marks would stay on screen.
   window.addEventListener('hashchange', followHash);
+  window.lecternApp?.onGoto?.(async (hash) => {
+    if (location.hash !== hash) history.replaceState(null, '', hash);   // no hashchange, so the open below runs once
+    const { nb, conv, artifact } = readHash();
+    if (nb !== state.nbId) { await followHash(); return; }
+    if (artifact) await openArtifact(artifact);
+    else if (conv) {
+      if (canvasOpen()) closeCanvas({ keepHash: true });
+      if (!state.nb.conversations.some((c) => c.id === conv)) await ctx.refreshNotebook();
+      await ctx.openConversation(conv);
+    }
+  });
+  if (!state.notebooks.length) { ctx.firstRun = true; emit('firstrun'); renderThread(); setHints('setup'); if (quickMode) initQuick(); return; }
   if (!(await followHash())) {
     const last = store.get('lastNotebook', null);
-    await ctx.selectNotebook(state.notebooks.some((n) => n.id === last) ? last : state.notebooks[0].id);
+    await ctx.selectNotebook(state.notebooks.some((n) => n.id === last) ? last : state.notebooks[0].id, quickMode ? { conv: null } : undefined);
   }
   // reading an answer starts on the page (J and K work); a blank question starts in Ask
   if (state.convId) document.getElementById('page-scroll')?.focus({ preventScroll: true }); else focusComposer();
+  if (quickMode) initQuick();
 }
 
 boot();

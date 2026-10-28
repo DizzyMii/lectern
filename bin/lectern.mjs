@@ -12,8 +12,12 @@ usage:
   lectern ask <notebook> "<question>" [--json] [--fast | --deep] [--continue <conversationId>]
               [--model opus|sonnet|haiku] [--effort e] [--max-turns n] [--engine api|claude-code]
   lectern mcp                                MCP server over stdio
+  lectern hook stop | install [--dir folder] [--write]
+              Claude Code hook: blocks a finish while a [[citation]] in its last message fails
   lectern list [--json]                      registered notebooks
   lectern show <notebook> <conversationId|artifactId> [--json]
+  lectern check <notebook> [files...] [--fail-on moved|unverified] [--json]
+                                             re-check every conversation, sheet and note, plus Lectern footnotes in the files; lists what got worse
   lectern new <id> [--title t] [--dir folder]
   lectern add <notebook> <url|path|git-url> [--name n] [--branch b] [--subdir d]
   lectern example [name] [--dir folder] [--code]
@@ -48,6 +52,7 @@ async function main(argv) {
     await import('../lib/mcp.mjs');
     return null;
   }
+  if (cmd === 'hook') return (await import('../lib/hook.mjs')).hookCmd(argv.slice(1));
 
   const cli = await import('../lib/cli.mjs');
   const { args, opts } = cli.parse(argv.slice(1));
@@ -65,6 +70,7 @@ async function main(argv) {
     if (cmd === 'ask') return await cli.askCmd(args, opts);
     if (cmd === 'list') return await cli.listCmd(opts);
     if (cmd === 'show') return cli.showCmd(args, opts);
+    if (cmd === 'check') return cli.checkCmd(args, opts);
     if (cmd === 'new') return cli.newCmd(args, opts);
     if (cmd === 'add') return await cli.addCmd(args, opts);
     if (cmd === 'example') {
