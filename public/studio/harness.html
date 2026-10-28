@@ -150,6 +150,9 @@
       code: () => q('.sa-seg button[data-v="code"]')?.click(),
       zoomin: () => q('.sg-zoom .sa-icon:last-of-type')?.click(),
       docscroll: () => { const f = q('.hz-frame'); if (f) f.scrollTop = 520; },
+      play: () => byText('.sa-btn', 'Play')?.click(),
+      stop: () => byText('.sa-btn', 'Stop')?.click(),
+      follow: () => q('.sq-follow input')?.click(),
       destroy: () => { for (const v of views) v.view.destroy(); log('destroyed ' + views.length); },
     };
     await document.fonts?.ready;

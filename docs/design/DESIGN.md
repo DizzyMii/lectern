@@ -469,6 +469,7 @@ Springs are implemented with WAAPI keyframes generated once from the spring para
 
 | Moment | Motion |
 |---|---|
+| Sequence play | a packet dot moves along each arrow by `transform: translate`, 320ms linear, then rests 140ms (900ms after a step whose source opened in the drawer). Activation bars fade in and out by `--d-1`. Reduced motion: no packet, steps advance every 900ms |
 | Hover on row, button, chip | background and colour, `--d-1` `--ease-out` |
 | Button press | scale 0.97 on `:active`, `--d-1` |
 | Tooltip | appears after 500ms hover delay; once one tooltip has shown, the next shows with 0 delay for 800ms; fade + translateY(2px to 0), `--d-2` |
@@ -489,7 +490,7 @@ Springs are implemented with WAAPI keyframes generated once from the spring para
 | Graph | node drag and fling use spring `drag`; zoom by wheel is immediate (no easing); `0` (fit) animates the viewport over 240ms `--ease-out` |
 
 ### 8.3 What never animates
-- Keyboard navigation of any kind: J/K, arrows in lists, 1 to 9, `[` `]`, Tab, palette results, tree expand by key, Studio cell focus.
+- Keyboard navigation of any kind: J/K, arrows in lists, 1 to 9, `[` `]`, Tab, palette results, tree expand by key, Studio cell focus. Play on a sequence sheet is something the user starts on purpose, so the packet moves; J/K and the arrows on that sheet still jump with no animation.
 - Theme switch: add `<style>*{transition:none!important;animation:none!important}</style>`, flip `data-theme`, read `getComputedStyle(document.body).opacity`, remove the style.
 - Text layout: no reflow on chip resolve (chips reserve their width from the start, section 11.5).
 - Scroll: no smooth-scroll on programmatic jumps. Jumps are instant; the target line flashes (band-strong, 600ms fade out) so the eye finds it.
@@ -550,6 +551,7 @@ One grammar everywhere (Raycast rules): every list filters by typing, arrows mov
 | Graph: `M` | matrix view toggle | graph (over 20 nodes) |
 | Flashcards: `Space` flip, `Right` got it, `Left` again, `S` shuffle | | quiz |
 | Plan: `X` on a task toggles its next acceptance item, `Shift+X` all | | plan |
+| Sequence: `Space` plays or stops, `Esc` stops it before anything else closes | | sequence |
 
 Shortcut hints are shown inline: in the palette next to each command, in tooltips, in the key strip, and on buttons as `kbd` caps.
 
@@ -860,6 +862,7 @@ Citations inside artifacts render with the same chip, hover card, status and dra
 - Activation bars: 8px wide `--paper-3` boxes on a lifeline between a request and its return.
 - Keyboard: Up/Down steps through steps (highlight row with band of the ref's layer, or `--paper-3`), Enter opens ref, `O` same.
 - Empty: `No steps.` Huge: 60 steps max by contract; over 30, a step minimap appears on the right edge.
+- Play: a `Play` button and `Space` send a 9px packet (`--ink` with a `--paper` ring) along each arrow in turn, the row, list and step panel advancing with it; bars open on the callee as the call lands and close as the reply leaves. Next to it, `Follow code` (shown when a step has a ref, remembered per viewer) opens each step's ref in the drawer as the packet lands. Play never starts on open. J/K and the arrows stay instant and stop a run. `Esc` stops a run first, a second `Esc` closes the drawer.
 - Export: SVG and Mermaid.
 
 ### 12.4 Plan
