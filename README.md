@@ -176,6 +176,14 @@ Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), wi
 
 `db.ts` in the drawer. Every line something cites is marked in the gutter, with the status glyph where a cited range starts (lines 4, 8, 9, 10, 12 and 13) and a stem down the rest of the range. Cited by 5 (16 citations) in the header opens the list: the orders-service code map, the flashcards sheet and questions 001, 004 and 006, each row with its status and lines.
 
+### What the trail read
+
+<p align="center">
+  <img src="docs/media/trail-map.png" alt="The opened trail map under the question Where does Fastify actually run onRequest hooks in its source. The Fastify row has two marks with citations 9 and 10 under them. The fastify row has a square for the fastify/lib folder it searched, then a mark for route.js with citations 1, 2, 3, 4 and 8 under it and a mark for hooks.js with 5, 6 and 7, joined by one line" width="780">
+</p>
+
+<kbd>L</kbd> opens the trail on the `onRequest` answer with the map on top, one row per source. On the fastify row (the code root) the square is `fastify/lib`, grepped twice, first for `onRequest` and then for `hookIterator` and `runPreParsing`, and the line runs on to `route.js` (read at lines 490 to 619) and `hooks.js` (read at lines 225 to 284). Citations 1, 2, 3, 4 and 8 are in `route.js` and 5, 6 and 7 in `hooks.js` (7 and 8 sit further down than the reads went, the second grep found them). The two marks on the Fastify row (the pinned docs) are `Lifecycle.md` and `Hooks.md`, cited as 9 and 10.
+
 ### Studio
 
 <p align="center">
