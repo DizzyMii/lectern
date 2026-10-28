@@ -22,5 +22,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+        env:
+          # the tests never start Electron, so skip its 100+ MB download
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       # the tests use the fake engines, so no claude binary or API key is needed
       - run: node --test test/
