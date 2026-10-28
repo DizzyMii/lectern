@@ -296,6 +296,9 @@
 
 .survey-canvas .canvas-job { padding: 0 32px; }
 .survey-canvas .canvas-job:not(:empty) { padding-top: 16px; }
+.survey-canvas .canvas-drift { padding: 0 32px; }
+.survey-canvas .canvas-drift:not(:empty) { padding-top: 16px; }
+.cover-drift { color: var(--ink-3); }
 .survey-canvas .canvas-summary { padding: 0 32px; }
 .survey-canvas .canvas-summary:not(:empty) { margin-top: 20px; }
 .survey-canvas .canvas-summary .prose { max-width: var(--measure); padding: 0; background: none; border: 0; border-radius: 0; color: var(--ink-2); font: var(--type-read-sm); }
@@ -372,7 +375,7 @@
   .cover-text { padding: 12px 16px 0; }
   .cover-bar { padding: 0 16px; }
   .cover-meta { white-space: normal; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
-  .survey-canvas .canvas-body, .survey-canvas .canvas-summary, .survey-canvas .canvas-job { padding-left: 16px; padding-right: 16px; }
+  .survey-canvas .canvas-body, .survey-canvas .canvas-summary, .survey-canvas .canvas-job, .survey-canvas .canvas-drift { padding-left: 16px; padding-right: 16px; }
   .survey-canvas .canvas-body:is([data-kind="graph"], [data-kind="sequence"])[data-tab="rendered"] .sa > :not(.sg-stage, .sg-matrix, .sq-layout) { margin: 0 16px; }
   /* the cover title steps down a size and gets two lines */
   .cover { height: auto; padding-bottom: 12px; }

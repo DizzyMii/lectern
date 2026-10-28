@@ -16,6 +16,7 @@
 - after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
 - `lectern check <notebook> [files...]` and the `check_notebook` MCP tool re-check every saved conversation, sheet and note, plus the footnotes in named markdown files, and list what got worse. `--fail-on moved|unverified` makes it exit 1 for CI or a pre-commit hook. It never writes
 - lines in the file drawer that a saved answer, sheet or note cites get a status mark in the gutter, with a stem down a cited range. Page mode marks the block. Hover or click a mark to see what cites it and jump there, and a `Cited by n` button in the drawer header lists the whole file. Statuses are re-checked when the file opens and nothing is written
+- reopening an answer or a sheet shows what the re-check changed: the receipt gets a `Written Oct 24` and a `Today` line, only the marks that changed stamp in again, a moved mark rolls from the old line to the new one, hover cards get a History row, and a warn banner says how many citations got worse. On an answer the banner has Re-ask, which opens a new conversation with the same question. Sheets get `generatedAt` so ticking a plan box doesn't change the printed date
 
 ## 1.0.0-rc.1 (2026-10-25)
 

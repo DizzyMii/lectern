@@ -8,6 +8,7 @@ import { renderAnswer } from './markdown.js';
 import { isDoc } from './viewer.js';
 import { decorate, receipt, counts, miniReceipt, scheduleLayout } from './cites.js';
 import { sourcesOf, swatch, qnum, nextQnum, kbd, glyph, relPath, shortPath, inScope, scopeForAsk } from './layers.js';
+import { compare, words } from './status.js';
 import { renderOnboarding, onboardingActive, endOnboarding } from './onboard.js';
 
 let center, scroller, inner, textarea, askBtn, modelBtn, numEl, chipsEl, quoteEl, errEl, belowBtn, sr, composerEl, menuEl = null;
@@ -271,6 +272,8 @@ class TurnView {
     } else {
       this.trail.finish(turn);
       if (!this.trail.steps.length) this.trail.el.hidden = true;
+      const d = driftBanner(turn, index);
+      if (d) this.answer.before(d);
       this.draw(false);
       this.drawActions();
     }
@@ -338,7 +341,7 @@ class TurnView {
   }
 
   decorate(live) {
-    const k = decorate(this.el, this.turn, { live });
+    const k = decorate(this.el, this.turn, { live, replay: !live && !!this.turn.citeCheck });
     this.foldRc.replaceChildren(...miniReceipt(k));
     if (this.el.isConnected || live) setReceipt(k);
     else requestAnimationFrame(() => { if (this.el === inner.lastElementChild) setReceipt(k); });
@@ -427,6 +430,21 @@ export function banner(kind, title, body, action) {
   return h('div', { class: `banner ${kind}`, role: kind === 'error' ? 'alert' : 'status' },
     glyph(kind === 'error' ? 'unverified' : kind === 'warn' ? 'moved' : 'pending'),
     h('div', { class: 'bn-body' }, h('strong', null, title), body ? h('span', null, ' ', body) : null), action || null);
+}
+
+// A reopened turn whose citations got worse: say so above the answer. Re-ask only on the first turn, a follow-up leans on the turns before it.
+function driftBanner(turn, index) {
+  const r = !turn.kind && compare(turn.citations, { at0: turn.citeCheck?.checkedAt0 });
+  if (!r?.worse) return null;
+  const ask = index === 0 && turn.question ? h('button', { class: 'btn', title: 'Ask the same question in a new conversation, against the files as they are now', onclick: () => reAsk(turn) }, 'Re-ask') : null;
+  return banner('warn', `${r.worse} of ${r.total} citation${r.total === 1 ? '' : 's'} got worse since ${r.since}.`, `${words(r.bad)}.`, ask);
+}
+
+function reAsk(turn) {
+  if (state.streaming) { toast('Stop the current answer first.', 'info'); return; }
+  quote = null; drawQuote(); // a pending 'Ask about this' chip would be prefixed to the question
+  ctx.newConversation(); // a fresh session, so the model reads the files as they are today
+  ctx.ask(turn.question);
 }
 
 async function copyInline(btn, text, done) {

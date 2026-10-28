@@ -99,6 +99,7 @@ test('artifact citations and data refs re-check on the GET route', async () => {
   const before = fs.readFileSync(file, 'utf8');
   let a = await (await fetch(`${base}/api/notebooks/test/artifacts/a1`)).json();
   assert.equal(a.citeCheck.changed, false);
+  assert.equal(a.citeCheck.checkedAt0, created);
   assert.deepEqual(a.citeCheck.counts, { verified: 2, moved: 0, unverified: 0, missing: 0 });
   assert.equal(a.citeCheck.refs.counts.verified, 1);
   assert.equal(fs.readFileSync(file, 'utf8'), before);

@@ -4,6 +4,7 @@
 
 import { h, store, midPath } from './dom.js';
 import { state, emit } from './state.js';
+import { shown } from './status.js';
 export { midPath };
 
 const LAYERS = ['water', 'heath', 'spruce', 'sand', 'moor', 'lichen', 'clay', 'dusk'];
@@ -118,7 +119,7 @@ export const nextQnum = (nb = state.nb) => pad3((nb?.conversations.length || 0) 
 export const pad3 = (n) => String(n).padStart(3, '0');
 
 // status words and glyphs (DESIGN 6.1). "missing" is shown as unverified.
-export const statusOf = (c) => (c?.status === 'missing' ? 'unverified' : c?.status || 'pending');
+export const statusOf = (c) => shown(c?.status);
 export const STATUS_WORD = { verified: 'verified', moved: 'moved', unverified: 'unverified', pending: 'checking' };
 
 export function glyph(status, cls = 'glyph') {

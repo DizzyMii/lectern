@@ -5,12 +5,15 @@ import { api, nbPath, stream } from './api.js';
 import { state, ctx, on, emit, MODELS } from './state.js';
 import { renderAnswer, highlight } from './markdown.js';
 import { sourceFor } from './layers.js';
+import { banner } from './chat.js';
+import { compare, words, dayWord, shown } from './status.js';
+import { stampChanged } from './cites.js';
 import {
   recipeById, runJob, addArtifact, openRecipe, markSeen, studioOpen, groupLabel, sheetNo, citeCounts, sizeText,
   contourRings, sv, mark, jobMeta, put,
 } from './studio.js';
 
-let host, coverEl, barEl, viewSlot, jobSlot, sumEl, bodyEl, kindExports = [], current = null, view = null, seq = 0, tab = 'rendered', fromStudio = false;
+let host, coverEl, barEl, viewSlot, jobSlot, driftEl, sumEl, bodyEl, kindExports = [], current = null, view = null, seq = 0, tab = 'rendered', fromStudio = false;
 const modules = new Map();
 
 const NEXT = { prd: ['tech-spec'], 'tech-spec': ['impl-plan', 'test-plan'], adr: ['tech-spec'] };
@@ -29,11 +32,12 @@ export function initCanvas(el) {
   // the renderer's view toggle and tools move here (artifact-canvas keeps their renderer styles)
   viewSlot = h('div', { class: 'cover-view artifact-canvas' });
   jobSlot = h('div', { class: 'canvas-job' });
+  driftEl = h('div', { class: 'canvas-drift' });
   sumEl = h('div', { class: 'canvas-summary' });
   bodyEl = h('div', { class: 'canvas-body has-cites', role: 'tabpanel', 'aria-label': 'Sheet' });
   // renderers without ctx.regenerate ask for a retry with this event
   bodyEl.addEventListener('studio:retry', () => regenerate());
-  host.append(h('div', { class: 'canvas-scroll', tabindex: '-1' }, coverEl, barEl, jobSlot, sumEl, bodyEl));
+  host.append(h('div', { class: 'canvas-scroll', tabindex: '-1' }, coverEl, barEl, jobSlot, driftEl, sumEl, bodyEl));
   host.classList.add('survey-canvas');
   // recipes can arrive after a sheet opened from the URL
   on('recipes', () => { if (current) { drawCover(); drawBar(); } });
@@ -88,7 +92,7 @@ export async function openArtifact(id, data = null) {
   let art = data && (data.data !== undefined || data.markdown !== undefined || data.raw !== undefined) ? data : null;
   if (!art) {
     destroyView();
-    clear(coverEl); clear(barEl); clear(sumEl); clear(jobSlot);
+    clear(coverEl); clear(barEl); clear(sumEl); clear(jobSlot); clear(driftEl);
     clear(bodyEl).append(h('div', { class: 'canvas-loading t-ui-sm' }, 'Opening the sheet.'));
     try { art = await api.get(nbPath(nbId, `/artifacts/${encodeURIComponent(id)}`)); }
     catch (e) {
@@ -187,8 +191,9 @@ function drawCover() {
     ...sizeText(a),
     model || null,
     a.costUsd ? `$${Number(a.costUsd).toFixed(2)}` : null,
-    printedWhen(a.updatedAt || a.createdAt) || null,
+    printedWhen(a.generatedAt || a.updatedAt || a.createdAt) || null,
   ].filter(Boolean);
+  const dr = compare(a.citations, { at0: a.citeCheck?.checkedAt0, word: 'Printed' });
   const metaEl = h('div', { class: 'cover-meta t-mono-sm' });
   meta.forEach((m, i) => metaEl.append(i ? ' · ' : '', m));
   const status = a.status && a.status !== 'ok';
@@ -200,7 +205,7 @@ function drawCover() {
       h('div', { class: 't-kicker cover-kicker' }, h('span', { class: 'acc' }, no ? `Sheet ${no}` : 'Sheet'), group ? ` · ${groupLabel(group)}` : '', r ? ` · ${r.title}` : ''),
       h('h1', { class: 'cover-title s-xl' }, h('span', { class: 'riso', 'aria-hidden': 'true' }, title), h('span', { class: 'ink' }, title)),
       metaEl,
-      h('div', { class: 'cover-line' }, status ? h('span', { class: 'cover-bad t-mono-sm st-unverified' }, mark('unverified'), a.status === 'invalid' ? 'did not validate' : 'failed') : receiptMini(citeCounts(a)))));
+      h('div', { class: 'cover-line' }, status ? h('span', { class: 'cover-bad t-mono-sm st-unverified' }, mark('unverified'), a.status === 'invalid' ? 'did not validate' : 'failed') : receiptMini(citeCounts(a)), dr ? h('span', { class: 'cover-drift t-mono-sm' }, `${dr.then} ${dr.now}`) : null)));
   fitTitle();
 }
 
@@ -324,7 +329,21 @@ async function draw() {
   document.getElementById('app').classList.toggle('rail-strip', current.kind === 'sequence');
   drawCover();
   drawBar();
+  drawDrift();
   await drawTab();
+}
+
+// A reopened sheet whose references got worse since it was printed. Regenerate replaces the sheet, so the banner goes with it.
+function drawDrift() {
+  const a = current, k = a.citeCheck, refs = k?.refs;
+  const r = compare(a.citations, { at0: k?.checkedAt0, word: 'Printed' });
+  const worse = (r?.worse || 0) + (refs?.worse || 0);
+  clear(driftEl);
+  if (!worse) return;
+  const total = (a.citations?.length || 0) + Object.values(refs?.counts || {}).reduce((s, n) => s + n, 0);
+  const body = [r?.worse ? words(r.bad) : null, refs?.worse ? `${refs.worse} line reference${refs.worse === 1 ? '' : 's'} on the sheet` : null].filter(Boolean).join('; ') + '.';
+  driftEl.append(banner('warn', `${worse} of ${total} reference${total === 1 ? '' : 's'} got worse since ${dayWord(k?.checkedAt0)}.`, body,
+    h('button', { class: 'btn', type: 'button', title: 'Print it again with the same inputs. This replaces the sheet.', onclick: regenerate }, 'Regenerate')));
 }
 
 async function drawTab() {
@@ -348,10 +367,11 @@ async function drawTab() {
   const mount = h('div', { class: `renderer r-${a.kind}` });
   bodyEl.append(mount);
   if (mod?.render) {
-    try { view = mod.render(mount, a, rendererCtx(a)) || null; adoptTools(mount); emit('pane', 'page'); return; }
+    try { view = mod.render(mount, a, rendererCtx(a)) || null; adoptTools(mount); stampChanged(bodyEl); emit('pane', 'page'); return; }
     catch (e) { console.error(e); clear(mount); mount.append(h('div', { class: 'banner error' }, h('b', null, 'The renderer failed. '), e.message)); }
   }
   fallback(mount, a);
+  stampChanged(bodyEl);
 }
 
 // One header row: the renderer's toolbar folds into the cover bar. Its Export
@@ -393,9 +413,9 @@ function citationsView(a) {
   if (!cites.length) return h('p', { class: 'cv-empty t-ui-sm' }, 'This sheet has no citations.');
   const label = { verified: 'verified', moved: 'moved', unverified: 'unverified', pending: 'checking' };
   return h('ol', { class: 'cv-cites' }, cites.map((c) => {
-    const st = label[c.status] ? c.status : 'pending';
-    const moved = st === 'moved' && c.foundLine ? `cited L${c.line}, found at L${c.foundLine}` : null;
-    return h('li', null, h('button', { type: 'button', class: `cv-cite st-${st}`, onclick: () => ctx.openFile(c.path, { line: c.foundLine || c.line, endLine: c.endLine, quote: c.quote }) },
+    const st = label[shown(c.status)] ? shown(c.status) : 'pending';
+    const moved = st === 'moved' && c.citedLine ? `cited L${c.citedLine}, found at L${c.line}` : null;
+    return h('li', null, h('button', { type: 'button', class: `cv-cite st-${st}`, onclick: () => ctx.openFile(c.path, { line: c.line, endLine: c.endLine, quote: c.quote }) },
       h('span', { class: 'cv-n t-mono-sm' }, String(c.n)),
       mark(st === 'pending' ? 'pending' : st, 'glyph'),
       h('span', { class: 'cv-main' },

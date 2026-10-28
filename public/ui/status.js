@@ -27,3 +27,39 @@ export function lineMap(refs, lineCount = Infinity) {
 }
 
 export const refsIn = (refs, from, to) => (refs || []).filter((r) => r.line && r.line <= to && (r.endLine || r.line) >= from);
+
+export const changedCite = (c) => c?.status0 != null && shown(c.status) !== shown(c.status0);
+export const worseCite = (c) => changedCite(c) && RANK[shown(c.status)] > RANK[shown(c.status0)];
+
+export function tally(list, key = 'status') {
+  const out = { verified: 0, moved: 0, unverified: 0 };
+  for (const c of list || []) { const s = shown(c?.[key]); if (s in out) out[s]++; }
+  return out;
+}
+
+export const words = (t) => ['verified', 'moved', 'unverified'].filter((k) => t?.[k]).map((k) => `${t[k]} ${k}`).join(', ');
+
+// 14:02 today, else Oct 24 (with the year when it is not this year)
+export function dayWord(iso, now = new Date()) {
+  const d = new Date(iso);
+  if (!iso || isNaN(d)) return '';
+  if (d.toDateString() === now.toDateString()) return d.toTimeString().slice(0, 5);
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', ...(d.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+}
+
+// null unless some citation changed status since it was written
+export function compare(cites, { at0 = null, word = 'Written', now = new Date() } = {}) {
+  const list = (cites || []).filter((c) => c?.status0 != null);
+  if (!list.some(changedCite)) return null;
+  const bad = list.filter(worseCite);
+  const since = dayWord(at0 ?? list[0].checkedAt0, now);
+  return { total: list.length, changed: list.filter(changedCite).length, worse: bad.length, bad: tally(bad), since,
+    then: `${word}${since ? ' ' + since : ''}: ${words(tally(list, 'status0'))}.`, now: `Today: ${words(tally(list))}.` };
+}
+
+// the dots on a hover card: as written first, then each stored change; capped at 7 keeping the first
+export function series(c) {
+  if (!c?.drift?.length) return [];
+  const all = [{ at: c.checkedAt0, status: c.status0, line: c.line0 }, ...c.drift.map((d) => ({ at: d.at, status: d.status, line: d.line }))].filter((e) => e.status);
+  return all.length > 7 ? [all[0], ...all.slice(-6)] : all;
+}

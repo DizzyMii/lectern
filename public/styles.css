@@ -601,6 +601,11 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 .imark { display: none; color: var(--st); margin-right: 4px; vertical-align: -2px; }
 .imark .glyph { width: 14px; height: 14px; display: block; }
 .gm-line { font: var(--type-mono-sm); letter-spacing: 0; color: var(--moved); }
+.gm-line.roll { display: inline-block; height: 16px; overflow: hidden; }
+.gm-roll { display: grid; animation: gm-roll var(--d-3) var(--ease-out) 120ms both; }
+.gm-roll > span { height: 16px; line-height: 16px; }
+@keyframes gm-roll { to { transform: translateY(-16px); } }
+.chip.stamp { animation: stamp var(--d-3) cubic-bezier(0.3, 1.3, 0.6, 1) both; }
 .gmark.cur::before { content: ""; position: absolute; left: -22px; top: -8px; height: 32px; width: 2px; background: var(--ink); }
 .gmark.stamp { animation: stamp var(--d-3) cubic-bezier(0.3, 1.3, 0.6, 1) both; }
 @keyframes stamp { from { transform: scale(0.9); opacity: 0; } }
@@ -624,6 +629,12 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 .rc-word { font: var(--type-mono-sm); color: var(--st); }
 .rc-caption { font: var(--type-quote); letter-spacing: 0.004em; color: var(--ink-2); }
 .rc-caption.warn { color: var(--moved); }
+.rc-drift { margin: 0 0 8px; color: var(--ink-3); }
+.rc-drift .rc-now { display: block; color: var(--ink-2); }
+.hc-hist { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 0 12px 10px; }
+.hc-hist .t-kicker { color: var(--ink-3); }
+.hc-hist .hd { display: inline-flex; align-items: center; gap: 4px; color: var(--st); }
+.hc-hist .hd .t-mono-sm { color: var(--ink-3); }
 .receipt.none .rc-cols { display: none; }
 
 .cites-head { display: flex; align-items: center; justify-content: space-between; margin: 0 0 10px; }

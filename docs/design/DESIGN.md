@@ -487,6 +487,7 @@ Springs are implemented with WAAPI keyframes generated once from the spring para
 | Plan checkbox | check stroke draws in 120ms; phase segment fills 160ms |
 | Flashcard flip | rotateY 0 to 180 over 240ms `--ease-out`, backface hidden; with reduced motion, crossfade 0ms |
 | Graph | node drag and fling use spring `drag`; zoom by wheel is immediate (no easing); `0` (fit) animates the viewport over 240ms `--ease-out` |
+| Reopen replay | only citations that changed since they were written stamp in again (gutter marks and, on sheets, chips); a moved label rolls from the cited line to the found line over `--d-3`; skipped in reduced motion |
 
 ### 8.3 What never animates
 - Keyboard navigation of any kind: J/K, arrows in lists, 1 to 9, `[` `]`, Tab, palette results, tree expand by key, Studio cell focus.
@@ -655,6 +656,7 @@ Anatomy:
 4. Moved line (moved only): `Cited L92, found at L96. Same text.` in `ui-sm` `--moved`. If the text changed slightly: `Cited L92, closest match at L96 (2 words differ).` and the diff with removed words struck in `--ink-3` and added words on `--moved-wash`.
 5. Unverified line: `Quote not found in this file. Searched 1 file, 0 matches.` in `ui-sm` `--accent`, plus quiet button `Search all sources`.
 6. Actions row (28px, 1px `--rule` top): `Open at line  O`, `Copy ref`, `Challenge  X`.
+7. History row (only for a citation that has changed since it was written, above the actions row): kicker `History`, then one status glyph and date per entry, as written first (`Oct 24 verified L92` in the title and the aria-label), at most 7 entries (the first plus the last six).
 
 States: loading never shown (excerpt is prefetched when the chip resolves; if it is not ready the card shows the quote from the citation and the location line with excerpt space reserved, filling in place); pinned (a small pin glyph in the header, stays open while the cursor moves inside it, Esc closes); file deleted (`File no longer exists at this path.` in `--accent`, status forced to unverified).
 
@@ -681,6 +683,7 @@ The honest count. Two forms.
 - Four columns of `numeral-xl`: `2` verified (`--verified`), `1` moved (`--moved`), `0` unverified (`--ink-4` when zero, `--accent` when not), `1` uncited (`--ink-3`). Under each, glyph + word in `mono-sm` in the same colour.
 - Caption in `quote` style `--ink-2`: `Every quote here was found again in its file, or where it moved to. Sentences with no mark are uncited.` When unverified > 0: `1 quote was not found. It is marked in red.`
 - Clicking a numeral filters the margin to that state and steps the cursor through those claims.
+- On a reopened answer `re-read` is the time of the re-check. If a citation changed status since it was written, two `mono-sm` lines sit under the numerals: `Written Oct 24: 3 verified.` and `Today: 2 verified, 1 moved.` (`Written 14:02` when it was today). Sheets show the same pair beside the cover receipt with `Printed`.
 
 **Mini receipt** (top bar, and the one-line receipt under the trail at narrow widths): 12px marks + counts in `mono-sm`: `[mark] 2  [moved] 1  [query] 0  · 1 uncited`. `aria-label="2 verified, 1 moved, 0 unverified, 1 uncited"`.
 
@@ -805,7 +808,7 @@ States: rest, hover, focus ring, selected (ground `--paper-3`, 2px left bar grou
 Settings > Show key strip (on by default; after 14 days of use a one-time inline note offers to hide it). `kbd` style: `kbd` type, 1px `--rule-strong`, 1px bottom border `--rule-strong` + 1px extra bottom (2px total), radius 2, padding 0 4, height 18, ground `--paper`.
 
 ### 11.25 Banners
-Inline, full width of the column, radius 4, 12px padding, glyph left. Info: ground `--paper-2`, 1px `--rule`. Warning: `--moved-wash`, title `--moved`. Error: `--accent-wash`, title `--accent`, body `--ink`. Always state what happened and the one action: `Index is 3 days older than neoforge. Answers may cite moved lines.  Reindex`.
+Inline, full width of the column, radius 4, 12px padding, glyph left. Info: ground `--paper-2`, 1px `--rule`. Warning: `--moved-wash`, title `--moved`. Error: `--accent-wash`, title `--accent`, body `--ink`. Always state what happened and the one action: `Index is 3 days older than neoforge. Answers may cite moved lines.  Reindex`. A reopened turn whose citations got worse says so above the answer: `2 of 5 citations got worse since Oct 24.` `1 moved, 1 unverified.` with `Re-ask` (first turn only; it starts a new conversation). A sheet shows the same with `Regenerate`.
 
 ---
 
@@ -1023,6 +1026,7 @@ Body: `background: var(--paper); color: var(--ink); font: 450 13px/20px var(--fo
 - Per source: `layer`, `kind` (`docs` | `primer` | `root` | `repo`), `version` (for roots), `branch` and `dirty` count (for repos), file count, index time, index progress.
 - Per citation: `n`, `path`, `line`, `foundLine`, `status` (`pending` | `verified` | `moved` | `unverified`), `quote`, `span` (character offsets of the claim in the answer), `layer`, `diff` (moved with changes).
 - Per answer: `number` (047), trail steps with `tool`, `args`, `result`, `ms`, and an `uncited` sentence count.
+- Per citation after a re-check: `status0`, `line0`, `checkedAt0` (as written) and `drift` (dated changes), plus `citeCheck.checkedAt` and `checkedAt0` on the turn or sheet. The reopen replay (8.2, 11.7, 11.9) reads these. A sheet's written date is `generatedAt`; older sheets fall back to `updatedAt`.
 - Per artifact: `sheet` number (stable, per notebook, assigned at creation), group, plus the existing artifact fields.
 
 ### 17.3 Files
