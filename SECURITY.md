@@ -1,6 +1,8 @@
 # Security
 
-If you find a security problem, please report it privately through GitHub's private vulnerability reporting on this repo (Security tab, then "Report a vulnerability"). Don't open a public issue for it.
+If you find a security problem, please report it privately through GitHub's private vulnerability reporting on this repo (Security tab, then "Report a vulnerability").
+
+If that button isn't there, open a plain issue asking for a private way to reach me and leave the details out of it. I'll answer with a contact. The problem itself stays out of any public issue.
 
 Put in what you did, what happened and the Lectern version (`lectern --version`). I'll answer as soon as I can, it's a one person project so give it a few days.
 
@@ -12,6 +14,7 @@ Lectern runs on your own machine, so the things I care most about are:
 - reading or writing files outside a notebook's pinned docs and code roots, through the API, the MCP tools or a crafted citation
 - a fetched page, cloned repo or notebook file getting code to run in the app
 - anything that sends notebook content somewhere other than Anthropic (see "What leaves your machine" in the README)
+- over Tailscale (docs/SETUP.md): a request from someone outside `LECTERN_ALLOW_USERS` getting an answer, or a remote device changing Settings, which only the machine Lectern runs on is allowed to do
 
 Prompt injection from content you pinned yourself is a known limit of any tool like this. If you find a way it can escape the tool sandbox (read a file it shouldn't, write anything), that counts.
 
