@@ -112,6 +112,9 @@ test('a tool round then a cited answer, with the request shaped per the API rule
   const code = out.citations.find((c) => c.path === 'src/java/net/x/Foo.java');
   assert.equal(code.line, 4);
   assert.equal(code.status, 'verified');
+  // the lines are saved with what the trail read of that file (the read tool's root is a root name)
+  assert.ok(code.saw.text.includes('void payload'));
+  assert.deepEqual(code.saw.read, [[1, 5]]);
   assert.ok(!out.answer.includes('Let me look'), 'only the last message is the answer');
 
   // usage and cost add up across both rounds
@@ -125,6 +128,7 @@ test('a tool round then a cited answer, with the request shaped per the API rule
   const conv = getConversation(getNotebook('test'), out.conversationId);
   assert.equal(conv.engine, 'api');
   assert.equal(conv.turns[0].costUsd, out.costUsd);
+  assert.deepEqual(conv.turns[0].citations.find((c) => c.path === 'src/java/net/x/Foo.java').saw.read, [[1, 5]]);
 });
 
 test('fast mode is haiku at low effort with no server fallback, and a refusal fails the run', async () => {

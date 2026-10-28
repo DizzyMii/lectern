@@ -652,8 +652,8 @@ Anatomy:
 1. Header row (28px): status glyph + status word in `kicker` in status colour (`VERIFIED`, `MOVED`, `UNVERIFIED`, `CHECKING`), right: citation number `3` in a small chip and `of 3`.
 2. Quote: `quote` style (Newsreader italic 15/22) for docs; for code, a 3 to 7 line excerpt in `code` on `--well` with line numbers, the cited lines on layer `band-strong`.
 3. Location line: hatch swatch (10px), path in `mono-sm` `--ink-2` (middle-truncated: `networking/payload.md`), `:96` in `--ink`.
-4. Moved line (moved only): `Cited L92, found at L96. Same text.` in `ui-sm` `--moved`. If the text changed slightly: `Cited L92, closest match at L96 (2 words differ).` and the diff with removed words struck in `--ink-3` and added words on `--moved-wash`.
-5. Unverified line: `Quote not found in this file. Searched 1 file, 0 matches.` in `ui-sm` `--accent`, plus quiet button `Search all sources`.
+4. Moved line (moved only): `Cited L92, found at L96. Same text.` in `ui-sm` `--moved`. Code citations save the cited lines when the answer is written, and a re-check compares them ignoring whitespace and blank lines, so there is no closest-match view. The saved block is found whole (moved) or it is gone. Rewritten code is unverified, and its card shows the saved lines above and today's lines below (`Saved L31-40 · Oct 28`, `Now L31-40`, at most 8 rows each), saved words that changed struck in `--ink-3` and today's changed words on `--moved-wash`. A plain note under it says whether the trail read those lines (`The trail read L22-58, which covers these lines.`, or that it never opened the file).
+5. Unverified line, in `ui-sm` `--accent`: for a quote `Quote not found in Foo.java.` plus quiet button `Search all sources`; for code `These lines were rewritten after the answer was written.` (or `Foo.java no longer has these lines.` when the file got shorter). Citations saved before lines were kept get their baseline at the first re-check and say so: `Lines saved on Oct 28 when this citation was first re-checked. Earlier edits are not visible.`
 6. Actions row (28px, 1px `--rule` top): `Open at line  O`, `Copy ref`, `Challenge  X`.
 
 States: loading never shown (excerpt is prefetched when the chip resolves; if it is not ready the card shows the quote from the citation and the location line with excerpt space reserved, filling in place); pinned (a small pin glyph in the header, stays open while the cursor moves inside it, Esc closes); file deleted (`File no longer exists at this path.` in `--accent`, status forced to unverified).
@@ -744,7 +744,7 @@ Slides from the right over the margin. Width 640. Opens from: citation `O`, hove
 
 Anatomy:
 - Header 48px: hatch swatch, source name `ui-strong`, path `mono-sm` `--ink-3` with copy button, tabs `File` / `Outline`, icon buttons `Open in editor` (vscode:// link), `Close  Esc`.
-- Status strip (only when opened from a citation), 32px, ground status wash: glyph, `Citation 2 · verified · line 31` or `Citation 3 · moved · cited L92, found at L96`.
+- Status strip (only when opened from a citation), 32px, ground status wash: glyph, `Citation 2 · verified · line 31` or `Citation 3 · moved · cited L92, found at L96`. An unverified code citation reads `lines rewritten since the answer`.
 - Body: code on `--well`, `code` type, line numbers in `--ink-3` 48px column, the cited range on layer `band-strong` with a 2px layer `mid` bar at the left of the line numbers; for moved, the original cited line has a dashed `--moved-line` outline and a label `cited here` while the found line has the band and `found here`. Markdown sources render as reading prose (`read`, 60ch) with the cited passage banded.
 - Selection: selecting lines shows a floating mini toolbar (`Ask about this  /`, `Copy ref`) above the selection.
 - Jump: opens scrolled so the cited line sits at 35% of the drawer height; the range flashes (band-strong fading to band over 600ms; off in reduced motion).
@@ -1020,7 +1020,7 @@ Body: `background: var(--paper); color: var(--ink); font: 450 13px/20px var(--fo
 
 ### 17.2 Data the UI needs from the server
 - Per source: `layer`, `kind` (`docs` | `primer` | `root` | `repo`), `version` (for roots), `branch` and `dirty` count (for repos), file count, index time, index progress.
-- Per citation: `n`, `path`, `line`, `foundLine`, `status` (`pending` | `verified` | `moved` | `unverified`), `quote`, `span` (character offsets of the claim in the answer), `layer`, `diff` (moved with changes).
+- Per citation: `n`, `path`, `line`, `foundLine`, `status` (`pending` | `verified` | `moved` | `unverified`), `quote`, `span` (character offsets of the claim in the answer), `layer`, `saw` (for code: `from`, `to`, `text` and `read`, the saved lines and which of them the trail read; the word diff is worked out in the browser from `saw.text` and the file, nothing is stored for it).
 - Per answer: `number` (047), trail steps with `tool`, `args`, `result`, `ms`, and an `uncited` sentence count.
 - Per artifact: `sheet` number (stable, per notebook, assigned at creation), group, plus the existing artifact fields.
 

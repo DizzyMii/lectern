@@ -14,6 +14,7 @@
 - one-hour cache writes are priced at 2x in the spend meter and budgets
 - a conversation whose last answer can't be sent back as is, or that got near the context window, drops to plain text for the next follow-up, and a resend the API rejects is asked again in plain text, so neither one gets stuck
 - after a mid-answer model fallback, the declined model's tool calls are no longer run or sent back
+- code citations keep a copy of the lines they cite and every re-check compares the file against it: same lines in place are verified, the same lines found elsewhere in the file come back moved with the new line, anything else is unverified (a code citation used to fail only when the file got shorter than its range). The hover card shows the saved lines over today's with the changed words marked and says whether the trail actually read them, and the receipt stops saying every quote was found when only line ranges were checked
 
 ## 1.0.0-rc.1 (2026-10-25)
 

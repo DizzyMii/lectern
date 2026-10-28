@@ -7,6 +7,7 @@ import { state, ctx, on, emit } from './state.js';
 import { highlightLines, renderDocBlocks, renderAnswer, splitFootnotes } from './markdown.js';
 import { sourceFor, swatch, glyph, statusOf, STATUS_WORD, kbd, shortPath, relPath } from './layers.js';
 import { loadDir } from './rail.js';
+import { citeWhy } from './witness.js';
 
 let root;
 let tabs = [];
@@ -290,7 +291,7 @@ let refocusStep = null;
 function statusStrip(tab) {
   const c = tab.cite;
   const st = statusOf(c);
-  const line = st === 'moved' && c.citedLine ? `cited L${c.citedLine}, found at L${c.line}` : c.status === 'missing' ? 'file not found' : st === 'unverified' ? 'quote not found in this file' : c.line ? `line ${c.line}${c.endLine && c.endLine !== c.line ? '-' + c.endLine : ''}` : '';
+  const line = citeWhy(c, shortPath(c.path, 1))?.short ?? (c.line ? `line ${c.line}${c.endLine && c.endLine !== c.line ? '-' + c.endLine : ''}` : '');
   const list = tab.list || [];
   const i = list.findIndex((x) => x.n === c.n);
   const step = (d) => {

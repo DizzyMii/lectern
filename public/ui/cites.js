@@ -5,6 +5,7 @@ import { h, clear, icon, copyText } from './dom.js';
 import { highlightLines } from './markdown.js';
 import { getFile, openFile, isDoc } from './viewer.js';
 import { ctx } from './state.js';
+import { citeWhy, readNote, wordDiff, when } from './witness.js';
 import { sourceFor, layerAttrs, swatch, glyph, statusOf, STATUS_WORD, shortPath, midPath, kbd } from './layers.js';
 
 const BLOCKS = 'p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote, dd, dt';
@@ -184,8 +185,8 @@ function uncitedCount(answer, claims) {
 }
 
 export function counts(turn, answer, claims) {
-  const out = { verified: 0, moved: 0, unverified: 0, pending: 0, uncited: 0, total: 0 };
-  for (const c of turn.citations || []) { out[statusOf(c)]++; out.total++; }
+  const out = { verified: 0, moved: 0, unverified: 0, pending: 0, uncited: 0, total: 0, thin: 0 };
+  for (const c of turn.citations || []) { out[statusOf(c)]++; out.total++; if (statusOf(c) === 'verified' && !c.quote && c.line && !c.saw) out.thin++; }
   if (answer && claims) out.uncited = uncitedCount(answer, claims);
   return out;
 }
@@ -202,7 +203,9 @@ export function receipt(turn, k, { checking = false } = {}) {
   let caption;
   if (checking) caption = k.total ? `Checking ${k.total} citation${k.total === 1 ? '' : 's'}...` : 'Checking citations...';
   else if (!k.total) caption = 'This answer has no citations. Treat it as a sketch.';
-  else if (k.unverified) caption = `${k.unverified} quote${k.unverified === 1 ? ' was' : 's were'} not found. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
+  else if (k.unverified && (turn.citations || []).every((c) => statusOf(c) !== 'unverified' || c.quote)) caption = `${k.unverified} quote${k.unverified === 1 ? ' was' : 's were'} not found. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
+  else if (k.unverified) caption = `${k.unverified} citation${k.unverified === 1 ? '' : 's'} did not check out. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
+  else if (k.thin) caption = `Quotes were found again in their files. ${k.thin} code citation${k.thin === 1 ? '' : 's'} only checked that the lines still exist.`;
   else caption = 'Every quote here was found again in its file, or where it moved to. Sentences with no mark are uncited.';
   const el = h('section', { class: `receipt neatline${!checking && k.total && k.verified === k.total && k.total > 1 ? ' all-ok' : ''}${!checking && !k.total ? ' none' : ''}`,
     'aria-label': `${k.verified} verified, ${k.moved} moved, ${k.unverified} unverified, ${k.uncited} uncited` },
@@ -249,9 +252,8 @@ function cardFor(c, claim) {
     h('div', { class: 'mc-row' }, h('span', { class: `chip ${c.status} static`, 'aria-hidden': 'true', ...layerAttrs(src) }, c.n), glyph(st), h('span', { class: 'mc-st t-kicker' }, STATUS_WORD[st])),
     body,
     h('div', { class: 'mc-path', title: c.path }, midPath(shortPath(c.path, 2), c.line ? ':' + c.line : '')));
-  if (st === 'moved' && c.citedLine) card.append(h('div', { class: 'mc-moved' }, `Cited L${c.citedLine}, found at L${c.line}. Same text.`));
-  if (c.status === 'missing') card.append(h('div', { class: 'mc-bad' }, 'File no longer exists at this path.'));
-  else if (st === 'unverified') card.append(h('div', { class: 'mc-bad' }, `Quote not found in ${shortPath(c.path, 1)}.`));
+  const why = citeWhy(c, shortPath(c.path, 1));
+  if (why) card.append(h('div', { class: why.cls === 'moved' ? 'mc-moved' : 'mc-bad' }, why.text));
   card.addEventListener('click', () => { if (claim) setCursor(claim); const chip = claim?.chips.find((x) => x.dataset.n === String(c.n)) || claim?.chips[0]; if (chip) showCard(chip, { pinned: true }); });
   card.addEventListener('pointerenter', () => claim?.spans.forEach((s) => s.classList.add('hot')));
   card.addEventListener('pointerleave', () => claim?.spans.forEach((s) => s.classList.remove('hot')));
@@ -420,6 +422,7 @@ export function showCard(chip, { pinned: pin = false } = {}) {
   const st = statusOf(c);
   const src = sourceFor(c.path);
   const excerpt = h('div', { class: 'hc-ex' });
+  const why = citeWhy(c, shortPath(c.path, 1));
   const acts = h('div', { class: 'hc-acts' },
     h('button', { class: 'btn quiet', onclick: () => { hideCard(true); openAt(c); } }, 'Open at line', kbd('O')),
     h('button', { class: 'btn quiet', onclick: () => copyText(refOf(c), `Copied ${refOf(c)}`) }, 'Copy ref'),
@@ -430,10 +433,9 @@ export function showCard(chip, { pinned: pin = false } = {}) {
       h('span', { class: `chip ${c.status} static`, ...layerAttrs(src) }, c.n), h('span', { class: 't-mono-sm' }, `of ${totalIn(chip)}`)),
     excerpt,
     h('div', { class: 'hc-loc' }, swatch(src, true), h('span', { class: 'hc-path' }, midPath(shortPath(c.path, 4))), c.line ? h('span', { class: 'hc-line' }, ':' + range(c)) : null),
-    st === 'moved' && c.citedLine ? h('div', { class: 'hc-note moved' }, `Cited L${c.citedLine}, found at L${c.line}. Same text.`) : null,
-    c.status === 'missing' ? h('div', { class: 'hc-note bad' }, 'File no longer exists at this path.') : null,
-    c.status === 'unverified' ? h('div', { class: 'hc-note bad' }, `Quote not found in ${shortPath(c.path, 1)}.`,
-      c.quote ? h('button', { class: 'btn quiet', onclick: () => { hideCard(true); ctx.openSearch(c.quote.slice(0, 60)); } }, 'Search all sources') : null) : null,
+    why ? h('div', { class: `hc-note ${why.cls}` }, why.text,
+      c.status === 'unverified' && c.quote ? h('button', { class: 'btn quiet', onclick: () => { hideCard(true); ctx.openSearch(c.quote.slice(0, 60)); } }, 'Search all sources') : null) : null,
+    witnessNotes(c),
     acts);
   if (c.quote) excerpt.append(h('blockquote', { class: 'hc-quote' }, '“', c.quote.replace(/`/g, ''), '”'));
   card.addEventListener('pointerenter', () => clearTimeout(hideT));
@@ -445,6 +447,15 @@ export function showCard(chip, { pinned: pin = false } = {}) {
   claimOf(chip)?.spans.forEach((s) => s.classList.add('hot'));
   document.body.append(card);
   place(card, chip);
+  // rewritten lines: what was saved above, what is there now below
+  if (c.status === 'unverified' && c.saw && !c.quote && c.line) {
+    getFile(c.path).then((f) => {
+      if (cardChip !== chip || !card) return;
+      excerpt.after(compareBlock(c, f));
+      place(card, chip);
+    }).catch(() => {});
+    return;
+  }
   if (c.line && c.status !== 'missing' && !(c.quote && isDoc(c.path))) {
     // reserve the space, fill in place when the file arrives (prefetched by the margin cards)
     getFile(c.path).then((f) => {
@@ -460,6 +471,44 @@ export function showCard(chip, { pinned: pin = false } = {}) {
       place(card, chip);
     }).catch(() => {});
   }
+}
+
+// what the saved lines and the trail's reads say about a citation, as hover card notes
+function witnessNotes(c) {
+  const out = [];
+  const rd = readNote(c, isDoc(c.path));
+  if (rd) out.push(h('div', { class: 'hc-note' }, rd.text));
+  if (c.saw?.cut) out.push(h('div', { class: 'hc-note dim' }, `Only the first ${c.saw.text.split('\n').length} cited lines were saved.`));
+  if (c.saw?.base) out.push(h('div', { class: 'hc-note dim' }, `Lines saved on ${when(c.saw.at)} when this citation was first re-checked. Earlier edits are not visible.`));
+  if (!c.saw && statusOf(c) === 'verified' && !c.quote && c.line) out.push(h('div', { class: 'hc-note dim' }, 'No saved copy of these lines. Lectern only checked that they still exist.'));
+  return out;
+}
+
+const MAX_CMP_ROWS = 8;
+
+// the saved lines above, today's lines below, changed words marked on both
+function compareBlock(c, f) {
+  const { saw } = c;
+  const span = (a, b) => (a === b ? `L${a}` : `L${a}-${b}`);
+  const all = f.text.split('\n');
+  const today = all.slice(saw.from - 1, saw.to).map((l) => l.replace(/\r$/, ''));
+  const gone = saw.from > all.length;
+  const diff = wordDiff(saw.text, gone ? '' : today.join('\n'));
+  const date = saw.base ? saw.at : c.checkedAt0;
+  // the window starts a couple of rows above the first changed word, so an edit deep in a long block still shows
+  const firstX = (ls) => { const i = ls.findIndex((r) => r.some((x) => x.x)); return i < 0 ? Infinity : i; };
+  const first = Math.min(firstX(diff.a), firstX(diff.b));
+  const start = Number.isFinite(first) ? Math.max(0, Math.min(first - 2, Math.max(diff.a.length, diff.b.length) - MAX_CMP_ROWS)) : 0;
+  const side = (cls, kicker, lines, from) => h('div', { class: `hc-cmp-side ${cls}` },
+    h('div', { class: 't-kicker' }, kicker),
+    start ? h('div', { class: 't-mono-sm' }, `${start} lines above`) : null,
+    h('div', { class: 'hc-code' }, lines.slice(start, start + MAX_CMP_ROWS).map((runs, i) => h('div', { class: 'row' }, h('span', { class: 'n' }, from + start + i),
+      h('span', { class: 'c' }, runs.length ? runs.map((r) => (r.x ? h('span', { class: 'dw' }, r.t) : r.t)) : ' ')))),
+    lines.length > start + MAX_CMP_ROWS ? h('div', { class: 't-mono-sm' }, `+${lines.length - start - MAX_CMP_ROWS} more lines`) : null);
+  return h('div', { class: 'hc-cmp' },
+    side('old', `Saved ${span(saw.from, saw.to)}${date ? ` · ${when(date)}` : ''}`, diff.a, saw.from),
+    gone ? h('div', { class: 'hc-cmp-side new' }, h('div', { class: 't-kicker' }, `Now ${span(saw.from, saw.to)}`), h('p', { class: 't-ui-sm' }, 'These lines are past the end of the file.'))
+      : side('new', `Now ${span(saw.from, saw.from + today.length - 1)}`, diff.b, saw.from));
 }
 
 // below the chip, flipped above when there is no room

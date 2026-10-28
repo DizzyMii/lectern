@@ -929,6 +929,11 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 .hc-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 12px 10px; font: var(--type-ui-sm); font-stretch: var(--wdth-ui); }
 .hc-note.moved { color: var(--moved); }
 .hc-note.bad { color: var(--accent); }
+.hc-cmp-side { padding: 0 12px 6px; }
+.hc-cmp-side .hc-code { margin: 0 0 6px; }
+.hc-cmp-side.old .dw { color: var(--ink-3); text-decoration: line-through; }
+.hc-cmp-side.new .dw { background: var(--moved-wash); }
+.hc-note.dim { color: var(--ink-3); }
 .hc-acts { display: flex; gap: 2px; padding: 4px; border-top: 1px solid var(--rule); }
 .hc-acts .btn { gap: 8px; }
 

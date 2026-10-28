@@ -25,7 +25,7 @@
 ## What it does that NotebookLM doesn't
 
 - **Code roots.** A notebook holds pinned docs (the shelf) plus code roots, which are folders or git repos on your disk. The model can search and read any text file under a root while it answers, so it quotes the real source of the library you're using.
-- **Checked citations.** Every `[n]` points at a file and a line range, and Lectern checks the quote is really there. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified or missing, and they get re-checked whenever you open an old conversation, so if the docs changed under you, it shows.
+- **Checked citations.** Every `[n]` points at a file and a line range, and Lectern checks the quote is really there. Code citations save the lines they cite and compare them again on every re-check. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified (the quote is gone, or the saved code lines were rewritten) or missing, and they get re-checked whenever you open an old conversation, so if the docs changed under you, it shows.
 - **Studio.** 24 recipes that turn a notebook into a saved artifact (specs, code maps, a CLAUDE.md, flashcards, a diff review...) with the same citation checks.
 - **MCP.** `lectern mcp` lets Claude Code or Cursor search your notebook for free and ask it questions while they work.
 
