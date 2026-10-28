@@ -65,8 +65,6 @@ The notebook is the one you name. Without one it is the only notebook you have, 
 
 The sheet shows up in Studio the next time it loads the list, with `via claude-code` (the client's name) where the model usually goes. Citations are checked again when you open it, and Regenerate runs it on Lectern's own model.
 
-How Claude Code maps text typed after the command onto arguments has not been checked here yet. Try a multi-word argument with and without quotes and see which one it keeps whole.
-
 ## fast vs deep
 
 | mode | model | effort | max rounds |
@@ -74,16 +72,16 @@ How Claude Code maps text typed after the command onto arguments has not been ch
 | `fast` (default) | haiku | low | 4 |
 | `deep` | opus | high | 12 |
 
-A round is one model request, and each batch of tool calls costs another one. Every ask in the app has a cap now: 12 unless something sets it, 4 with `--fast` in the CLI. If a run hits it, you get an error saying so (`stopped at the 4-round cap...`), never a half answer.
+A round is one model request, and each batch of tool calls costs another one. Every ask has a round cap: 12 unless something sets it, 4 with `--fast` in the CLI. If a run hits it, you get an error saying so (`stopped at the 4-round cap...`) and no half answer.
 
 What it costs, measured on the NeoForge notebook (~350K tokens of pinned shelf):
 
-- **fast ask:** $0.02 to $0.05 and about 10 to 30 seconds once the haiku base session is warm. Measured today through the MCP server, $0.024 in 10.4s with 3 of 3 citations verified.
+- **fast ask:** $0.02 to $0.05 and about 10 to 30 seconds once the haiku base session is warm. One run through the MCP server cost $0.024 in 10.4s with 3 of 3 citations verified.
 - **deep ask:** about $0.30 for an opus answer that used 2 tool calls (that one ran at default effort). High effort and 12 rounds push it higher, plan on up to a dollar or so for a question that keeps searching.
 - **the base session:** the first ask per notebook and model in an hour loads the whole shelf into a cached session, and that first ask pays for it. About $0.38 on haiku and about $3.00 on opus. After that it stays warm as long as it's used within the hour. This is the big one, a cold deep ask is $3+.
-- **generate fast:** cheat-sheet came out at $0.11 in 31s (8 tool calls, 31 of 31 citations verified). Past haiku runs without a cap cost $0.07 to $0.77.
+- **generate fast:** cheat-sheet came out at $0.11 in 31s (8 tool calls, 31 of 31 citations verified). Haiku runs without a cap cost $0.07 to $0.77.
 
-Heads up on generate: the bigger recipes went through a lot of tool calls before the cap existed (code-map 25 and 59, claude-md 21 and 36, glossary 28, prd 23 to 26). Tool calls in parallel share a round, so that's fewer rounds than calls, but those are the ones most likely to hit 4 in fast mode, and possibly 12. Run them in deep, or from the CLI with a bigger `--max-turns`.
+The bigger recipes make a lot of tool calls. Uncapped runs of code-map used 25 and 59, claude-md 21 and 36, glossary 28 and prd 23 to 26. Calls made in parallel share a round, so that's fewer rounds than calls, but these are the recipes most likely to hit 4 in fast mode, and possibly 12. Run them in deep, or from the CLI with a bigger `--max-turns`.
 
 So: recall first, to see whether the question was already answered and saved (free), then search and read_source for lookups (free), then fast for "where is X / what does Y take", deep when fast came back thin or capped.
 
