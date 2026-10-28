@@ -237,7 +237,7 @@ async function renderFile(tab, body) {
     } }, 'Wrap') : null,
     h('span', { class: 'grow' }),
     reads.length ? h('span', { class: 't-mono-sm dr-read', title: 'Lines the trail read for this answer' }, `read by trail ${reads.slice(0, 2).map(([x, y]) => (x === y ? `L${x}` : `L${x}-${y}`)).join(', ')}${reads.length > 2 ? '…' : ''}`) : null,
-    h('span', { class: 't-mono-sm' }, `${String(file.lang || tab.path.split('.').pop()).replace(/^./, (c) => c.toUpperCase())} · ${lineCount.toLocaleString()} lines`)].filter(Boolean));
+    h('span', { class: 't-mono-sm dr-lines' }, `${String(file.lang || tab.path.split('.').pop()).replace(/^./, (c) => c.toUpperCase())} · ${lineCount.toLocaleString()} lines`)].filter(Boolean));
   clear(body);
   if (file.binary) {
     body.append(h('div', { class: 'dr-empty' }, h('p', null, `Binary file, not shown. ${String(file.lang || '').toUpperCase()} ${fmtNum(file.size)}B.`),

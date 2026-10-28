@@ -947,6 +947,9 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 .code.wrap .t { white-space: pre-wrap; overflow-wrap: anywhere; }
 .code .l.read .n { background: color-mix(in oklab, var(--paper-3) 80%, transparent); box-shadow: inset -2px 0 0 var(--rule-strong); }
 .dr-read { color: var(--ink-3); }
+/* when the row is full the read range gives way first, the language and line count never shrink */
+.dr-tabs .dr-read { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dr-tabs .dr-lines { flex: none; }
 .code .l.hit { background: var(--l-band-strong, var(--paper-3)); }
 .code .l.hit .n { box-shadow: inset 2px 0 0 var(--l-mid, var(--rule-strong)); color: var(--ink); }
 .code .l.flash { animation: flash-line 600ms var(--ease-out); }
