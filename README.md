@@ -1,4 +1,9 @@
-<h1 align="center">Lectern</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/banner-dark.png">
+    <img src="docs/media/banner-light.png" alt="Lectern. Ask your docs and your code. Every citation checked against the file." width="880">
+  </picture>
+</p>
 
 <p align="center">
   A local notebook for developers. Pin the docs you trust, point it at your source folders, ask questions,<br>
@@ -8,6 +13,8 @@
 <p align="center">
   <a href="#quick-start">Quick start</a> ·
   <a href="#your-first-notebook">First notebook</a> ·
+  <a href="#how-a-citation-gets-checked">How it checks</a> ·
+  <a href="#demos">Demos</a> ·
   <a href="#settings">Settings</a> ·
   <a href="#use-it-from-claude-code-or-cursor-mcp">MCP</a> ·
   <a href="#cli">CLI</a> ·
@@ -15,21 +22,23 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/DizzyMii/lectern/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/DizzyMii/lectern/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="License: PolyForm Shield 1.0.0" src="https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-c0392b">
   <img alt="Node 20 or newer" src="https://img.shields.io/badge/node-%E2%89%A520-3c873a">
   <img alt="Version 1.0.0-rc.1" src="https://img.shields.io/badge/version-1.0.0--rc.1-555">
 </p>
 
-![Lectern answering a question, one citation verified and one marked in red because its quote wasn't found](docs/screenshot.png)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-dark.png">
+    <img src="docs/media/hero-light.png" alt="Lectern answering why app.db is undefined in a Fastify orders service: an answer with numbered citations, a receipt reading 10 verified, 0 moved, 0 unverified, and margin cards showing the cited source lines" width="880">
+  </picture>
+</p>
 
-## What it does that NotebookLM doesn't
-
-- **Code roots.** A notebook holds pinned docs (the shelf) plus code roots, which are folders or git repos on your disk. The model can search and read any text file under a root while it answers, so it quotes the real source of the library you're using.
-- **Checked citations.** Every `[n]` points at a file and a line range, and Lectern checks the quote is really there. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified or missing, and they get re-checked whenever you open an old conversation, so if the docs changed under you, it shows.
-- **Studio.** 24 recipes that turn a notebook into a saved artifact (specs, code maps, a CLAUDE.md, flashcards, a diff review...) with the same citation checks.
-- **MCP.** `lectern mcp` lets Claude Code or Cursor search your notebook for free and ask it questions while they work.
-
-It all runs on your machine. The server only listens on 127.0.0.1.
+<p align="center">
+  <img src="docs/media/ask.gif" alt="Screen recording: a new question about app.close() is typed into the composer, the trail of files the model reads scrolls past, the answer streams in, then the citations stamp in as verified and the receipt counts up to 17 verified" width="880"><br>
+  <sub>One real ask. It took about 40 seconds and the clip runs 18: the waiting is sped up (8x while it reads files, 5x while the answer streams), the checking at the end runs at real speed. <a href="docs/media/ask.mp4">Full quality (MP4)</a></sub>
+</p>
 
 ## Quick start
 
@@ -82,8 +91,91 @@ npm run app      # the same thing in the desktop window
    lectern example node-docs
    ```
    That pulls three pages of the Node.js 22 API docs into a new notebook.
-3. **Add sources.** Press `A`. A page URL gets pinned as markdown, a folder or git repo becomes a code root the model can search.
-4. **Ask.** Press `/`, type, Enter. Click any `[n]` to open the file at that line.
+3. **Add sources.** Press <kbd>A</kbd>. A page URL gets pinned as markdown, a folder or git repo becomes a code root the model can search.
+4. **Ask.** Press <kbd>/</kbd>, type, <kbd>Enter</kbd>. Click any `[n]` to open the file at that line.
+
+## What it does that NotebookLM doesn't
+
+- **Code roots.** A notebook holds pinned docs (the shelf) plus code roots, which are folders or git repos on your disk. The model can search and read any text file under a root while it answers, so it quotes the real source of the library you're using.
+- **Checked citations.** Every `[n]` points at a file and a line range, and Lectern checks the quote is really there. Each one comes back verified, moved (found elsewhere in the file, with the new line), unverified or missing, and they get re-checked whenever you open an old conversation, so if the docs changed under you, it shows.
+- **Studio.** 24 recipes that turn a notebook into a saved artifact (specs, code maps, a CLAUDE.md, flashcards, a diff review...) with the same citation checks.
+- **MCP.** `lectern mcp` lets Claude Code or Cursor search your notebook for free and ask it questions while they work.
+
+It all runs on your machine. The server only listens on 127.0.0.1.
+
+## How a citation gets checked
+
+Behind every `[n]` is a file plus a short verbatim quote, a line range or both (docs mostly get a quote, code gets line numbers). Lectern opens that file as it is on disk right now and looks, and does it again every time you open an old conversation.
+
+```mermaid
+flowchart LR
+    A["[n] in the answer"] --> B{"File in the notebook,<br>2 MB or under?"}
+    B -->|no| M["missing"]
+    B -->|yes| Q{"Has a quote?"}
+    Q -->|yes| F{"Where is<br>the quote?"}
+    F -->|"at the cited lines"| V["verified"]
+    F -->|"elsewhere in the file"| MV["moved<br>(new line given)"]
+    F -->|"not in the file"| U["unverified"]
+    Q -->|"no, lines only"| L{"Lines inside<br>the file?"}
+    L -->|yes| V
+    L -->|no| U
+```
+
+| Status | Means |
+|---|---|
+| **verified** | The quote is within two lines of the cited range (anywhere in the file if no range was given), or a line-only citation falls inside the file. |
+| **moved** | The quote is in the file but at different lines. The card says where, like "Cited L9, found at L15". |
+| **unverified** | The quote isn't in the file, or the lines are past the end of it. |
+| **missing** | No such file inside the notebook or its code roots, or it's over 2 MB. |
+
+## Demos
+
+Every clip is the web UI on one notebook: the Fastify docs pinned (41 files), with the Fastify 5.12.7 source and an 11-file orders service as code roots. Each caption links the MP4 if the GIF is too soft.
+
+### Walk the claims, open the source
+
+<p align="center">
+  <img src="docs/media/citations.gif" alt="Screen recording: J and K move the claim cursor and the matching margin card highlights, hovering a citation shows an excerpt with the cited lines highlighted, O opens the source drawer at the line, and the bracket key steps to the next citation" width="780">
+</p>
+
+<kbd>J</kbd> / <kbd>K</kbd> move the claim cursor and the matching margin card lights up. Hover a citation for the excerpt, <kbd>O</kbd> opens the drawer at the cited lines (here `service/src/app.ts` 14 to 16), <kbd>]</kbd> steps to the next one. [Full quality (MP4)](docs/media/citations.mp4)
+
+### When the files change under an answer
+
+<p align="center">
+  <img src="docs/media/drift.gif" alt="Screen recording of the same answer re-checked after the files changed: the receipt reads 5 verified, 4 moved, 1 unverified, a red citation says the quote was not found in db.ts, and another card says cited L9, found at L15 with the same text" width="780">
+</p>
+
+Same answer as above, re-read after `db.ts` got shorter and `Plugins.md` grew six lines at the top. Citation 1 loses its quote and goes red (unverified), citation 4 comes back moved, cited L9, found at L15. The receipt reads 5 verified, 4 moved, 1 unverified. [Full quality (MP4)](docs/media/drift.mp4)
+
+### Studio
+
+<p align="center">
+  <img src="docs/media/studio.gif" alt="Screen recording of Studio: the sheet index with 24 recipes, the printed code map for the orders service with 39 verified citations, the all-nodes graph zoomed in, a search for db plugin, and Open at line landing in db.ts at line 8" width="780">
+</p>
+
+<kbd>P</kbd> opens the sheet index (24 recipes, 3 printed in this notebook). The code map has 39 verified citations and 36 nodes, search finds the db plugin node, and Open at line drops you in `db.ts` at line 8. [Full quality (MP4)](docs/media/studio.mp4)
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/media/flashcards.gif" alt="Screen recording of a 40-card flashcards sheet: card 1 is flipped and marked Got it, card 2 is flipped and marked Again, then card 3 is flipped and hovering its citation shows the verified quote from Plugins.md" width="100%">
+      <br><sub>Flashcards on plugins and encapsulation, 40 cards with 44 verified citations. Flip, then Got it or Again, and hover a citation to see the quote. <a href="docs/media/flashcards.mp4">Full quality (MP4)</a></sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/media/sequence.png" alt="The sequence sheet for POST /v1/orders through Fastify lifecycle hooks: 27 verified citations, nine actors, step 3 selected with its two verified citations in the side panel" width="100%">
+      <br><sub>Sequence diagram of <code>POST /v1/orders</code> through Fastify's lifecycle hooks: 9 actors, 26 steps, 27 verified citations. Step 3 is selected and shows its two.</sub>
+    </td>
+  </tr>
+</table>
+
+### Command palette
+
+<p align="center">
+  <img src="docs/media/palette.gif" alt="Screen recording: Ctrl+K opens the command palette, typing orders filters questions, files and sheets as it goes, and Enter opens orders-store.ts in the source drawer" width="780">
+</p>
+
+<kbd>Ctrl</kbd>+<kbd>K</kbd>, type `orders`, and files, questions and sheets filter as you type. Four <kbd>Down</kbd> presses and <kbd>Enter</kbd> open `orders-store.ts` in the drawer. [Full quality (MP4)](docs/media/palette.mp4)
 
 ## How well it works
 
@@ -97,11 +189,12 @@ Measured on one notebook (NeoForge 1.21.1: 18 docs, 68 files, 3 code roots, abou
 | New conversation on Opus, shelf cached | about 30 cents |
 | Cold shelf load | about $3 |
 
-That $3 is the one to watch. The first ask per notebook and model loads the whole shelf into the cache and pays for it, after that it stays warm as long as you ask something within the hour (on the API engine that's a one-hour cache entry, which costs 2x input to write and a twentieth to read). Use fast mode (Haiku) for the "where is X" kind of lookups.
+> [!WARNING]
+> That $3 is the one to watch. The first ask per notebook and model loads the whole shelf into the cache and pays for it, after that it stays warm as long as you ask something within the hour (on the API engine that's a one-hour cache entry, which costs 2x input to write and a twentieth to read). Use fast mode (Haiku) for the "where is X" kind of lookups.
 
 ## Settings
 
-The cog in the top bar (or the engine label, or `Settings` in the `Ctrl+K` palette). Everything saves to `settings.json` in the home folder and applies straight away, except the two marked restart.
+The cog in the top bar (or the engine label, or `Settings` in the <kbd>Ctrl</kbd>+<kbd>K</kbd> palette). Everything saves to `settings.json` in the home folder and applies straight away, except the two marked restart.
 
 | Setting | Env var | What it's for |
 |---|---|---|
@@ -173,7 +266,7 @@ The web app's HTTP API is internal and can change between versions, script again
 
 <br>
 
-Open Studio with `P`. Each recipe asks for a couple of inputs and saves an artifact into the notebook.
+Open Studio with <kbd>P</kbd>. Each recipe asks for a couple of inputs and saves an artifact into the notebook.
 
 | Group | Recipes |
 |---|---|
@@ -192,32 +285,32 @@ Code map, CLAUDE.md, Glossary and Product requirements make a LOT of tool calls 
 
 <br>
 
-`?` opens the full sheet in the app.
+<kbd>?</kbd> opens the full sheet in the app.
 
 | Key | Does |
 |---|---|
-| `Ctrl+K` | command palette |
-| `/` | focus the composer |
-| `N` or `Alt+N` | new conversation |
-| `J` / `K` | next / previous claim |
-| `1` to `9` | open citation n |
-| `[` / `]` | previous / next citation |
-| `O` | open the current citation in the source drawer at the line |
-| `C` | copy the answer with citations |
-| `X` | challenge the claim under the cursor |
-| `W` | ask "what could make this wrong?" |
-| `H` | focus history |
-| `Shift+H` | toggle claim bands |
-| `L` | toggle the trail log |
-| `P` | Studio |
-| `A` | add a source |
-| `Ctrl+B` | toggle the rail |
-| `Ctrl+1` / `2` / `3` | focus rail / page / margin |
-| `Ctrl+Shift+F` | search the notebook |
-| `Ctrl+Shift+L` | toggle theme |
-| `Esc` | close the top layer, then clear the claim cursor |
+| <kbd>Ctrl</kbd>+<kbd>K</kbd> | command palette |
+| <kbd>/</kbd> | focus the composer |
+| <kbd>N</kbd> or <kbd>Alt</kbd>+<kbd>N</kbd> | new conversation |
+| <kbd>J</kbd> / <kbd>K</kbd> | next / previous claim |
+| <kbd>1</kbd> to <kbd>9</kbd> | open citation n |
+| <kbd>[</kbd> / <kbd>]</kbd> | previous / next citation |
+| <kbd>O</kbd> | open the current citation in the source drawer at the line |
+| <kbd>C</kbd> | copy the answer with citations |
+| <kbd>X</kbd> | challenge the claim under the cursor |
+| <kbd>W</kbd> | ask "what could make this wrong?" |
+| <kbd>H</kbd> | focus history |
+| <kbd>Shift</kbd>+<kbd>H</kbd> | toggle claim bands |
+| <kbd>L</kbd> | toggle the trail log |
+| <kbd>P</kbd> | Studio |
+| <kbd>A</kbd> | add a source |
+| <kbd>Ctrl</kbd>+<kbd>B</kbd> | toggle the rail |
+| <kbd>Ctrl</kbd>+<kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd> | focus rail / page / margin |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> | search the notebook |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> | toggle theme |
+| <kbd>Esc</kbd> | close the top layer, then clear the claim cursor |
 
-Inside Studio artifacts, flashcards flip with `Space` and rate with the arrow keys, graphs zoom with `+` `-` `0`, sequence diagrams step with `J` / `K`, and `Ctrl+S` saves an edited file.
+Inside Studio artifacts, flashcards flip with <kbd>Space</kbd> and rate with the arrow keys, graphs zoom with <kbd>+</kbd> <kbd>-</kbd> <kbd>0</kbd>, sequence diagrams step with <kbd>J</kbd> / <kbd>K</kbd>, and <kbd>Ctrl</kbd>+<kbd>S</kbd> saves an edited file.
 
 </details>
 
