@@ -318,14 +318,15 @@ function statusStrip(tab) {
     if (next) openFile(next.path, { line: next.line, endLine: next.endLine, quote: next.quote, cite: next, list });
   };
   tab.step = step;
+  const hist = historyButtons(tab);
   return h('div', { class: `dr-status st-${st}` }, glyph(st, 'glyph sm'),
     h('span', { class: 't-ui-strong' }, `Citation ${c.n}`), h('span', { class: 'sep' }, '·'), h('span', { class: 'st-word' }, STATUS_WORD[st]),
     line ? [h('span', { class: 'sep' }, '·'), h('span', null, line)] : null,
     h('span', { class: 'grow' }),
-    historyButtons(tab),
-    list.length > 1 ? [stepBtn('Previous citation', '[', i <= 0, () => step(-1)),
+    hist ? h('span', { class: 'dr-hist' }, hist) : null,
+    list.length > 1 ? h('span', { class: 'dr-pager' }, stepBtn('Previous citation', '[', i <= 0, () => step(-1)),
       h('span', { class: 't-mono-sm' }, `${i + 1} of ${list.length}`),
-      stepBtn('Next citation', ']', i >= list.length - 1, () => step(1))] : null);
+      stepBtn('Next citation', ']', i >= list.length - 1, () => step(1))) : null);
 }
 
 function stepBtn(label, key, disabled, go) {

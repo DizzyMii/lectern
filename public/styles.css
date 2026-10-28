@@ -906,6 +906,9 @@ code, pre, .code, .mc-code, .hc-code, .search-hit { font-variant-ligatures: none
 .dr-status .t-mono-sm { color: var(--ink-3); }
 .dr-status .btn { flex: none; }
 .dr-status > span { white-space: nowrap; }
+/* the pager and the history buttons wrap as one unit, never split across two rows */
+.dr-status .dr-pager { display: inline-flex; flex: none; align-items: center; gap: 4px; }
+.dr-status .dr-hist { display: inline-flex; flex: none; align-items: center; gap: 4px; max-width: 100%; }
 .dr-cmp { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
 .dr-cmp .cmp-note { grid-column: 1 / -1; margin: 0; padding: 6px 16px; color: var(--ink-3); border-bottom: 1px solid var(--rule); }
 .dr-cmp .cmp-col { min-width: 0; }
