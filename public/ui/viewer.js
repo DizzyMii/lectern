@@ -6,7 +6,7 @@ import { api, nbPath } from './api.js';
 import { state, ctx, on, emit } from './state.js';
 import { highlightLines, renderDocBlocks, renderAnswer, splitFootnotes } from './markdown.js';
 import { readRanges } from './traverse.js';
-import { lineMap, refsIn, worst, shown as stShown } from './status.js';
+import { lineMap, refsIn, worst, citedByLabel, shown as stShown } from './status.js';
 import { sourceFor, swatch, glyph, statusOf, STATUS_WORD, kbd, shortPath, qnum } from './layers.js';
 import { loadDir } from './rail.js';
 import { citeWhy } from './witness.js';
@@ -658,9 +658,8 @@ function paintDeps(host) {
     host.body.addEventListener('scroll', () => hideDeps(), { passive: true });
   }
   const st = worst(depRefs.map((r) => r.status));
-  const count = new Set(depRefs.map((r) => `${r.kind}:${r.id}:${r.turn ?? ''}`)).size;
   const btn = h('button', { type: 'button', class: `btn quiet sm dr-cited st-${st}`, 'aria-haspopup': 'dialog', onclick: () => showDeps(depRefs, btn, true, true) },
-    glyph(st, 'glyph sm'), `Cited by ${count}${depTrunc ? '+' : ''}`);
+    glyph(st, 'glyph sm'), citedByLabel(depRefs, depTrunc));
   host.bar.querySelector('.grow')?.after(btn);
 }
 

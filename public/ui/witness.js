@@ -78,6 +78,12 @@ export function readNote(c, isDocPath) {
 
 export const when = (iso) => new Date(iso).toLocaleDateString('en', { day: 'numeric', month: 'short' });
 
+// the line under a hover card saying when the saved lines were first taken, or null when citeWhy already says it
+export function baseNote(c) {
+  if (!c?.saw?.base || (c.status === 'unverified' && !c.quote)) return null;
+  return `Lines saved on ${when(c.saw.at)} when this citation was first re-checked. Earlier edits are not visible.`;
+}
+
 // Why a citation is not plainly verified. { cls, text, short }, or null for verified.
 export function citeWhy(c, name) {
   if (!c) return null;

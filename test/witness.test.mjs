@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { setupNotebook } from './helpers.mjs';
-import { wordDiff, readNote, citeWhy, align, when } from '../public/ui/witness.js';
+import { wordDiff, readNote, citeWhy, baseNote, align, when } from '../public/ui/witness.js';
+import { receiptCaption, citedByLabel } from '../public/ui/status.js';
 
 const env = setupNotebook();
 
@@ -85,6 +86,33 @@ test('readNote covers, partial, elsewhere, never read, doc path and unknown', ()
   assert.equal(readNote(c([[1, 10]], { line: 200, endLine: 210, line0: 5, endLine0: 8 }), false).ok, true);
   assert.equal(readNote(c([[7, 7]], { line: 7, endLine: 7 }), false).text, 'The trail read L7, which covers these lines.');
   assert.match(readNote(c([[3, 3], [9, 9], [20, 22]], { line: 1, endLine: 2 }), false).text, /^The trail read L3 and L9 of this file/);
+});
+
+test('the first-saved note shows once: not under a card whose reason already says it', () => {
+  const saw = { text: 'x', base: true, at: '2026-10-28T12:00:00.000Z' };
+  const rewritten = { status: 'unverified', line: 90, saw };
+  assert.match(citeWhy(rewritten, 'Foo.java').text, /first saved them/);
+  assert.equal(baseNote(rewritten), null);
+  assert.match(baseNote({ status: 'verified', line: 90, saw }), /^Lines saved on .* when this citation was first re-checked/);
+  assert.match(baseNote({ status: 'moved', line: 90, saw }), /first re-checked/);
+  assert.equal(baseNote({ status: 'verified', line: 90, saw: { text: 'x' } }), null);
+});
+
+test('the receipt caption does not talk about quotes for an answer with only code citations', () => {
+  const code = [{ n: 1, status: 'verified', path: 'a.java', line: 3, saw: { text: 'x' } }];
+  const k = { verified: 1, moved: 0, unverified: 0, pending: 0, uncited: 0, total: 1, thin: 0 };
+  assert.ok(!/quote/i.test(receiptCaption(code, k)));
+  assert.match(receiptCaption(code, k), /^Every citation here was found again/);
+  const quote = [{ n: 1, status: 'verified', path: 'a.md', quote: 'hi', line: 3 }];
+  assert.match(receiptCaption(quote, k), /^Every quote here was found again/);
+});
+
+test('the Cited by button counts what the list under it counts', () => {
+  const ref = (id, turn) => ({ kind: 'conv', id, turn });
+  assert.equal(citedByLabel([ref('a', 0), ref('b', 0)]), 'Cited by 2');
+  const twelve = [...Array(4).keys()].flatMap((i) => [0, 1, 2].map((t) => ref('c' + i, 0 + 0 * t)));
+  assert.equal(citedByLabel(twelve), 'Cited by 4 (12 citations)');
+  assert.equal(citedByLabel(twelve, true), 'Cited by 4+ (12+ citations)');
 });
 
 test('citeWhy words every case, and a line citation never says Quote', () => {

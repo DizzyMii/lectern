@@ -6,9 +6,9 @@ import { highlightLines } from './markdown.js';
 import { getFile, openFile, isDoc, closeViewer, viewerOpen } from './viewer.js';
 import { ctx, state, on } from './state.js';
 import { windows, ghostOf, ribbonPath, hairPath } from './ribbon.js';
-import { citeWhy, readNote, wordDiff, when } from './witness.js';
+import { citeWhy, readNote, baseNote, wordDiff, when } from './witness.js';
 import { sourceFor, layerAttrs, swatch, glyph, statusOf, STATUS_WORD, shortPath, midPath, kbd } from './layers.js';
-import { RANK, changedCite, compare, series, shown, dayWord } from './status.js';
+import { RANK, changedCite, compare, series, shown, dayWord, receiptCaption } from './status.js';
 
 const BLOCKS = 'p, li, td, th, h1, h2, h3, h4, h5, h6, blockquote, dd, dt';
 const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === 'reduce';
@@ -202,13 +202,7 @@ export function receipt(turn, k, { checking = false } = {}) {
     h('span', { class: 'rc-word' }, word));
   const t = turn.citeCheck?.checkedAt ? new Date(turn.citeCheck.checkedAt) : turn.startedAt ? new Date(new Date(turn.startedAt).getTime() + (turn.seconds || 0) * 1000) : null;
   const d = !checking && k.total ? compare(turn.citations, { at0: turn.citeCheck?.checkedAt0 }) : null;
-  let caption;
-  if (checking) caption = k.total ? `Checking ${k.total} citation${k.total === 1 ? '' : 's'}...` : 'Checking citations...';
-  else if (!k.total) caption = 'This answer has no citations. Treat it as a sketch.';
-  else if (k.unverified && (turn.citations || []).every((c) => statusOf(c) !== 'unverified' || c.quote)) caption = `${k.unverified} quote${k.unverified === 1 ? ' was' : 's were'} not found. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
-  else if (k.unverified) caption = `${k.unverified} citation${k.unverified === 1 ? '' : 's'} did not check out. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
-  else if (k.thin) caption = `Quotes were found again in their files. ${k.thin} code citation${k.thin === 1 ? '' : 's'} only checked that the lines still exist.`;
-  else caption = 'Every quote here was found again in its file, or where it moved to. Sentences with no mark are uncited.';
+  const caption = receiptCaption(turn.citations, k, checking);
   const el = h('section', { class: `receipt neatline${!checking && k.total && k.verified === k.total && k.total > 1 ? ' all-ok' : ''}${!checking && !k.total ? ' none' : ''}`,
     'aria-label': `${k.verified} verified, ${k.moved} moved, ${k.unverified} unverified, ${k.uncited} uncited` },
   h('div', { class: 'double-rule' }),
@@ -506,7 +500,8 @@ function witnessNotes(c) {
   const rd = readNote(c, isDoc(c.path));
   if (rd) out.push(h('div', { class: 'hc-note' }, rd.text));
   if (c.saw?.cut) out.push(h('div', { class: 'hc-note dim' }, `Only the first ${c.saw.text.split('\n').length} cited lines were saved.`));
-  if (c.saw?.base) out.push(h('div', { class: 'hc-note dim' }, `Lines saved on ${when(c.saw.at)} when this citation was first re-checked. Earlier edits are not visible.`));
+  const base = baseNote(c);
+  if (base) out.push(h('div', { class: 'hc-note dim' }, base));
   if (!c.saw && statusOf(c) === 'verified' && !c.quote && c.line) out.push(h('div', { class: 'hc-note dim' }, 'No saved copy of these lines. Lectern only checked that they still exist.'));
   return out;
 }

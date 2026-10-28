@@ -26,6 +26,25 @@ export function lineMap(refs, lineCount = Infinity) {
   return out;
 }
 
+// the line under the receipt numbers. Code citations have no quote, so a caption about quotes is only for answers with quotes.
+export function receiptCaption(citations, k, checking = false) {
+  const cites = citations || [];
+  if (checking) return k.total ? `Checking ${k.total} citation${k.total === 1 ? '' : 's'}...` : 'Checking citations...';
+  if (!k.total) return 'This answer has no citations. Treat it as a sketch.';
+  if (k.unverified && cites.every((c) => shown(c.status) !== 'unverified' || c.quote)) return `${k.unverified} quote${k.unverified === 1 ? ' was' : 's were'} not found. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
+  if (k.unverified) return `${k.unverified} citation${k.unverified === 1 ? '' : 's'} did not check out. ${k.unverified === 1 ? 'It is' : 'They are'} marked in red.`;
+  if (k.thin) return `Quotes were found again in their files. ${k.thin} code citation${k.thin === 1 ? '' : 's'} only checked that the lines still exist.`;
+  if (cites.some((c) => !c.quote && c.line)) return 'Every citation here was found again in its file, or where it moved to. Sentences with no mark are uncited.';
+  return 'Every quote here was found again in its file, or where it moved to. Sentences with no mark are uncited.';
+}
+
+// the drawer button for a file's saved citations: answers and sheets citing it, and how many citations that is.
+// The list the button opens has one row per citation, so the two numbers have to be told apart.
+export function citedByLabel(refs, trunc = false) {
+  const sources = new Set((refs || []).map((r) => `${r.kind}:${r.id}:${r.turn ?? ''}`)).size, plus = trunc ? '+' : '';
+  return `Cited by ${sources}${plus}${refs.length === sources ? '' : ` (${refs.length}${plus} citations)`}`;
+}
+
 export const refsIn = (refs, from, to) => (refs || []).filter((r) => r.line && r.line <= to && (r.endLine || r.line) >= from);
 
 export const changedCite = (c) => c?.status0 != null && shown(c.status) !== shown(c.status0);
