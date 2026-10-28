@@ -227,9 +227,9 @@ test('readSpan matches readTool', () => {
   assert.deepEqual(readSpan(0, 3), [1, 3]);
   const dir = nodePath.join(env.nbDir, 'src/java');
   const span = (o) => { const r = readTool(dir, { path: 'net/x/Foo.java', ...o }); return [r.start, r.end]; };
-  assert.deepEqual(span({}), [1, 6]);
+  assert.deepEqual(span({}), [1, 5]);
   assert.deepEqual(span({ start: 2, end: 3 }), [2, 3]);
-  assert.deepEqual(span({ start: 4, end: 900 }), [4, 6]);
+  assert.deepEqual(span({ start: 4, end: 900 }), [4, 5]);
 });
 
 test('reverify stamps read ranges once and writes a baseline for saved citations without lines', () => {
@@ -288,4 +288,12 @@ test('a moved range is clamped to the last real line', () => {
   const v = verify(env.nbDir, { path: p, line: 1, endLine: 20, saw }, roots);
   assert.equal(v.status, 'moved');
   assert.equal(v.endLine, 7);
+});
+
+test('the read tool numbers the lines verify counts', () => {
+  const dir = nodePath.join(env.nbDir, 'src/java');
+  lineFile('Read.txt', 'one\ntwo\nthree\n');
+  assert.deepEqual(readTool(dir, { path: 'Read.txt' }), { text: '1: one\n2: two\n3: three', start: 1, end: 3 });
+  lineFile('ReadEmpty.txt', '');
+  assert.equal(readTool(dir, { path: 'ReadEmpty.txt' }).text, '');
 });
