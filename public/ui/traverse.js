@@ -152,9 +152,16 @@ export function stationTitle(st) {
 
 const ROW = 30, PAD = 20, PITCH = 40;
 
+// a cited station prints its citation numbers to the right of its mark
+const labelW = (st) => (st.status ? 11 + 7 * st.ns.join(',').length : 0);
+
 export function traverseSvg(m) {
-  const n = m.stations.length, W = Math.max(120, 40 + (n - 1) * PITCH + 7 * (m.stations.at(-1)?.ns.join(',').length || 0)), H = m.bands.length * ROW;
-  const x = (st) => PAD + st.id * PITCH, y = (st) => st.band * ROW + ROW / 2;
+  const n = m.stations.length, H = m.bands.length * ROW;
+  // the visit order sets the order, and a station whose numbers are wider than the gap pushes the next one along
+  const xs = [];
+  m.stations.forEach((st, i) => { xs.push(i ? xs[i - 1] + Math.max(PITCH, labelW(m.stations[i - 1]) + 22) : PAD); });
+  const W = Math.max(120, (xs.at(-1) ?? PAD) + (m.stations.length ? labelW(m.stations.at(-1)) : 0) + PAD);
+  const x = (st) => xs[st.id], y = (st) => st.band * ROW + ROW / 2;
   const bands = m.bands.map((b, i) => `<rect class="tm-band"${b.src ? ` data-layer="${esc(b.src.layer)}"${b.src.dense ? ' data-dense' : ''}` : ''} x="0" y="${i * ROW}" width="${W}" height="${ROW - 2}"/>`).join('');
   const legs = m.legs.map((l) => { const a = m.stations[l.from], b = m.stations[l.to]; return `<line class="tm-leg ${l.kind}" x1="${x(a)}" y1="${y(a)}" x2="${x(b)}" y2="${y(b)}"/>`; }).join('');
   const pts = m.stations.map((st) => {
@@ -162,7 +169,8 @@ export function traverseSvg(m) {
     const mark = st.status
       ? `<circle class="tm-halo" r="9"/><use href="/marks.svg#${esc(st.status)}" x="-8" y="-8" width="16" height="16"/><text class="tm-n" x="11" y="4">${esc(st.ns.join(','))}</text>`
       : st.kind === 'scope' ? '<rect class="tm-dot" x="-4" y="-4" width="8" height="8"/>' : '<circle class="tm-dot" r="4.5"/>';
-    return `<g class="${cls}" data-i="${st.id}" transform="translate(${x(st)} ${y(st)})"><title>${esc(stationTitle(st))}</title><circle class="tm-hit" r="12"/>${mark}</g>`;
+    const src = m.bands[st.band]?.src;
+    return `<g class="${cls}"${src ? ` data-layer="${esc(src.layer)}"` : ''} data-i="${st.id}" transform="translate(${x(st)} ${y(st)})"><title>${esc(stationTitle(st))}</title><circle class="tm-hit" r="12"/>${mark}</g>`;
   }).join('');
   const label = `Trail map: ${n} stations in ${m.bands.length} source${m.bands.length === 1 ? '' : 's'}, ${m.summary.cited} cited. The log below lists every step.`;
   return `<svg class="tm-svg" width="${W}" height="${H}" role="img" aria-label="${esc(label)}" focusable="false">${bands}${legs}${pts}</svg>`;

@@ -173,6 +173,20 @@ test('traverseSvg: structure and escaping', () => {
   assert.ok(!/ style=/.test(svg));
 });
 
+test('traverseSvg: a long run of citation numbers does not run into the next station', () => {
+  const cites = [1, 2, 3, 4].map((n) => ({ n, path: 'docs/a.md', status: 'verified' })).concat([{ n: 5, path: 'docs/b.md', status: 'verified' }]);
+  const m = build([claude.read('docs/a.md'), claude.read('docs/b.md'), claude.read('docs/a.md', { offset: 5, limit: 3 })], cites);
+  const svg = traverseSvg(m);
+  const xs = [...svg.matchAll(/data-i="(\d+)" transform="translate\((\d+) /g)].map((g) => +g[2]);
+  assert.equal(xs.length, m.stations.length);
+  const a = m.stations.find((s) => s.path === 'docs/a.md');
+  assert.equal(a.ns.join(','), '1,2,3,4');
+  // "1,2,3,4" is 7 characters of 7px starting 11px right of its mark: the next station sits past the end of it
+  assert.ok(xs[1] - xs[0] >= 11 + 7 * 7 + 9);
+  const w = +/<svg[^>]* width="(\d+)"/.exec(svg)[1];
+  assert.ok(w >= xs.at(-1));
+});
+
 test('stationTitle: wording', () => {
   const m = build(
     [claude.grep('code'), claude.read('docs/a.md', { offset: 1, limit: 120 }), claude.read('docs/a.md', { offset: 200, limit: 61 }), claude.grep('code')],
