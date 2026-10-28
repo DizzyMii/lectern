@@ -289,6 +289,23 @@ t('a cancel that lands while the commits are being read saves nothing', async ()
   assert.equal(store.listConversations(nb).length, before);
 });
 
+t('ask --json carries the commit each code citation was stamped with', async () => {
+  const sha = repoInNotebook();
+  const text = 'It is a class [[src/java/net/x/Foo.java#L3]] and a doc [[docs/intro.md#L1]].';
+  const lines = [
+    { type: 'system', subtype: 'init', session_id: 'sess-j', model: 'claude-haiku-5-5' },
+    { type: 'assistant', message: { id: 'm1', content: [{ type: 'text', text }] } },
+    { type: 'result', subtype: 'success', is_error: false, result: text, session_id: 'sess-j', total_cost_usd: 0.01, usage: { input_tokens: 5, output_tokens: 7 } },
+  ];
+  const fx = path.join(env.root, 'json.jsonl');
+  fs.writeFileSync(fx, lines.map((l) => JSON.stringify(l)).join('\n') + '\n');
+  const r = spawnSync(process.execPath, [path.join(import.meta.dirname, '..', 'bin', 'lectern.mjs'), 'ask', 'test', 'What is Foo?', '--json', '--engine', 'claude-code'],
+    { env: { ...process.env, LECTERN_HOME: env.home, LECTERN_FAKE_ENGINE: '1', LECTERN_FAKE_FIXTURE: fx }, encoding: 'utf8', windowsHide: true });
+  assert.equal(r.status, 0, r.stderr);
+  const out = JSON.parse(r.stdout);
+  assert.equal(out.citations.find((c) => c.path.endsWith('Foo.java')).sha, sha);
+});
+
 t('ask records commits on the saved turn and stamps its citations', async () => {
   const sha = repoInNotebook();
   const lines = [
