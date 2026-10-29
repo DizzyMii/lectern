@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Studio sheets run until they're finished instead of stopping at 12 rounds and losing a half written document. The ceiling is 100 rounds, and a round cap the caller asks for (MCP fast or deep, `--max-turns`) still wins
+
 ## 1.0.0-rc.2 (2026-10-28)
 
 - Lectern is under the Apache License 2.0 now, with a NOTICE file

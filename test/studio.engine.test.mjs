@@ -52,6 +52,14 @@ const goodGraph = {
   edges: [{ from: 'pkg', to: 'foo', label: 'contains', kind: 'contains' }, { from: 'pkg', to: 'ghost' }],
 };
 
+test('a sheet runs to the engine ceiling unless the caller sets a round cap', async () => {
+  const plain = await runRecipe('code-map', { root: 'code' }, [fence(goodGraph)]);
+  assert.equal(plain.calls[0].maxTurns, studio.STUDIO_MAX_TURNS);
+  assert.equal(studio.STUDIO_MAX_TURNS, 100);
+  const capped = await runRecipe('code-map', { root: 'code' }, [fence(goodGraph)], { maxTurns: 4 });
+  assert.equal(capped.calls[0].maxTurns, 4);
+});
+
 test('a valid graph is saved ok with one shared citation list and verified refs', async () => {
   const { artifact, events, calls } = await runRecipe('code-map', { root: 'code' }, [fence(goodGraph)]);
   assert.equal(calls.length, 1);
